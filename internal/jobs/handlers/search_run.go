@@ -9,6 +9,7 @@ import (
 
 	"github.com/LukeHagar/Rivet/internal/adapters/indexers/newznab"
 	"github.com/LukeHagar/Rivet/internal/decisioning"
+	"github.com/LukeHagar/Rivet/internal/jobs/queue"
 	"github.com/LukeHagar/Rivet/internal/observability"
 	"github.com/LukeHagar/Rivet/internal/security"
 	"github.com/LukeHagar/Rivet/internal/storage"
@@ -119,6 +120,22 @@ func ExecuteSearchRun(ctx context.Context, deps SearchRunDeps, runID, targetID s
 			}
 			if deps.Metrics != nil {
 				deps.Metrics.DecisionsRecorded.Add(1)
+			}
+
+			// Acquisition v0: for accepted decisions, create acquisition and enqueue to client.
+			if dec.Accepted {
+				// qBittorrent only for now (torrent).
+				a, err := storage.CreateAcquisition(ctx, deps.DB, cand.ID, targetID, "torrent", "qbittorrent", "default")
+				if err == nil {
+					// Enqueue acquisition job (durable).
+					_, _ = queue.Enqueue(ctx, deps.DB, "acquisition_enqueue", map[string]string{"acquisitionId": a.ID}, queue.EnqueueOpts{})
+					if deps.Hub != nil {
+						deps.Hub.Publish("job.enqueued", map[string]any{"kind": "acquisition_enqueue", "acquisitionId": a.ID, "candidateId": cand.ID})
+					}
+					if deps.Metrics != nil {
+						deps.Metrics.JobsEnqueued.Add(1)
+					}
+				}
 			}
 		}
 	}

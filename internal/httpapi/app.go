@@ -89,6 +89,7 @@ func NewApp(ctx context.Context, deps Deps) (*fiber.App, *middleware.SetupGate, 
 		Hub:       deps.Hub,
 		Metrics:   deps.Metrics,
 	})
+	routes.RegisterAcquisitions(api, routes.AcquisitionsDeps{DB: deps.DB})
 	routes.RegisterAuth(api, routes.AuthDeps{
 		DB:                deps.DB,
 		SessionCookieName: deps.SessionCookieName,

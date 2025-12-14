@@ -114,6 +114,20 @@ func handleJob(ctx context.Context, deps WorkerDeps, job queue.Job) error {
 		}
 
 		return handlers.ExecuteSearchRun(ctx, handlers.SearchRunDeps{DB: deps.DB, SecretBox: deps.SecretBox, Policy: deps.Policy, Hub: deps.Hub, Metrics: deps.Metrics}, p.RunID, p.TargetID)
+	case "acquisition_enqueue":
+		var p struct {
+			AcquisitionID string `json:"acquisitionId"`
+		}
+		if job.PayloadJSON == nil {
+			return errors.New("missing_payload")
+		}
+		if err := json.Unmarshal([]byte(*job.PayloadJSON), &p); err != nil {
+			return err
+		}
+		if p.AcquisitionID == "" {
+			return errors.New("invalid_payload")
+		}
+		return handlers.EnqueueAcquisition(ctx, handlers.AcquisitionDeps{DB: deps.DB, SecretBox: deps.SecretBox, Policy: deps.Policy}, p.AcquisitionID)
 	default:
 		return errors.New("unknown_job_kind")
 	}

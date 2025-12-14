@@ -278,6 +278,11 @@ paths:
       summary: Diagnostics bundle (sanitized)
       responses:
         '200': { description: OK }
+  /api/v1/acquisitions:
+    get:
+      summary: List acquisitions
+      responses:
+        '200': { description: OK }
   /healthz:
     get:
       summary: Liveness
