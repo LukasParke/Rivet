@@ -1,0 +1,57 @@
+openapi: 3.0.3
+info:
+  title: Rivet Media Automation Control Plane API
+  version: 0.1.0
+paths:
+  /api/v1/setup/status:
+    get:
+      summary: Setup mode status
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  setupMode:
+                    type: boolean
+  /api/v1/setup/admin:
+    post:
+      summary: Create initial admin (setup only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                password:
+                  type: string
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  userId:
+                    type: string
+  /healthz:
+    get:
+      summary: Liveness
+      responses:
+        '200':
+          description: OK
+  /readyz:
+    get:
+      summary: Readiness
+      responses:
+        '200':
+          description: Ready
+        '503':
+          description: Not ready
