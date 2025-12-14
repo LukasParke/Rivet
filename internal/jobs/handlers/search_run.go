@@ -9,6 +9,7 @@ import (
 
 	"github.com/LukeHagar/Rivet/internal/adapters/indexers/newznab"
 	"github.com/LukeHagar/Rivet/internal/decisioning"
+	"github.com/LukeHagar/Rivet/internal/observability"
 	"github.com/LukeHagar/Rivet/internal/security"
 	"github.com/LukeHagar/Rivet/internal/storage"
 	"github.com/LukeHagar/Rivet/internal/ws"
@@ -19,6 +20,7 @@ type SearchRunDeps struct {
 	SecretBox *security.SecretBox
 	Policy    security.OutboundPolicy
 	Hub       *ws.Hub
+	Metrics   *observability.Metrics
 }
 
 type persistedIndexers struct {
@@ -42,6 +44,9 @@ func ExecuteSearchRun(ctx context.Context, deps SearchRunDeps, runID, targetID s
 	if deps.Hub != nil {
 		deps.Hub.Publish("search.run.started", map[string]any{"runId": runID, "targetId": targetID})
 	}
+	if deps.Metrics != nil {
+		deps.Metrics.SearchRunsStarted.Add(1)
+	}
 	// Mark running
 	_ = storage.UpdateSearchRunRunning(ctx, deps.DB, runID)
 
@@ -63,6 +68,9 @@ func ExecuteSearchRun(ctx context.Context, deps SearchRunDeps, runID, targetID s
 		_ = storage.UpdateSearchRunCompleted(ctx, deps.DB, runID, &e)
 		if deps.Hub != nil {
 			deps.Hub.Publish("search.run.failed", map[string]any{"runId": runID, "targetId": targetID, "error": e})
+		}
+		if deps.Metrics != nil {
+			deps.Metrics.SearchRunsFailed.Add(1)
 		}
 		return err
 	}
@@ -100,11 +108,17 @@ func ExecuteSearchRun(ctx context.Context, deps SearchRunDeps, runID, targetID s
 			if deps.Hub != nil {
 				deps.Hub.Publish("candidate.recorded", map[string]any{"runId": runID, "candidateId": cand.ID, "indexer": ix.Name})
 			}
+			if deps.Metrics != nil {
+				deps.Metrics.CandidatesRecorded.Add(1)
+			}
 
 			dec := decisioning.Decide(n, policies)
 			_, _ = storage.InsertDecision(ctx, deps.DB, cand.ID, dec.Accepted, dec.Score, dec.Reasons)
 			if deps.Hub != nil {
 				deps.Hub.Publish("decision.recorded", map[string]any{"runId": runID, "candidateId": cand.ID, "accepted": dec.Accepted, "score": dec.Score, "reasons": dec.Reasons})
+			}
+			if deps.Metrics != nil {
+				deps.Metrics.DecisionsRecorded.Add(1)
 			}
 		}
 	}
@@ -112,6 +126,9 @@ func ExecuteSearchRun(ctx context.Context, deps SearchRunDeps, runID, targetID s
 	_ = storage.UpdateSearchRunCompleted(ctx, deps.DB, runID, nil)
 	if deps.Hub != nil {
 		deps.Hub.Publish("search.run.completed", map[string]any{"runId": runID, "targetId": targetID})
+	}
+	if deps.Metrics != nil {
+		deps.Metrics.SearchRunsCompleted.Add(1)
 	}
 	return nil
 }

@@ -25,6 +25,7 @@ func main() {
 		panic(err)
 	}
 	log := observability.NewLogger(cfg.Env)
+	metrics := &observability.Metrics{}
 
 	// Initialize SecretBox early to validate configuration.
 	if _, err := security.NewSecretBox(cfg.SecretKeyBase64); err != nil {
@@ -56,6 +57,7 @@ func main() {
 		SecretKeyBase64:   cfg.SecretKeyBase64,
 		AllowInternalURLs: cfg.AllowInternalURLs,
 		Hub:              hub,
+		Metrics:          metrics,
 	})
 	if err != nil {
 		log.Error("build app", slog.Any("err", err))
@@ -70,6 +72,7 @@ func main() {
 		Policy:    security.OutboundPolicy{AllowInternal: cfg.AllowInternalURLs},
 		Logger:    log,
 		Hub:       hub,
+		Metrics:   metrics,
 	})
 
 	errCh := make(chan error, 1)

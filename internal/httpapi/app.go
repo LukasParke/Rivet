@@ -9,6 +9,7 @@ import (
 
 	"github.com/LukeHagar/Rivet/internal/httpapi/middleware"
 	"github.com/LukeHagar/Rivet/internal/httpapi/routes"
+	"github.com/LukeHagar/Rivet/internal/observability"
 	"github.com/LukeHagar/Rivet/internal/security"
 	"github.com/LukeHagar/Rivet/internal/storage"
 	"github.com/LukeHagar/Rivet/internal/ws"
@@ -24,6 +25,7 @@ type Deps struct {
 	AllowInternalURLs bool
 
 	Hub *ws.Hub
+	Metrics *observability.Metrics
 }
 
 func NewApp(ctx context.Context, deps Deps) (*fiber.App, *middleware.SetupGate, error) {
@@ -49,6 +51,7 @@ func NewApp(ctx context.Context, deps Deps) (*fiber.App, *middleware.SetupGate, 
 	app.Use(middleware.CSRFMiddleware())
 
 	routes.RegisterHealth(app, deps.DB)
+	routes.RegisterMetrics(app, deps.Metrics)
 	if deps.Hub != nil {
 		routes.RegisterWebSocket(app, deps.Hub)
 	}
@@ -80,6 +83,7 @@ func NewApp(ctx context.Context, deps Deps) (*fiber.App, *middleware.SetupGate, 
 		SecretBox: sb,
 		Policy:    policy,
 		Hub:       deps.Hub,
+		Metrics:   deps.Metrics,
 	})
 	routes.RegisterAuth(api, routes.AuthDeps{
 		DB:                deps.DB,

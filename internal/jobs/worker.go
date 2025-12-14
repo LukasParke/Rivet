@@ -12,6 +12,7 @@ import (
 
 	"github.com/LukeHagar/Rivet/internal/jobs/handlers"
 	"github.com/LukeHagar/Rivet/internal/jobs/queue"
+	"github.com/LukeHagar/Rivet/internal/observability"
 	"github.com/LukeHagar/Rivet/internal/security"
 	"github.com/LukeHagar/Rivet/internal/ws"
 )
@@ -22,6 +23,7 @@ type WorkerDeps struct {
 	Policy    security.OutboundPolicy
 	Logger    *slog.Logger
 	Hub       *ws.Hub
+	Metrics   *observability.Metrics
 }
 
 // StartWorker starts a simple in-process worker loop.
@@ -54,12 +56,18 @@ func StartWorker(ctx context.Context, deps WorkerDeps) {
 				if deps.Hub != nil {
 					deps.Hub.Publish("job.claimed", map[string]any{"jobId": job.ID, "kind": job.Kind, "attempt": job.Attempt})
 				}
+				if deps.Metrics != nil {
+					deps.Metrics.JobsClaimed.Add(1)
+				}
 
 				hErr := handleJob(ctx, deps, job)
 				if hErr == nil {
 					_ = queue.Complete(ctx, deps.DB, job.ID, time.Now().UTC())
 					if deps.Hub != nil {
 						deps.Hub.Publish("job.completed", map[string]any{"jobId": job.ID, "kind": job.Kind, "attempt": job.Attempt})
+					}
+					if deps.Metrics != nil {
+						deps.Metrics.JobsCompleted.Add(1)
 					}
 					continue
 				}
@@ -71,10 +79,16 @@ func StartWorker(ctx context.Context, deps WorkerDeps) {
 					if deps.Hub != nil {
 						deps.Hub.Publish("job.failed", map[string]any{"jobId": job.ID, "kind": job.Kind, "attempt": attempt, "error": errStr})
 					}
+					if deps.Metrics != nil {
+						deps.Metrics.JobsFailed.Add(1)
+					}
 				} else {
 					_ = queue.FailAndRetry(ctx, deps.DB, job.ID, attempt, errStr, time.Now().UTC())
 					if deps.Hub != nil {
 						deps.Hub.Publish("job.retry_scheduled", map[string]any{"jobId": job.ID, "kind": job.Kind, "attempt": attempt, "error": errStr})
+					}
+					if deps.Metrics != nil {
+						deps.Metrics.JobsRetryScheduled.Add(1)
 					}
 				}
 			}
@@ -99,7 +113,7 @@ func handleJob(ctx context.Context, deps WorkerDeps, job queue.Job) error {
 			return errors.New("invalid_payload")
 		}
 
-		return handlers.ExecuteSearchRun(ctx, handlers.SearchRunDeps{DB: deps.DB, SecretBox: deps.SecretBox, Policy: deps.Policy, Hub: deps.Hub}, p.RunID, p.TargetID)
+		return handlers.ExecuteSearchRun(ctx, handlers.SearchRunDeps{DB: deps.DB, SecretBox: deps.SecretBox, Policy: deps.Policy, Hub: deps.Hub, Metrics: deps.Metrics}, p.RunID, p.TargetID)
 	default:
 		return errors.New("unknown_job_kind")
 	}

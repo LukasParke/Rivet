@@ -10,6 +10,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 
 	"github.com/LukeHagar/Rivet/internal/httpapi/middleware"
+	"github.com/LukeHagar/Rivet/internal/observability"
 	"github.com/LukeHagar/Rivet/internal/security"
 	"github.com/LukeHagar/Rivet/internal/storage"
 	"github.com/LukeHagar/Rivet/internal/jobs/queue"
@@ -21,6 +22,7 @@ type TargetsDeps struct {
 	SecretBox *security.SecretBox
 	Policy    security.OutboundPolicy
 	Hub       *ws.Hub
+	Metrics   *observability.Metrics
 }
 
 type CreateTargetRequest struct {
@@ -93,6 +95,9 @@ func RegisterTargetsAndSearch(api fiber.Router, deps TargetsDeps) {
 		job, err := queue.Enqueue(ctx, deps.DB, "search_run", map[string]string{"runId": run.ID, "targetId": targetID}, queue.EnqueueOpts{})
 		if err != nil {
 			return c.Status(http.StatusInternalServerError).JSON(fiber.Map{"error": "enqueue_failed"})
+		}
+		if deps.Metrics != nil {
+			deps.Metrics.JobsEnqueued.Add(1)
 		}
 		if deps.Hub != nil {
 			deps.Hub.Publish("job.enqueued", map[string]any{"jobId": job.ID, "kind": job.Kind, "runId": run.ID, "targetId": targetID})

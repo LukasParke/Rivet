@@ -9,6 +9,9 @@
 	let error = null;
 	let busy = false;
 	let results = null;
+	let wsStatus = 'disconnected';
+	let events = [];
+	let wsRef = null;
 
 	function csrfHeader() {
 		const t = sessionStorage.getItem('csrf');
@@ -69,6 +72,39 @@
 			busy = false;
 		}
 	}
+
+	function connectWS() {
+		try {
+			if (wsRef) wsRef.close();
+			const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
+			wsRef = new WebSocket(`${proto}://${window.location.host}/ws`);
+			wsStatus = 'connecting';
+			wsRef.onopen = () => {
+				wsStatus = 'connected';
+				wsRef.send(JSON.stringify({ type: 'subscribe', subscribe: ['job', 'search', 'candidate', 'decision'] }));
+			};
+			wsRef.onclose = () => {
+				wsStatus = 'disconnected';
+			};
+			wsRef.onerror = () => {
+				wsStatus = 'error';
+			};
+			wsRef.onmessage = (ev) => {
+				try {
+					const msg = JSON.parse(ev.data);
+					events = [{ ts: msg.ts, type: msg.type, payload: msg.payload }, ...events].slice(0, 200);
+				} catch {
+					// ignore
+				}
+			};
+		} catch {
+			wsStatus = 'error';
+		}
+	}
+
+	if (typeof window !== 'undefined') {
+		setTimeout(connectWS, 0);
+	}
 </script>
 
 <div class="container">
@@ -97,6 +133,15 @@
 		{#if error}
 			<p class="error">{error}</p>
 		{/if}
+	</div>
+
+	<div class="card" style="margin-top: 16px;">
+		<h2>Realtime feed (WebSocket)</h2>
+		<p class="muted">Status: {wsStatus}</p>
+		<div class="row">
+			<button class="secondary" disabled={busy} on:click={connectWS}>Reconnect</button>
+		</div>
+		<pre style="max-height: 340px; overflow: auto;">{JSON.stringify(events, null, 2)}</pre>
 	</div>
 
 	{#if results}

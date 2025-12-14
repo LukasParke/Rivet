@@ -147,6 +147,7 @@
     "isEntry": true,
     "imports": [
       "_attributes.js",
+      "_escaping.js",
       "_index.js"
     ]
   },
