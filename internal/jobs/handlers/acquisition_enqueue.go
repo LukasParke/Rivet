@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/LukeHagar/Rivet/internal/adapters/downloaders/qbittorrent"
+	"github.com/LukeHagar/Rivet/internal/jobs/queue"
 	"github.com/LukeHagar/Rivet/internal/security"
 	"github.com/LukeHagar/Rivet/internal/storage"
 )
@@ -80,15 +81,57 @@ func EnqueueAcquisition(ctx context.Context, deps AcquisitionDeps, acquisitionID
 		if err != nil {
 			return err
 		}
+
+		// Store source URL for diagnostics.
+		_ = setAcquisitionSourceURL(ctx, deps.DB, a.ID, urlToUse)
+
+		// Prefer extracting hash from magnet to track by hash later.
+		hash := extractBTIH(urlToUse)
+
 		if err := cli.AddURL(ctx, urlToUse); err != nil {
 			_ = storage.MarkAcquisitionFailed(ctx, deps.DB, a.ID, err.Error())
 			return err
 		}
-		_ = storage.MarkAcquisitionEnqueued(ctx, deps.DB, a.ID, nil)
+
+		var extID *string
+		if hash != "" {
+			extID = &hash
+		}
+		_ = storage.MarkAcquisitionEnqueued(ctx, deps.DB, a.ID, extID)
+		_, _ = queue.Enqueue(ctx, deps.DB, "acquisition_monitor", map[string]string{"acquisitionId": a.ID}, queue.EnqueueOpts{RunAfter: time.Now().UTC().Add(2 * time.Second)})
 		return nil
 	default:
 		return errors.New("unsupported_client_kind")
 	}
+}
+
+func setAcquisitionSourceURL(ctx context.Context, db *sql.DB, id string, urlStr string) error {
+	now := time.Now().UTC()
+	_, err := db.ExecContext(ctx, `UPDATE acquisitions SET source_url = ?, updated_at = ? WHERE id = ?`, urlStr, now.Format(time.RFC3339Nano), id)
+	return err
+}
+
+func extractBTIH(u string) string {
+	u = strings.TrimSpace(u)
+	if !strings.HasPrefix(strings.ToLower(u), "magnet:?") {
+		return ""
+	}
+	lower := strings.ToLower(u)
+	idx := strings.Index(lower, "xt=urn:btih:")
+	if idx == -1 {
+		return ""
+	}
+	start := idx + len("xt=urn:btih:")
+	end := start
+	for end < len(u) {
+		ch := u[end]
+		if ch == '&' || ch == '#' {
+			break
+		}
+		end++
+	}
+	h := u[start:end]
+	return strings.TrimSpace(h)
 }
 
 func loadQBittorrentConfig(ctx context.Context, deps AcquisitionDeps) (qbittorrent.Config, error) {

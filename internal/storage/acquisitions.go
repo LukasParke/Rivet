@@ -17,7 +17,13 @@ type Acquisition struct {
 	Status     string
 	ClientKind string
 	ClientName string
+	SourceURL  *string
 	ExternalID *string
+	ContentPath *string
+	ImportedPath *string
+	CompletedAt  *time.Time
+	ImportedAt   *time.Time
+	Progress     *float64
 	LastError  *string
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
@@ -46,6 +52,36 @@ UPDATE acquisitions
 SET status = 'enqueued', external_id = ?, last_error = NULL, updated_at = ?
 WHERE id = ?
 `, externalID, now.Format(time.RFC3339Nano), id)
+	return err
+}
+
+func UpdateAcquisitionProgress(ctx context.Context, db *sql.DB, id string, status string, progress *float64, contentPath *string) error {
+	now := time.Now().UTC()
+	_, err := db.ExecContext(ctx, `
+UPDATE acquisitions
+SET status = ?, progress = ?, content_path = COALESCE(?, content_path), updated_at = ?
+WHERE id = ?
+`, status, progress, contentPath, now.Format(time.RFC3339Nano), id)
+	return err
+}
+
+func MarkAcquisitionCompleted(ctx context.Context, db *sql.DB, id string, contentPath *string) error {
+	now := time.Now().UTC()
+	_, err := db.ExecContext(ctx, `
+UPDATE acquisitions
+SET status = 'completed', completed_at = ?, content_path = ?, updated_at = ?
+WHERE id = ?
+`, now.Format(time.RFC3339Nano), contentPath, now.Format(time.RFC3339Nano), id)
+	return err
+}
+
+func MarkAcquisitionImported(ctx context.Context, db *sql.DB, id string, importedPath string) error {
+	now := time.Now().UTC()
+	_, err := db.ExecContext(ctx, `
+UPDATE acquisitions
+SET status = 'imported', imported_at = ?, imported_path = ?, updated_at = ?
+WHERE id = ?
+`, now.Format(time.RFC3339Nano), importedPath, now.Format(time.RFC3339Nano), id)
 	return err
 }
 
@@ -88,16 +124,42 @@ WHERE candidate_id = ?
 func GetAcquisition(ctx context.Context, db *sql.DB, id string) (Acquisition, error) {
 	var a Acquisition
 	var externalID, lastErr sql.NullString
+	var sourceURL, contentPath, importedPath sql.NullString
+	var completedAt, importedAt sql.NullString
+	var progress sql.NullFloat64
 	var createdAt, updatedAt string
 	if err := db.QueryRowContext(ctx, `
-SELECT id, candidate_id, target_id, kind, status, client_kind, client_name, external_id, last_error, created_at, updated_at
+SELECT id, candidate_id, target_id, kind, status, client_kind, client_name, source_url, external_id, content_path, imported_path, completed_at, imported_at, progress, last_error, created_at, updated_at
 FROM acquisitions
 WHERE id = ?
-`, id).Scan(&a.ID, &a.CandidateID, &a.TargetID, &a.Kind, &a.Status, &a.ClientKind, &a.ClientName, &externalID, &lastErr, &createdAt, &updatedAt); err != nil {
+`, id).Scan(&a.ID, &a.CandidateID, &a.TargetID, &a.Kind, &a.Status, &a.ClientKind, &a.ClientName, &sourceURL, &externalID, &contentPath, &importedPath, &completedAt, &importedAt, &progress, &lastErr, &createdAt, &updatedAt); err != nil {
 		return Acquisition{}, err
+	}
+	if sourceURL.Valid {
+		a.SourceURL = &sourceURL.String
 	}
 	if externalID.Valid {
 		a.ExternalID = &externalID.String
+	}
+	if contentPath.Valid {
+		a.ContentPath = &contentPath.String
+	}
+	if importedPath.Valid {
+		a.ImportedPath = &importedPath.String
+	}
+	if completedAt.Valid {
+		if t, err := time.Parse(time.RFC3339Nano, completedAt.String); err == nil {
+			a.CompletedAt = &t
+		}
+	}
+	if importedAt.Valid {
+		if t, err := time.Parse(time.RFC3339Nano, importedAt.String); err == nil {
+			a.ImportedAt = &t
+		}
+	}
+	if progress.Valid {
+		v := progress.Float64
+		a.Progress = &v
 	}
 	if lastErr.Valid {
 		a.LastError = &lastErr.String
@@ -112,7 +174,9 @@ func ListAcquisitions(ctx context.Context, db *sql.DB, limit int) ([]Acquisition
 		limit = 50
 	}
 	rows, err := db.QueryContext(ctx, `
-SELECT id, candidate_id, target_id, kind, status, client_kind, client_name, external_id, last_error, created_at, updated_at
+SELECT id, candidate_id, target_id, kind, status, client_kind, client_name,
+       source_url, external_id, content_path, imported_path, completed_at, imported_at, progress,
+       last_error, created_at, updated_at
 FROM acquisitions
 ORDER BY created_at DESC
 LIMIT ?
@@ -125,13 +189,41 @@ LIMIT ?
 	var out []Acquisition
 	for rows.Next() {
 		var a Acquisition
-		var externalID, lastErr sql.NullString
+		var sourceURL, externalID, contentPath, importedPath sql.NullString
+		var completedAt, importedAt sql.NullString
+		var progress sql.NullFloat64
+		var lastErr sql.NullString
 		var createdAt, updatedAt string
-		if err := rows.Scan(&a.ID, &a.CandidateID, &a.TargetID, &a.Kind, &a.Status, &a.ClientKind, &a.ClientName, &externalID, &lastErr, &createdAt, &updatedAt); err != nil {
+		if err := rows.Scan(&a.ID, &a.CandidateID, &a.TargetID, &a.Kind, &a.Status, &a.ClientKind, &a.ClientName,
+			&sourceURL, &externalID, &contentPath, &importedPath, &completedAt, &importedAt, &progress,
+			&lastErr, &createdAt, &updatedAt); err != nil {
 			return nil, err
+		}
+		if sourceURL.Valid {
+			a.SourceURL = &sourceURL.String
 		}
 		if externalID.Valid {
 			a.ExternalID = &externalID.String
+		}
+		if contentPath.Valid {
+			a.ContentPath = &contentPath.String
+		}
+		if importedPath.Valid {
+			a.ImportedPath = &importedPath.String
+		}
+		if completedAt.Valid {
+			if t, err := time.Parse(time.RFC3339Nano, completedAt.String); err == nil {
+				a.CompletedAt = &t
+			}
+		}
+		if importedAt.Valid {
+			if t, err := time.Parse(time.RFC3339Nano, importedAt.String); err == nil {
+				a.ImportedAt = &t
+			}
+		}
+		if progress.Valid {
+			v := progress.Float64
+			a.Progress = &v
 		}
 		if lastErr.Valid {
 			a.LastError = &lastErr.String

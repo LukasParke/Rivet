@@ -128,6 +128,20 @@ func handleJob(ctx context.Context, deps WorkerDeps, job queue.Job) error {
 			return errors.New("invalid_payload")
 		}
 		return handlers.EnqueueAcquisition(ctx, handlers.AcquisitionDeps{DB: deps.DB, SecretBox: deps.SecretBox, Policy: deps.Policy}, p.AcquisitionID)
+	case "acquisition_monitor":
+		var p struct {
+			AcquisitionID string `json:"acquisitionId"`
+		}
+		if job.PayloadJSON == nil {
+			return errors.New("missing_payload")
+		}
+		if err := json.Unmarshal([]byte(*job.PayloadJSON), &p); err != nil {
+			return err
+		}
+		if p.AcquisitionID == "" {
+			return errors.New("invalid_payload")
+		}
+		return handlers.MonitorAcquisition(ctx, handlers.MonitorDeps{DB: deps.DB, SecretBox: deps.SecretBox, Policy: deps.Policy}, p.AcquisitionID)
 	default:
 		return errors.New("unknown_job_kind")
 	}
