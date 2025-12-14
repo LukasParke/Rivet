@@ -67,6 +67,8 @@ func NewApp(ctx context.Context, deps Deps) (*fiber.App, *middleware.SetupGate, 
 		SecretBox: sb,
 		Policy:    policy,
 	})
+	routes.RegisterSetupPolicies(api, deps.DB)
+	routes.RegisterSetupFinish(api, deps.DB)
 	routes.RegisterAuth(api, routes.AuthDeps{
 		DB:                deps.DB,
 		SessionCookieName: deps.SessionCookieName,

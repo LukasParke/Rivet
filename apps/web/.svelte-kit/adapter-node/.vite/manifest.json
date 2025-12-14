@@ -193,6 +193,22 @@
       "_index.js"
     ]
   },
+  "src/routes/setup/finish/+page.server.ts": {
+    "file": "entries/pages/setup/finish/_page.server.ts.js",
+    "name": "entries/pages/setup/finish/_page.server.ts",
+    "src": "src/routes/setup/finish/+page.server.ts",
+    "isEntry": true
+  },
+  "src/routes/setup/finish/+page.svelte": {
+    "file": "entries/pages/setup/finish/_page.svelte.js",
+    "name": "entries/pages/setup/finish/_page.svelte",
+    "src": "src/routes/setup/finish/+page.svelte",
+    "isEntry": true,
+    "imports": [
+      "_attributes.js",
+      "_index.js"
+    ]
+  },
   "src/routes/setup/indexers/+page.server.ts": {
     "file": "entries/pages/setup/indexers/_page.server.ts.js",
     "name": "entries/pages/setup/indexers/_page.server.ts",
@@ -235,6 +251,23 @@
     "file": "entries/pages/setup/paths/_page.svelte.js",
     "name": "entries/pages/setup/paths/_page.svelte",
     "src": "src/routes/setup/paths/+page.svelte",
+    "isEntry": true,
+    "imports": [
+      "_attributes.js",
+      "_escaping.js",
+      "_index.js"
+    ]
+  },
+  "src/routes/setup/policies/+page.server.ts": {
+    "file": "entries/pages/setup/policies/_page.server.ts.js",
+    "name": "entries/pages/setup/policies/_page.server.ts",
+    "src": "src/routes/setup/policies/+page.server.ts",
+    "isEntry": true
+  },
+  "src/routes/setup/policies/+page.svelte": {
+    "file": "entries/pages/setup/policies/_page.svelte.js",
+    "name": "entries/pages/setup/policies/_page.svelte",
+    "src": "src/routes/setup/policies/+page.svelte",
     "isEntry": true,
     "imports": [
       "_attributes.js",

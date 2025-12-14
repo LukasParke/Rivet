@@ -208,6 +208,42 @@ paths:
                 type: object
                 properties:
                   saved: { type: boolean }
+  /api/v1/setup/policies/validate:
+    post:
+      summary: Validate policies (setup wizard)
+      responses:
+        '200':
+          description: Validation result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+  /api/v1/setup/policies/save:
+    post:
+      summary: Save policies (setup wizard)
+      responses:
+        '200':
+          description: Saved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  saved: { type: boolean }
+  /api/v1/setup/finish:
+    post:
+      summary: Finish setup (store report, close registration)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
   /healthz:
     get:
       summary: Liveness
