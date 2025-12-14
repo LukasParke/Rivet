@@ -46,6 +46,7 @@ func NewApp(ctx context.Context, deps Deps) (*fiber.App, *middleware.SetupGate, 
 
 	api := app.Group("/api/v1")
 	routes.RegisterSetup(api, routes.SetupDeps{DB: deps.DB, SetupMode: setupGate.IsSetupMode})
+	routes.RegisterSetupPaths(api, deps.DB)
 	routes.RegisterAuth(api, routes.AuthDeps{
 		DB:                deps.DB,
 		SessionCookieName: deps.SessionCookieName,

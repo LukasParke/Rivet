@@ -1,0 +1,1 @@
+{"version":3,"file":"hooks.server-BMdZ2XZW.js","sources":["../../../.svelte-kit/adapter-node/chunks/hooks.server.js"],"sourcesContent":["const handle = async ({ event, resolve }) => {\n  return resolve(event);\n};\nexport {\n  handle\n};\n"],"names":[],"mappings":"AAAK,MAAC,MAAM,GAAG,OAAO,EAAE,KAAK,EAAE,OAAO,EAAE,KAAK;AAC7C,EAAE,OAAO,OAAO,CAAC,KAAK,CAAC;AACvB;;;;"}

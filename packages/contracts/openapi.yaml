@@ -112,6 +112,30 @@ paths:
                 properties:
                   userId:
                     type: string
+  /api/v1/setup/paths/validate:
+    post:
+      summary: Validate filesystem paths (setup wizard)
+      responses:
+        '200':
+          description: Validation result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+  /api/v1/setup/paths/save:
+    post:
+      summary: Save filesystem paths (setup wizard)
+      responses:
+        '200':
+          description: Saved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  saved: { type: boolean }
   /healthz:
     get:
       summary: Liveness
