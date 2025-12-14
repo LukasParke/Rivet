@@ -15,6 +15,7 @@ import (
 	"github.com/LukeHagar/Rivet/internal/httpapi/middleware"
 	"github.com/LukeHagar/Rivet/internal/security"
 	"github.com/LukeHagar/Rivet/internal/storage"
+	"github.com/LukeHagar/Rivet/internal/ws"
 )
 
 type SetupMetadataDeps struct {
@@ -22,6 +23,7 @@ type SetupMetadataDeps struct {
 
 	SecretBox *security.SecretBox
 	Policy    security.OutboundPolicy
+	Hub       *ws.Hub
 }
 
 type TMDBConfig struct {
@@ -100,7 +102,12 @@ func RegisterSetupMetadata(api fiber.Router, deps SetupMetadataDeps) {
 		if err := storage.UpsertSetting(ctx, deps.DB, "setup.metadata", string(b)); err != nil {
 			return c.Status(http.StatusInternalServerError).JSON(fiber.Map{"error": "save_failed"})
 		}
-		_ = storage.InsertAuditEvent(ctx, deps.DB, storage.AuditEvent{Action: "setup.metadata_saved"})
+		var actor *string
+		if u, ok := middleware.UserFromContext(c); ok {
+			actor = &u.ID
+		}
+		_ = storage.InsertAuditEvent(ctx, deps.DB, storage.AuditEvent{Action: "setup.metadata_saved", ActorUserID: actor})
+		emitAudit(deps.Hub, "setup.metadata_saved", actor, nil)
 
 		return c.JSON(SetupMetadataSaveResponse{Saved: true})
 	})

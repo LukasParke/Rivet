@@ -21,7 +21,7 @@ function _page($$payload, $$props) {
         wsStatus = "connected";
         wsRef.send(JSON.stringify({
           type: "subscribe",
-          subscribe: ["job", "search", "candidate", "decision"]
+          channels: ["activity", "jobs", "audit"]
         }));
       };
       wsRef.onclose = () => {

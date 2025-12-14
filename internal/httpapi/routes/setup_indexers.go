@@ -16,6 +16,7 @@ import (
 	"github.com/LukeHagar/Rivet/internal/httpapi/middleware"
 	"github.com/LukeHagar/Rivet/internal/security"
 	"github.com/LukeHagar/Rivet/internal/storage"
+	"github.com/LukeHagar/Rivet/internal/ws"
 )
 
 type IndexerConfig struct {
@@ -31,6 +32,7 @@ type SetupIndexersDeps struct {
 
 	SecretBox *security.SecretBox
 	Policy    security.OutboundPolicy
+	Hub       *ws.Hub
 }
 
 type SetupIndexersValidateRequest struct {
@@ -115,7 +117,12 @@ func RegisterSetupIndexers(api fiber.Router, deps SetupIndexersDeps) {
 		if err := storage.UpsertSetting(ctx, deps.DB, "setup.indexers", string(b)); err != nil {
 			return c.Status(http.StatusInternalServerError).JSON(fiber.Map{"error": "save_failed"})
 		}
-		_ = storage.InsertAuditEvent(ctx, deps.DB, storage.AuditEvent{Action: "setup.indexers_saved"})
+		var actor *string
+		if u, ok := middleware.UserFromContext(c); ok {
+			actor = &u.ID
+		}
+		_ = storage.InsertAuditEvent(ctx, deps.DB, storage.AuditEvent{Action: "setup.indexers_saved", ActorUserID: actor})
+		emitAudit(deps.Hub, "setup.indexers_saved", actor, nil)
 
 		return c.JSON(SetupIndexersSaveResponse{Saved: true})
 	})

@@ -31,11 +31,11 @@ func (h *Hub) Publish(eventType string, payload any) {
 	if err != nil {
 		return
 	}
-	cat := CategoryFromType(eventType)
+	channels := ChannelsForType(eventType)
 
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 	for c := range h.conns {
-		c.TrySend(cat, b)
+		c.TrySend(channels, b)
 	}
 }

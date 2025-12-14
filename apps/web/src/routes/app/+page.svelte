@@ -81,7 +81,7 @@
 			wsStatus = 'connecting';
 			wsRef.onopen = () => {
 				wsStatus = 'connected';
-				wsRef.send(JSON.stringify({ type: 'subscribe', subscribe: ['job', 'search', 'candidate', 'decision'] }));
+				wsRef.send(JSON.stringify({ type: 'subscribe', channels: ['activity', 'jobs', 'audit'] }));
 			};
 			wsRef.onclose = () => {
 				wsStatus = 'disconnected';

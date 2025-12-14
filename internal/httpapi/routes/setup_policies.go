@@ -12,6 +12,7 @@ import (
 
 	"github.com/LukeHagar/Rivet/internal/httpapi/middleware"
 	"github.com/LukeHagar/Rivet/internal/storage"
+	"github.com/LukeHagar/Rivet/internal/ws"
 )
 
 type QualityProfile struct {
@@ -35,7 +36,7 @@ type SetupPoliciesSaveResponse struct {
 	Saved bool `json:"saved"`
 }
 
-func RegisterSetupPolicies(api fiber.Router, db *sql.DB) {
+func RegisterSetupPolicies(api fiber.Router, db *sql.DB, hub *ws.Hub) {
 	grp := api.Group("/setup")
 
 	grp.Post("/policies/validate", middleware.RequireRole("admin"), func(c *fiber.Ctx) error {
@@ -68,7 +69,12 @@ func RegisterSetupPolicies(api fiber.Router, db *sql.DB) {
 		if err := storage.UpsertSetting(ctx, db, "setup.policies", string(b)); err != nil {
 			return c.Status(http.StatusInternalServerError).JSON(fiber.Map{"error": "save_failed"})
 		}
-		_ = storage.InsertAuditEvent(ctx, db, storage.AuditEvent{Action: "setup.policies_saved"})
+		var actor *string
+		if u, ok := middleware.UserFromContext(c); ok {
+			actor = &u.ID
+		}
+		_ = storage.InsertAuditEvent(ctx, db, storage.AuditEvent{Action: "setup.policies_saved", ActorUserID: actor})
+		emitAudit(hub, "setup.policies_saved", actor, nil)
 		return c.JSON(SetupPoliciesSaveResponse{Saved: true})
 	})
 }

@@ -12,6 +12,7 @@ import (
 	"github.com/LukeHagar/Rivet/internal/httpapi/middleware"
 	"github.com/LukeHagar/Rivet/internal/security"
 	"github.com/LukeHagar/Rivet/internal/storage"
+	"github.com/LukeHagar/Rivet/internal/ws"
 )
 
 type AuthDeps struct {
@@ -19,6 +20,7 @@ type AuthDeps struct {
 	SessionCookieName string
 	SessionTTL        time.Duration
 	LoginLimiter      *security.RateLimiter
+	Hub               *ws.Hub
 }
 
 type LoginRequest struct {
@@ -102,6 +104,7 @@ func RegisterAuth(api fiber.Router, deps AuthDeps) {
 		})
 
 		_ = storage.InsertAuditEvent(ctx, deps.DB, storage.AuditEvent{ActorUserID: &u.ID, Action: "auth.login", IP: ipPtr, UserAgent: uaPtr})
+		emitAudit(deps.Hub, "auth.login", &u.ID, map[string]any{"ip": ip, "userAgent": ua})
 
 		// Return CSRF token to client to store and attach as X-CSRF-Token on mutations.
 		return c.JSON(CSRFResponse{Token: sess.CSRFToken})
@@ -131,6 +134,7 @@ func RegisterAuth(api fiber.Router, deps AuthDeps) {
 				uaPtr = &ua
 			}
 			_ = storage.InsertAuditEvent(ctx, deps.DB, storage.AuditEvent{ActorUserID: &s.UserID, Action: "auth.logout", IP: ipPtr, UserAgent: uaPtr})
+			emitAudit(deps.Hub, "auth.logout", &s.UserID, map[string]any{"ip": ip, "userAgent": ua})
 		}
 
 		c.Cookie(&fiber.Cookie{

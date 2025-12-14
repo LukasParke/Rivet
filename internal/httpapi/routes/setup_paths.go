@@ -17,6 +17,7 @@ import (
 
 	"github.com/LukeHagar/Rivet/internal/httpapi/middleware"
 	"github.com/LukeHagar/Rivet/internal/storage"
+	"github.com/LukeHagar/Rivet/internal/ws"
 )
 
 type SetupPathsRequest struct {
@@ -49,7 +50,7 @@ type SetupPathsSaveResponse struct {
 	Saved bool `json:"saved"`
 }
 
-func RegisterSetupPaths(api fiber.Router, db *sql.DB) {
+func RegisterSetupPaths(api fiber.Router, db *sql.DB, hub *ws.Hub) {
 	grp := api.Group("/setup")
 
 	grp.Post("/paths/validate", middleware.RequireRole("admin"), func(c *fiber.Ctx) error {
@@ -90,7 +91,12 @@ func RegisterSetupPaths(api fiber.Router, db *sql.DB) {
 			return c.Status(http.StatusInternalServerError).JSON(fiber.Map{"error": "save_failed"})
 		}
 
-		_ = storage.InsertAuditEvent(ctx, db, storage.AuditEvent{Action: "setup.paths_saved"})
+		var actor *string
+		if u, ok := middleware.UserFromContext(c); ok {
+			actor = &u.ID
+		}
+		_ = storage.InsertAuditEvent(ctx, db, storage.AuditEvent{Action: "setup.paths_saved", ActorUserID: actor})
+		emitAudit(hub, "setup.paths_saved", actor, nil)
 		return c.JSON(SetupPathsSaveResponse{Saved: true})
 	})
 }

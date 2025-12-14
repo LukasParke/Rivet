@@ -11,11 +11,13 @@ import (
 
 	"github.com/LukeHagar/Rivet/internal/security"
 	"github.com/LukeHagar/Rivet/internal/storage"
+	"github.com/LukeHagar/Rivet/internal/ws"
 )
 
 type SetupDeps struct {
 	DB *sql.DB
 	SetupMode func() bool
+	Hub *ws.Hub
 }
 
 type SetupStatusResponse struct {
@@ -76,6 +78,7 @@ func RegisterSetup(app fiber.Router, deps SetupDeps) {
 		}
 
 		_ = storage.InsertAuditEvent(ctx, deps.DB, storage.AuditEvent{Action: "setup.admin_created", ActorUserID: &u.ID})
+		emitAudit(deps.Hub, "setup.admin_created", &u.ID, nil)
 
 		return c.Status(http.StatusCreated).JSON(CreateAdminResponse{UserID: u.ID})
 	})

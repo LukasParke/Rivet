@@ -16,6 +16,7 @@ import (
 	"github.com/LukeHagar/Rivet/internal/httpapi/middleware"
 	"github.com/LukeHagar/Rivet/internal/security"
 	"github.com/LukeHagar/Rivet/internal/storage"
+	"github.com/LukeHagar/Rivet/internal/ws"
 )
 
 type SetupClientsDeps struct {
@@ -23,6 +24,7 @@ type SetupClientsDeps struct {
 
 	SecretBox *security.SecretBox
 	Policy    security.OutboundPolicy
+	Hub       *ws.Hub
 }
 
 type QBittorrentConfig struct {
@@ -124,7 +126,12 @@ func RegisterSetupClients(api fiber.Router, deps SetupClientsDeps) {
 		if err := storage.UpsertSetting(ctx, deps.DB, "setup.clients", string(b)); err != nil {
 			return c.Status(http.StatusInternalServerError).JSON(fiber.Map{"error": "save_failed"})
 		}
-		_ = storage.InsertAuditEvent(ctx, deps.DB, storage.AuditEvent{Action: "setup.clients_saved"})
+		var actor *string
+		if u, ok := middleware.UserFromContext(c); ok {
+			actor = &u.ID
+		}
+		_ = storage.InsertAuditEvent(ctx, deps.DB, storage.AuditEvent{Action: "setup.clients_saved", ActorUserID: actor})
+		emitAudit(deps.Hub, "setup.clients_saved", actor, nil)
 
 		return c.JSON(SetupClientsSaveResponse{Saved: true})
 	})

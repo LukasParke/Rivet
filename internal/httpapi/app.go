@@ -57,27 +57,30 @@ func NewApp(ctx context.Context, deps Deps) (*fiber.App, *middleware.SetupGate, 
 	}
 
 	api := app.Group("/api/v1")
-	routes.RegisterSetup(api, routes.SetupDeps{DB: deps.DB, SetupMode: setupGate.IsSetupMode})
-	routes.RegisterSetupPaths(api, deps.DB)
+	routes.RegisterSetup(api, routes.SetupDeps{DB: deps.DB, SetupMode: setupGate.IsSetupMode, Hub: deps.Hub})
+	routes.RegisterSetupPaths(api, deps.DB, deps.Hub)
 	sb, _ := security.NewSecretBox(deps.SecretKeyBase64)
 	policy := security.OutboundPolicy{AllowInternal: deps.AllowInternalURLs}
 	routes.RegisterSetupClients(api, routes.SetupClientsDeps{
 		DB:        deps.DB,
 		SecretBox: sb,
 		Policy:    policy,
+		Hub:       deps.Hub,
 	})
 	routes.RegisterSetupIndexers(api, routes.SetupIndexersDeps{
 		DB:        deps.DB,
 		SecretBox: sb,
 		Policy:    policy,
+		Hub:       deps.Hub,
 	})
 	routes.RegisterSetupMetadata(api, routes.SetupMetadataDeps{
 		DB:        deps.DB,
 		SecretBox: sb,
 		Policy:    policy,
+		Hub:       deps.Hub,
 	})
-	routes.RegisterSetupPolicies(api, deps.DB)
-	routes.RegisterSetupFinish(api, deps.DB)
+	routes.RegisterSetupPolicies(api, deps.DB, deps.Hub)
+	routes.RegisterSetupFinish(api, deps.DB, deps.Hub)
 	routes.RegisterTargetsAndSearch(api, routes.TargetsDeps{
 		DB:        deps.DB,
 		SecretBox: sb,
@@ -90,6 +93,7 @@ func NewApp(ctx context.Context, deps Deps) (*fiber.App, *middleware.SetupGate, 
 		SessionCookieName: deps.SessionCookieName,
 		SessionTTL:        deps.SessionTTL,
 		LoginLimiter:      security.NewRateLimiter(10, 1*time.Minute),
+		Hub:               deps.Hub,
 	})
 
 	return app, setupGate, nil

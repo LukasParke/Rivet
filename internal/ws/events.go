@@ -25,7 +25,28 @@ func MarshalEnvelope(e Envelope) ([]byte, error) {
 	return json.Marshal(e)
 }
 
-func CategoryFromType(t string) string {
+func ChannelsForType(t string) []string {
+	// Always include activity for a general feed.
+	ch := []string{"activity"}
+	switch prefix(t) {
+	case "job":
+		return append(ch, "jobs")
+	case "search", "candidate", "decision":
+		return append(ch, "jobs")
+	case "audit":
+		return append(ch, "audit")
+	case "health":
+		return append(ch, "health")
+	case "import":
+		return append(ch, "imports")
+	case "download":
+		return append(ch, "downloads")
+	default:
+		return ch
+	}
+}
+
+func prefix(t string) string {
 	for i := 0; i < len(t); i++ {
 		if t[i] == '.' {
 			return t[:i]

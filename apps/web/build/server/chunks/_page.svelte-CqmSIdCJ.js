@@ -22,7 +22,7 @@ function _page($$payload, $$props) {
         wsStatus = "connected";
         wsRef.send(JSON.stringify({
           type: "subscribe",
-          subscribe: ["job", "search", "candidate", "decision"]
+          channels: ["activity", "jobs", "audit"]
         }));
       };
       wsRef.onclose = () => {
@@ -73,4 +73,4 @@ function _page($$payload, $$props) {
 }
 
 export { _page as default };
-//# sourceMappingURL=_page.svelte-B6Qer803.js.map
+//# sourceMappingURL=_page.svelte-CqmSIdCJ.js.map

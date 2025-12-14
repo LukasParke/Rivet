@@ -26,14 +26,13 @@ func RegisterWebSocket(app *fiber.App, hub *ws.Hub) {
 			_ = c.Close()
 		}()
 
-		// Default subscriptions: job/search/decision/candidate
-		conn.Subscribe("job")
-		conn.Subscribe("search")
-		conn.Subscribe("candidate")
-		conn.Subscribe("decision")
+		// Default channels
+		conn.Subscribe("activity")
+		conn.Subscribe("jobs")
+		conn.Subscribe("audit")
 
 		// Send hello to this connection only
-		hello, _ := ws.MarshalEnvelope(ws.NewEnvelope("ws.connected", fiber.Map{"ok": true}))
+		hello, _ := ws.MarshalEnvelope(ws.NewEnvelope("ws.connected", fiber.Map{"ok": true, "channels": []string{"activity", "jobs", "audit"}}))
 		_ = c.WriteMessage(websocket.TextMessage, hello)
 
 		// Writer loop

@@ -45,8 +45,18 @@ func (c *Conn) Subscribed(cat string) bool {
 	return c.subscriptions[cat]
 }
 
-func (c *Conn) TrySend(cat string, b []byte) {
-	if !c.Subscribed(cat) {
+func (c *Conn) TrySend(channels []string, b []byte) {
+	if len(channels) == 0 {
+		channels = []string{"activity"}
+	}
+	ok := false
+	for _, ch := range channels {
+		if c.Subscribed(ch) {
+			ok = true
+			break
+		}
+	}
+	if !ok {
 		return
 	}
 	select {

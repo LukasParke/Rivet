@@ -11,6 +11,7 @@ import (
 
 	"github.com/LukeHagar/Rivet/internal/httpapi/middleware"
 	"github.com/LukeHagar/Rivet/internal/storage"
+	"github.com/LukeHagar/Rivet/internal/ws"
 )
 
 type SetupFinishResponse struct {
@@ -19,7 +20,7 @@ type SetupFinishResponse struct {
 	Summary   map[string]string `json:"summary"`
 }
 
-func RegisterSetupFinish(api fiber.Router, db *sql.DB) {
+func RegisterSetupFinish(api fiber.Router, db *sql.DB, hub *ws.Hub) {
 	grp := api.Group("/setup")
 
 	grp.Post("/finish", middleware.RequireRole("admin"), func(c *fiber.Ctx) error {
@@ -51,7 +52,12 @@ func RegisterSetupFinish(api fiber.Router, db *sql.DB) {
 
 		// Close registration by default (future invites feature can flip it).
 		_ = storage.UpsertSetting(ctx, db, "auth.registration_open", `false`)
-		_ = storage.InsertAuditEvent(ctx, db, storage.AuditEvent{Action: "setup.finished"})
+		var actor *string
+		if u, ok := middleware.UserFromContext(c); ok {
+			actor = &u.ID
+		}
+		_ = storage.InsertAuditEvent(ctx, db, storage.AuditEvent{Action: "setup.finished", ActorUserID: actor})
+		emitAudit(hub, "setup.finished", actor, map[string]any{"reportKey": reportKey})
 
 		return c.JSON(SetupFinishResponse{Ok: true, ReportKey: reportKey, Summary: summary})
 	})
