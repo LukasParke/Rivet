@@ -1,4 +1,4 @@
-package jobs
+package decisioning
 
 import (
 	"encoding/json"
@@ -6,7 +6,7 @@ import (
 )
 
 type Policies struct {
-	Language        string `json:"language"`
+	Language        string   `json:"language"`
 	BannedTags      []string `json:"bannedTags"`
 	QualityProfiles []struct {
 		Name             string   `json:"name"`
@@ -45,7 +45,6 @@ func NormalizeTitle(title string) Normalized {
 		}
 	}
 
-	// Very basic tag extraction: common separators.
 	seps := func(r rune) bool {
 		return r == '.' || r == '-' || r == '_' || r == ' ' || r == '[' || r == ']' || r == '(' || r == ')'
 	}
@@ -75,8 +74,6 @@ func Decide(n Normalized, policies Policies) DecisionResult {
 	}
 
 	var reasons []string
-
-	// Hard rejects: banned tags
 	lt := strings.ToLower(n.Title)
 	for _, bt := range policies.BannedTags {
 		bt = strings.ToLower(strings.TrimSpace(bt))
@@ -97,7 +94,6 @@ func Decide(n Normalized, policies Policies) DecisionResult {
 		reasons = append(reasons, "quality_allowed:"+n.Quality)
 	}
 
-	// Basic scoring preference.
 	score := 10
 	switch n.Quality {
 	case "2160p":

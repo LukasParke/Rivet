@@ -12,6 +12,7 @@ import (
 
 	"github.com/LukeHagar/Rivet/internal/config"
 	"github.com/LukeHagar/Rivet/internal/httpapi"
+	"github.com/LukeHagar/Rivet/internal/jobs"
 	"github.com/LukeHagar/Rivet/internal/observability"
 	"github.com/LukeHagar/Rivet/internal/security"
 	"github.com/LukeHagar/Rivet/internal/storage"
@@ -56,6 +57,15 @@ func main() {
 		log.Error("build app", slog.Any("err", err))
 		os.Exit(1)
 	}
+
+	// In-process worker loop (durable jobs). Scale mode moves this to cmd/worker.
+	sb, _ := security.NewSecretBox(cfg.SecretKeyBase64)
+	jobs.StartWorker(ctx, jobs.WorkerDeps{
+		DB:        db.SQL,
+		SecretBox: sb,
+		Policy:    security.OutboundPolicy{AllowInternal: cfg.AllowInternalURLs},
+		Logger:    log,
+	})
 
 	errCh := make(chan error, 1)
 	go func() {

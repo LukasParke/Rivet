@@ -3,19 +3,16 @@ package routes
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
-	"errors"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
 
-	"github.com/LukeHagar/Rivet/internal/adapters/indexers/newznab"
 	"github.com/LukeHagar/Rivet/internal/httpapi/middleware"
-	"github.com/LukeHagar/Rivet/internal/jobs"
 	"github.com/LukeHagar/Rivet/internal/security"
 	"github.com/LukeHagar/Rivet/internal/storage"
+	"github.com/LukeHagar/Rivet/internal/jobs/queue"
 )
 
 type TargetsDeps struct {
@@ -91,8 +88,10 @@ func RegisterTargetsAndSearch(api fiber.Router, deps TargetsDeps) {
 			return c.Status(http.StatusInternalServerError).JSON(fiber.Map{"error": "create_run_failed"})
 		}
 
-		// Kick off background execution (best-effort). Durable jobs come next.
-		go executeSearchRun(context.Background(), deps, run.ID, targetID)
+		_, err = queue.Enqueue(ctx, deps.DB, "search_run", map[string]string{"runId": run.ID, "targetId": targetID}, queue.EnqueueOpts{})
+		if err != nil {
+			return c.Status(http.StatusInternalServerError).JSON(fiber.Map{"error": "enqueue_failed"})
+		}
 
 		return c.Status(http.StatusAccepted).JSON(StartSearchResponse{RunID: run.ID})
 	})
@@ -107,136 +106,4 @@ func RegisterTargetsAndSearch(api fiber.Router, deps TargetsDeps) {
 		}
 		return c.JSON(SearchRunResponse{Run: run, Candidates: results})
 	})
-}
-
-func executeSearchRun(ctx context.Context, deps TargetsDeps, runID, targetID string) {
-	// Mark running
-	_ = storage.UpdateSearchRunRunning(ctx, deps.DB, runID)
-
-	// Load target query
-	var query string
-	{
-		row := deps.DB.QueryRowContext(ctx, `SELECT payload_json FROM wanted_targets WHERE id = ?`, targetID)
-		var payload sql.NullString
-		if err := row.Scan(&payload); err == nil && payload.Valid {
-			var p map[string]any
-			if json.Unmarshal([]byte(payload.String), &p) == nil {
-				if v, ok := p["query"].(string); ok {
-					query = strings.TrimSpace(v)
-				}
-			}
-		}
-		if query == "" {
-			query = "ubuntu"
-		}
-	}
-
-	// Load policies
-	policies := jobs.Policies{}
-	{
-		if s, ok, err := storage.GetSetting(ctx, deps.DB, "setup.policies"); err == nil && ok {
-			if p, err := jobs.ParsePolicies(s); err == nil {
-				policies = p
-			}
-		}
-	}
-
-	// Load indexers (encrypted)
-	indexers, err := loadIndexers(ctx, deps)
-	if err != nil {
-		e := err.Error()
-		_ = storage.UpdateSearchRunCompleted(ctx, deps.DB, runID, &e)
-		return
-	}
-
-	// Run searches
-	for _, ix := range indexers {
-		cli, err := newznab.New(ix, deps.Policy)
-		if err != nil {
-			continue
-		}
-		items, err := cli.Search(ctx, query, 25)
-		if err != nil {
-			continue
-		}
-
-		for _, it := range items {
-			raw := map[string]any{
-				"title": it.Title,
-				"guid":  it.GUID,
-				"link":  it.Link,
-				"enclosureUrl": it.EnclosureURL,
-				"pubDate": it.PubDate,
-				"attrs": it.Attrs,
-			}
-			rawB, _ := json.Marshal(raw)
-
-			n := jobs.NormalizeTitle(it.Title)
-			normB, _ := json.Marshal(n)
-			normS := string(normB)
-
-			cand, err := storage.InsertReleaseCandidate(ctx, deps.DB, runID, ix.Name, string(rawB), &normS)
-			if err != nil {
-				continue
-			}
-
-			dec := jobs.Decide(n, policies)
-			_, _ = storage.InsertDecision(ctx, deps.DB, cand.ID, dec.Accepted, dec.Score, dec.Reasons)
-		}
-	}
-
-	_ = storage.UpdateSearchRunCompleted(ctx, deps.DB, runID, nil)
-}
-
-type persistedIndexers struct {
-	Torznab []struct {
-		Name        string `json:"name"`
-		URL         string `json:"url"`
-		APIKeyEnc   string `json:"apiKeyEnc"`
-		Username    string `json:"username"`
-		PasswordEnc string `json:"passwordEnc"`
-	} `json:"torznab"`
-	Newznab []struct {
-		Name        string `json:"name"`
-		URL         string `json:"url"`
-		APIKeyEnc   string `json:"apiKeyEnc"`
-		Username    string `json:"username"`
-		PasswordEnc string `json:"passwordEnc"`
-	} `json:"newznab"`
-}
-
-func loadIndexers(ctx context.Context, deps TargetsDeps) ([]newznab.Config, error) {
-	cfgStr, ok, err := storage.GetSetting(ctx, deps.DB, "setup.indexers")
-	if err != nil {
-		return nil, err
-	}
-	if !ok {
-		return nil, errors.New("no_indexers_configured")
-	}
-	var p persistedIndexers
-	if err := json.Unmarshal([]byte(cfgStr), &p); err != nil {
-		return nil, err
-	}
-
-	var out []newznab.Config
-	add := func(name, urlStr, keyEnc, user, passEnc string) {
-		key, err := deps.SecretBox.DecryptString(keyEnc)
-		if err != nil {
-			return
-		}
-		pass := ""
-		if strings.TrimSpace(passEnc) != "" {
-			if b, err := deps.SecretBox.DecryptString(passEnc); err == nil {
-				pass = string(b)
-			}
-		}
-		out = append(out, newznab.Config{Name: name, BaseURL: urlStr, APIKey: string(key), Username: user, Password: pass})
-	}
-	for _, ix := range p.Torznab {
-		add(ix.Name, ix.URL, ix.APIKeyEnc, ix.Username, ix.PasswordEnc)
-	}
-	for _, ix := range p.Newznab {
-		add(ix.Name, ix.URL, ix.APIKeyEnc, ix.Username, ix.PasswordEnc)
-	}
-	return out, nil
 }
