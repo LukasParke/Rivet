@@ -97,8 +97,9 @@ func TestAcquisitionFlow_EnqueueThenMonitorImports(t *testing.T) {
 		t.Fatalf("create acq: %v", err)
 	}
 
+	pub := &capturePub{}
 	// Enqueue acquisition: should store hash and schedule monitor job.
-	if err := EnqueueAcquisition(ctx, AcquisitionDeps{DB: db.SQL, SecretBox: sb, Policy: security.OutboundPolicy{AllowInternal: true}}, acq.ID); err != nil {
+	if err := EnqueueAcquisition(ctx, AcquisitionDeps{DB: db.SQL, SecretBox: sb, Policy: security.OutboundPolicy{AllowInternal: true}, Hub: pub}, acq.ID); err != nil {
 		t.Fatalf("enqueue: %v", err)
 	}
 
@@ -120,7 +121,7 @@ func TestAcquisitionFlow_EnqueueThenMonitorImports(t *testing.T) {
 	}
 
 	// Run monitor once: should import.
-	if err := MonitorAcquisition(ctx, MonitorDeps{DB: db.SQL, SecretBox: sb, Policy: security.OutboundPolicy{AllowInternal: true}}, acq.ID); err != nil {
+	if err := MonitorAcquisition(ctx, MonitorDeps{DB: db.SQL, SecretBox: sb, Policy: security.OutboundPolicy{AllowInternal: true}, Hub: pub}, acq.ID); err != nil {
 		t.Fatalf("monitor: %v", err)
 	}
 
@@ -133,6 +134,13 @@ func TestAcquisitionFlow_EnqueueThenMonitorImports(t *testing.T) {
 	}
 	if _, err := os.Stat(*acq3.ImportedPath); err != nil {
 		t.Fatalf("imported file missing: %v", err)
+	}
+	// Sanity: we emitted some lifecycle events.
+	if pub.countPrefix("download.") < 2 {
+		t.Fatalf("expected download events")
+	}
+	if pub.countPrefix("import.") < 2 {
+		t.Fatalf("expected import events")
 	}
 }
 
@@ -191,7 +199,8 @@ func TestMonitorAcquisition_ReschedulesWhenNotComplete(t *testing.T) {
 	acq, _ := storage.CreateAcquisition(ctx, db.SQL, cand.ID, tgt.ID, "torrent", "qbittorrent", "default")
 	_ = storage.MarkAcquisitionEnqueued(ctx, db.SQL, acq.ID, &hash)
 
-	if err := MonitorAcquisition(ctx, MonitorDeps{DB: db.SQL, SecretBox: sb, Policy: security.OutboundPolicy{AllowInternal: true}, PollEvery: 1 * time.Second}, acq.ID); err != nil {
+	pub := &capturePub{}
+	if err := MonitorAcquisition(ctx, MonitorDeps{DB: db.SQL, SecretBox: sb, Policy: security.OutboundPolicy{AllowInternal: true}, PollEvery: 1 * time.Second, Hub: pub}, acq.ID); err != nil {
 		t.Fatalf("monitor: %v", err)
 	}
 
@@ -205,3 +214,21 @@ func TestMonitorAcquisition_ReschedulesWhenNotComplete(t *testing.T) {
 }
 
 var _ = sql.ErrNoRows
+
+type capturePub struct {
+	events []string
+}
+
+func (c *capturePub) Publish(eventType string, payload any) {
+	c.events = append(c.events, eventType)
+}
+
+func (c *capturePub) countPrefix(p string) int {
+	n := 0
+	for _, e := range c.events {
+		if len(e) >= len(p) && e[:len(p)] == p {
+			n++
+		}
+	}
+	return n
+}

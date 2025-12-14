@@ -18,9 +18,14 @@ type AcquisitionDeps struct {
 	DB        *sql.DB
 	SecretBox *security.SecretBox
 	Policy    security.OutboundPolicy
+	Hub       publisher
 
 	// For tests: override client factory.
 	NewQb func(cfg qbittorrent.Config, policy security.OutboundPolicy) (qbAdder, error)
+}
+
+type publisher interface {
+	Publish(eventType string, payload any)
 }
 
 type qbAdder interface {
@@ -90,6 +95,16 @@ func EnqueueAcquisition(ctx context.Context, deps AcquisitionDeps, acquisitionID
 
 		if err := cli.AddURL(ctx, urlToUse); err != nil {
 			_ = storage.MarkAcquisitionFailed(ctx, deps.DB, a.ID, err.Error())
+			if deps.Hub != nil {
+				deps.Hub.Publish("download.failed", map[string]any{
+					"acquisitionId": a.ID,
+					"candidateId":   a.CandidateID,
+					"targetId":      a.TargetID,
+					"clientKind":    a.ClientKind,
+					"clientName":    a.ClientName,
+					"error":         err.Error(),
+				})
+			}
 			return err
 		}
 
@@ -98,6 +113,17 @@ func EnqueueAcquisition(ctx context.Context, deps AcquisitionDeps, acquisitionID
 			extID = &hash
 		}
 		_ = storage.MarkAcquisitionEnqueued(ctx, deps.DB, a.ID, extID)
+		if deps.Hub != nil {
+			deps.Hub.Publish("download.enqueued", map[string]any{
+				"acquisitionId": a.ID,
+				"candidateId":   a.CandidateID,
+				"targetId":      a.TargetID,
+				"clientKind":    a.ClientKind,
+				"clientName":    a.ClientName,
+				"sourceUrl":     urlToUse,
+				"hash":          hash,
+			})
+		}
 		_, _ = queue.Enqueue(ctx, deps.DB, "acquisition_monitor", map[string]string{"acquisitionId": a.ID}, queue.EnqueueOpts{RunAfter: time.Now().UTC().Add(2 * time.Second)})
 		return nil
 	default:

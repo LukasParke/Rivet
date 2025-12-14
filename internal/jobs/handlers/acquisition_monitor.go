@@ -21,6 +21,7 @@ type MonitorDeps struct {
 	SecretBox *security.SecretBox
 	Policy    security.OutboundPolicy
 	PollEvery time.Duration
+	Hub       publisher
 }
 
 type setupPaths struct {
@@ -57,6 +58,16 @@ func MonitorAcquisition(ctx context.Context, deps MonitorDeps, acquisitionID str
 	}
 	info, ok, err := cli.GetInfo(ctx, *a.ExternalID)
 	if err != nil {
+		if deps.Hub != nil {
+			deps.Hub.Publish("download.failed", map[string]any{
+				"acquisitionId": a.ID,
+				"candidateId":   a.CandidateID,
+				"targetId":      a.TargetID,
+				"clientKind":    a.ClientKind,
+				"clientName":    a.ClientName,
+				"error":         err.Error(),
+			})
+		}
 		return err
 	}
 	if !ok {
@@ -67,6 +78,21 @@ func MonitorAcquisition(ctx context.Context, deps MonitorDeps, acquisitionID str
 
 	progress := info.Progress
 	_ = storage.UpdateAcquisitionProgress(ctx, deps.DB, a.ID, "downloading", &progress, strPtr(info.ContentPath))
+	if deps.Hub != nil {
+		deps.Hub.Publish("download.progress", map[string]any{
+			"acquisitionId": a.ID,
+			"candidateId":   a.CandidateID,
+			"targetId":      a.TargetID,
+			"clientKind":    a.ClientKind,
+			"clientName":    a.ClientName,
+			"hash":          a.ExternalID,
+			"state":         info.State,
+			"progress":      progress,
+			"contentPath":   info.ContentPath,
+			"savePath":      info.SavePath,
+			"name":          info.Name,
+		})
+	}
 
 	if qbittorrent.IsCompletedState(info.State) || progress >= 0.999 {
 		// Mark completed.
@@ -75,28 +101,87 @@ func MonitorAcquisition(ctx context.Context, deps MonitorDeps, acquisitionID str
 			cp = filepath.Join(strings.TrimSpace(info.SavePath), strings.TrimSpace(info.Name))
 		}
 		_ = storage.MarkAcquisitionCompleted(ctx, deps.DB, a.ID, strPtr(cp))
+		if deps.Hub != nil {
+			deps.Hub.Publish("download.completed", map[string]any{
+				"acquisitionId": a.ID,
+				"candidateId":   a.CandidateID,
+				"targetId":      a.TargetID,
+				"clientKind":    a.ClientKind,
+				"clientName":    a.ClientName,
+				"contentPath":   cp,
+			})
+		}
 
 		// Import.
+		if deps.Hub != nil {
+			deps.Hub.Publish("import.started", map[string]any{
+				"acquisitionId": a.ID,
+				"candidateId":   a.CandidateID,
+				"targetId":      a.TargetID,
+				"contentPath":   cp,
+			})
+		}
 		paths, err := loadSetupPaths(ctx, deps.DB)
 		if err != nil {
 			_ = storage.MarkAcquisitionFailed(ctx, deps.DB, a.ID, err.Error())
+			if deps.Hub != nil {
+				deps.Hub.Publish("import.failed", map[string]any{
+					"acquisitionId": a.ID,
+					"candidateId":   a.CandidateID,
+					"targetId":      a.TargetID,
+					"error":         err.Error(),
+				})
+			}
 			return err
 		}
 		if len(paths.LibraryRoots) == 0 {
 			_ = storage.MarkAcquisitionFailed(ctx, deps.DB, a.ID, "no_library_roots")
+			if deps.Hub != nil {
+				deps.Hub.Publish("import.failed", map[string]any{
+					"acquisitionId": a.ID,
+					"candidateId":   a.CandidateID,
+					"targetId":      a.TargetID,
+					"error":         "no_library_roots",
+				})
+			}
 			return errors.New("no_library_roots")
 		}
+		// Minimal verification: choose a media file that is safe to import.
 		src, err := importer.PickBestMediaFile(cp)
 		if err != nil {
 			_ = storage.MarkAcquisitionFailed(ctx, deps.DB, a.ID, err.Error())
+			if deps.Hub != nil {
+				deps.Hub.Publish("import.failed", map[string]any{
+					"acquisitionId": a.ID,
+					"candidateId":   a.CandidateID,
+					"targetId":      a.TargetID,
+					"error":         err.Error(),
+				})
+			}
 			return err
 		}
 		dest, err := importer.ImportFile(src, paths.LibraryRoots[0])
 		if err != nil {
 			_ = storage.MarkAcquisitionFailed(ctx, deps.DB, a.ID, err.Error())
+			if deps.Hub != nil {
+				deps.Hub.Publish("import.failed", map[string]any{
+					"acquisitionId": a.ID,
+					"candidateId":   a.CandidateID,
+					"targetId":      a.TargetID,
+					"error":         err.Error(),
+				})
+			}
 			return err
 		}
 		_ = storage.MarkAcquisitionImported(ctx, deps.DB, a.ID, dest)
+		if deps.Hub != nil {
+			deps.Hub.Publish("import.completed", map[string]any{
+				"acquisitionId": a.ID,
+				"candidateId":   a.CandidateID,
+				"targetId":      a.TargetID,
+				"importedPath":  dest,
+			})
+		}
 		return nil
 	}
 

@@ -12,6 +12,10 @@
 	let wsStatus = 'disconnected';
 	let events = [];
 	let wsRef = null;
+	let acquisitions = [];
+	let acqError = null;
+	let acqBusy = false;
+	let acqRefreshTimer = null;
 
 	function csrfHeader() {
 		const t = sessionStorage.getItem('csrf');
@@ -73,6 +77,29 @@
 		}
 	}
 
+	async function refreshAcquisitions() {
+		acqBusy = true;
+		acqError = null;
+		try {
+			const res = await fetch('/api/v1/acquisitions');
+			const data = await res.json().catch(() => null);
+			if (!res.ok) throw new Error(data?.error || 'fetch_failed');
+			acquisitions = Array.isArray(data) ? data : [];
+		} catch (e) {
+			acqError = e instanceof Error ? e.message : String(e);
+		} finally {
+			acqBusy = false;
+		}
+	}
+
+	function scheduleAcqRefresh() {
+		if (acqRefreshTimer) return;
+		acqRefreshTimer = setTimeout(() => {
+			acqRefreshTimer = null;
+			refreshAcquisitions();
+		}, 500);
+	}
+
 	function connectWS() {
 		try {
 			if (wsRef) wsRef.close();
@@ -81,7 +108,7 @@
 			wsStatus = 'connecting';
 			wsRef.onopen = () => {
 				wsStatus = 'connected';
-				wsRef.send(JSON.stringify({ type: 'subscribe', channels: ['activity', 'jobs', 'audit'] }));
+				wsRef.send(JSON.stringify({ type: 'subscribe', channels: ['activity', 'jobs', 'audit', 'downloads', 'imports'] }));
 			};
 			wsRef.onclose = () => {
 				wsStatus = 'disconnected';
@@ -93,6 +120,9 @@
 				try {
 					const msg = JSON.parse(ev.data);
 					events = [{ ts: msg.ts, type: msg.type, payload: msg.payload }, ...events].slice(0, 200);
+					if (typeof msg?.type === 'string' && (msg.type.startsWith('download.') || msg.type.startsWith('import.'))) {
+						scheduleAcqRefresh();
+					}
 				} catch {
 					// ignore
 				}
@@ -104,6 +134,7 @@
 
 	if (typeof window !== 'undefined') {
 		setTimeout(connectWS, 0);
+		setTimeout(refreshAcquisitions, 0);
 	}
 </script>
 
@@ -142,6 +173,22 @@
 			<button class="secondary" disabled={busy} on:click={connectWS}>Reconnect</button>
 		</div>
 		<pre style="max-height: 340px; overflow: auto;">{JSON.stringify(events, null, 2)}</pre>
+	</div>
+
+	<div class="card" style="margin-top: 16px;">
+		<h2>Acquisitions</h2>
+		<p class="muted">Live updates from download/import events.</p>
+		<div class="row">
+			<button class="secondary" disabled={acqBusy} on:click={refreshAcquisitions}>Refresh acquisitions</button>
+		</div>
+		{#if acqError}
+			<p class="error">{acqError}</p>
+		{/if}
+		{#if acquisitions?.length}
+			<pre style="max-height: 340px; overflow: auto;">{JSON.stringify(acquisitions, null, 2)}</pre>
+		{:else}
+			<p class="muted">No acquisitions yet.</p>
+		{/if}
 	</div>
 
 	{#if results}
