@@ -45,7 +45,11 @@ func main() {
 		os.Exit(1)
 	}
 
-	app, _, err := httpapi.NewApp(ctx, httpapi.Deps{DB: db.SQL})
+	app, _, err := httpapi.NewApp(ctx, httpapi.Deps{
+		DB:                db.SQL,
+		SessionCookieName: cfg.SessionCookieName,
+		SessionTTL:        cfg.SessionTTL,
+	})
 	if err != nil {
 		log.Error("build app", slog.Any("err", err))
 		os.Exit(1)

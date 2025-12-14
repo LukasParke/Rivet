@@ -3,6 +3,77 @@ info:
   title: Rivet Media Automation Control Plane API
   version: 0.1.0
 paths:
+  /api/v1/auth/csrf:
+    get:
+      summary: Get CSRF token for current session
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+        '401':
+          description: Unauthorized
+  /api/v1/auth/login:
+    post:
+      summary: Login (creates session cookie)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                password:
+                  type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+        '401':
+          description: Invalid credentials
+        '429':
+          description: Rate limited
+  /api/v1/auth/logout:
+    post:
+      summary: Logout (revokes session cookie)
+      responses:
+        '204':
+          description: No content
+        '403':
+          description: CSRF required
+  /api/v1/auth/me:
+    get:
+      summary: Current user
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  userId:
+                    type: string
+                  email:
+                    type: string
+                  role:
+                    type: string
+        '401':
+          description: Unauthorized
   /api/v1/setup/status:
     get:
       summary: Setup mode status

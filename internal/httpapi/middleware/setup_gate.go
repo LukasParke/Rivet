@@ -64,6 +64,12 @@ func (g *SetupGate) Middleware() fiber.Handler {
 			return c.Next()
 		}
 
+		// Fast-path exit: after the admin is created, flip setup mode off ASAP.
+		if n, err := g.countUsers(c.UserContext()); err == nil && n != 0 {
+			g.setupMode.Store(false)
+			return c.Next()
+		}
+
 		path := c.Path()
 		// Always allow health endpoints.
 		if path == "/healthz" || path == "/readyz" || path == "/metrics" {
