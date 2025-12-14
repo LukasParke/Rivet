@@ -70,6 +70,10 @@ func (a *Auth) LoadSession() fiber.Handler {
 		uc = context.WithValue(uc, ctxUserKey, u)
 		c.SetUserContext(uc)
 
+		// Also set locals for WebSocket upgrade handlers.
+		c.Locals("session", s)
+		c.Locals("user", u)
+
 		return c.Next()
 	}
 }

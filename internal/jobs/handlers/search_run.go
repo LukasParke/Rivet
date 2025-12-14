@@ -11,12 +11,14 @@ import (
 	"github.com/LukeHagar/Rivet/internal/decisioning"
 	"github.com/LukeHagar/Rivet/internal/security"
 	"github.com/LukeHagar/Rivet/internal/storage"
+	"github.com/LukeHagar/Rivet/internal/ws"
 )
 
 type SearchRunDeps struct {
 	DB        *sql.DB
 	SecretBox *security.SecretBox
 	Policy    security.OutboundPolicy
+	Hub       *ws.Hub
 }
 
 type persistedIndexers struct {
@@ -37,6 +39,9 @@ type persistedIndexers struct {
 }
 
 func ExecuteSearchRun(ctx context.Context, deps SearchRunDeps, runID, targetID string) error {
+	if deps.Hub != nil {
+		deps.Hub.Publish("search.run.started", map[string]any{"runId": runID, "targetId": targetID})
+	}
 	// Mark running
 	_ = storage.UpdateSearchRunRunning(ctx, deps.DB, runID)
 
@@ -56,6 +61,9 @@ func ExecuteSearchRun(ctx context.Context, deps SearchRunDeps, runID, targetID s
 	if err != nil {
 		e := err.Error()
 		_ = storage.UpdateSearchRunCompleted(ctx, deps.DB, runID, &e)
+		if deps.Hub != nil {
+			deps.Hub.Publish("search.run.failed", map[string]any{"runId": runID, "targetId": targetID, "error": e})
+		}
 		return err
 	}
 
@@ -89,13 +97,22 @@ func ExecuteSearchRun(ctx context.Context, deps SearchRunDeps, runID, targetID s
 			if err != nil {
 				continue
 			}
+			if deps.Hub != nil {
+				deps.Hub.Publish("candidate.recorded", map[string]any{"runId": runID, "candidateId": cand.ID, "indexer": ix.Name})
+			}
 
 			dec := decisioning.Decide(n, policies)
 			_, _ = storage.InsertDecision(ctx, deps.DB, cand.ID, dec.Accepted, dec.Score, dec.Reasons)
+			if deps.Hub != nil {
+				deps.Hub.Publish("decision.recorded", map[string]any{"runId": runID, "candidateId": cand.ID, "accepted": dec.Accepted, "score": dec.Score, "reasons": dec.Reasons})
+			}
 		}
 	}
 
 	_ = storage.UpdateSearchRunCompleted(ctx, deps.DB, runID, nil)
+	if deps.Hub != nil {
+		deps.Hub.Publish("search.run.completed", map[string]any{"runId": runID, "targetId": targetID})
+	}
 	return nil
 }
 

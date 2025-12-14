@@ -16,6 +16,7 @@ import (
 	"github.com/LukeHagar/Rivet/internal/observability"
 	"github.com/LukeHagar/Rivet/internal/security"
 	"github.com/LukeHagar/Rivet/internal/storage"
+	"github.com/LukeHagar/Rivet/internal/ws"
 )
 
 func main() {
@@ -46,12 +47,15 @@ func main() {
 		os.Exit(1)
 	}
 
+	hub := ws.NewHub()
+
 	app, _, err := httpapi.NewApp(ctx, httpapi.Deps{
 		DB:                db.SQL,
 		SessionCookieName: cfg.SessionCookieName,
 		SessionTTL:        cfg.SessionTTL,
 		SecretKeyBase64:   cfg.SecretKeyBase64,
 		AllowInternalURLs: cfg.AllowInternalURLs,
+		Hub:              hub,
 	})
 	if err != nil {
 		log.Error("build app", slog.Any("err", err))
@@ -65,6 +69,7 @@ func main() {
 		SecretBox: sb,
 		Policy:    security.OutboundPolicy{AllowInternal: cfg.AllowInternalURLs},
 		Logger:    log,
+		Hub:       hub,
 	})
 
 	errCh := make(chan error, 1)

@@ -13,12 +13,14 @@ import (
 	"github.com/LukeHagar/Rivet/internal/security"
 	"github.com/LukeHagar/Rivet/internal/storage"
 	"github.com/LukeHagar/Rivet/internal/jobs/queue"
+	"github.com/LukeHagar/Rivet/internal/ws"
 )
 
 type TargetsDeps struct {
 	DB        *sql.DB
 	SecretBox *security.SecretBox
 	Policy    security.OutboundPolicy
+	Hub       *ws.Hub
 }
 
 type CreateTargetRequest struct {
@@ -88,9 +90,12 @@ func RegisterTargetsAndSearch(api fiber.Router, deps TargetsDeps) {
 			return c.Status(http.StatusInternalServerError).JSON(fiber.Map{"error": "create_run_failed"})
 		}
 
-		_, err = queue.Enqueue(ctx, deps.DB, "search_run", map[string]string{"runId": run.ID, "targetId": targetID}, queue.EnqueueOpts{})
+		job, err := queue.Enqueue(ctx, deps.DB, "search_run", map[string]string{"runId": run.ID, "targetId": targetID}, queue.EnqueueOpts{})
 		if err != nil {
 			return c.Status(http.StatusInternalServerError).JSON(fiber.Map{"error": "enqueue_failed"})
+		}
+		if deps.Hub != nil {
+			deps.Hub.Publish("job.enqueued", map[string]any{"jobId": job.ID, "kind": job.Kind, "runId": run.ID, "targetId": targetID})
 		}
 
 		return c.Status(http.StatusAccepted).JSON(StartSearchResponse{RunID: run.ID})

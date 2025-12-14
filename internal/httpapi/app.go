@@ -11,6 +11,7 @@ import (
 	"github.com/LukeHagar/Rivet/internal/httpapi/routes"
 	"github.com/LukeHagar/Rivet/internal/security"
 	"github.com/LukeHagar/Rivet/internal/storage"
+	"github.com/LukeHagar/Rivet/internal/ws"
 )
 
 type Deps struct {
@@ -21,6 +22,8 @@ type Deps struct {
 
 	SecretKeyBase64   string
 	AllowInternalURLs bool
+
+	Hub *ws.Hub
 }
 
 func NewApp(ctx context.Context, deps Deps) (*fiber.App, *middleware.SetupGate, error) {
@@ -46,6 +49,9 @@ func NewApp(ctx context.Context, deps Deps) (*fiber.App, *middleware.SetupGate, 
 	app.Use(middleware.CSRFMiddleware())
 
 	routes.RegisterHealth(app, deps.DB)
+	if deps.Hub != nil {
+		routes.RegisterWebSocket(app, deps.Hub)
+	}
 
 	api := app.Group("/api/v1")
 	routes.RegisterSetup(api, routes.SetupDeps{DB: deps.DB, SetupMode: setupGate.IsSetupMode})
@@ -73,6 +79,7 @@ func NewApp(ctx context.Context, deps Deps) (*fiber.App, *middleware.SetupGate, 
 		DB:        deps.DB,
 		SecretBox: sb,
 		Policy:    policy,
+		Hub:       deps.Hub,
 	})
 	routes.RegisterAuth(api, routes.AuthDeps{
 		DB:                deps.DB,
