@@ -1,1 +1,0 @@
-import{C as a}from"./D65C3x6o.js";a();

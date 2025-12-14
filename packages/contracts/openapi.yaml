@@ -244,6 +244,35 @@ paths:
                 type: object
                 properties:
                   ok: { type: boolean }
+  /api/v1/targets:
+    get:
+      summary: List targets
+      responses:
+        '200': { description: OK }
+    post:
+      summary: Create target
+      responses:
+        '201': { description: Created }
+  /api/v1/targets/{id}/search:
+    post:
+      summary: Start a search run for target
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '202': { description: Accepted }
+  /api/v1/search/runs/{id}:
+    get:
+      summary: Get search run results
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: OK }
   /healthz:
     get:
       summary: Liveness

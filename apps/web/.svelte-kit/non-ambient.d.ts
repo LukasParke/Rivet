@@ -27,12 +27,13 @@ export {};
 
 declare module "$app/types" {
 	export interface AppTypes {
-		RouteId(): "/" | "/setup" | "/setup/admin" | "/setup/clients" | "/setup/finish" | "/setup/indexers" | "/setup/metadata" | "/setup/paths" | "/setup/policies";
+		RouteId(): "/" | "/app" | "/setup" | "/setup/admin" | "/setup/clients" | "/setup/finish" | "/setup/indexers" | "/setup/metadata" | "/setup/paths" | "/setup/policies";
 		RouteParams(): {
 			
 		};
 		LayoutParams(): {
 			"/": Record<string, never>;
+			"/app": Record<string, never>;
 			"/setup": Record<string, never>;
 			"/setup/admin": Record<string, never>;
 			"/setup/clients": Record<string, never>;
@@ -42,7 +43,7 @@ declare module "$app/types" {
 			"/setup/paths": Record<string, never>;
 			"/setup/policies": Record<string, never>
 		};
-		Pathname(): "/" | "/setup" | "/setup/" | "/setup/admin" | "/setup/admin/" | "/setup/clients" | "/setup/clients/" | "/setup/finish" | "/setup/finish/" | "/setup/indexers" | "/setup/indexers/" | "/setup/metadata" | "/setup/metadata/" | "/setup/paths" | "/setup/paths/" | "/setup/policies" | "/setup/policies/";
+		Pathname(): "/" | "/app" | "/app/" | "/setup" | "/setup/" | "/setup/admin" | "/setup/admin/" | "/setup/clients" | "/setup/clients/" | "/setup/finish" | "/setup/finish/" | "/setup/indexers" | "/setup/indexers/" | "/setup/metadata" | "/setup/metadata/" | "/setup/paths" | "/setup/paths/" | "/setup/policies" | "/setup/policies/";
 		ResolvedPathname(): `${"" | `/${string}`}${ReturnType<AppTypes['Pathname']>}`;
 		Asset(): string & {};
 	}

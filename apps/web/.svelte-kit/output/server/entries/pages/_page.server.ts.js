@@ -8,7 +8,7 @@ async function load({ fetch }) {
   if (data.setupMode) {
     throw redirect(302, "/setup");
   }
-  return { setupMode: false };
+  throw redirect(302, "/app");
 }
 export {
   load

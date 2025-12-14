@@ -134,6 +134,22 @@
     "src": "src/routes/+page.svelte",
     "isEntry": true
   },
+  "src/routes/app/+page.server.ts": {
+    "file": "entries/pages/app/_page.server.ts.js",
+    "name": "entries/pages/app/_page.server.ts",
+    "src": "src/routes/app/+page.server.ts",
+    "isEntry": true
+  },
+  "src/routes/app/+page.svelte": {
+    "file": "entries/pages/app/_page.svelte.js",
+    "name": "entries/pages/app/_page.svelte",
+    "src": "src/routes/app/+page.svelte",
+    "isEntry": true,
+    "imports": [
+      "_attributes.js",
+      "_index.js"
+    ]
+  },
   "src/routes/setup/+layout.server.ts": {
     "file": "entries/pages/setup/_layout.server.ts.js",
     "name": "entries/pages/setup/_layout.server.ts",
