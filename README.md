@@ -247,6 +247,20 @@ Sanitized settings + last N errors + health snapshot + top reject reasons.
 
 ---
 
+## Test strategy (required)
+
+### Unit + integration
+
+- **Unit tests**: pure logic (parsing/decisioning/scoring/state machine), storage helpers, SSRF guards, crypto helpers.
+- **Integration tests** (real external providers): run against public APIs when credentials are provided via env; otherwise **auto-skip**.
+  - TMDB: set `TMDB_API_KEY`
+  - TVDB: set `TVDB_API_KEY`
+  - (extend similarly for other providers as they’re added)
+
+These tests validate the real request/response contract, rate-limit handling, and auth failures without requiring a full deployment.
+
+---
+
 ## Security (publicly accessible by design)
 
 - **RBAC**: admin/operator/viewer

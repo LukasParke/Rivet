@@ -184,6 +184,30 @@ paths:
                 type: object
                 properties:
                   saved: { type: boolean }
+  /api/v1/setup/metadata/validate:
+    post:
+      summary: Validate metadata providers (TMDB/TVDB) (setup wizard)
+      responses:
+        '200':
+          description: Validation result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+  /api/v1/setup/metadata/save:
+    post:
+      summary: Save metadata provider configs (setup wizard)
+      responses:
+        '200':
+          description: Saved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  saved: { type: boolean }
   /healthz:
     get:
       summary: Liveness
