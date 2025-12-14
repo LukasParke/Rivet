@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/LukeHagar/Rivet/internal/adapters/downloaders/qbittorrent"
-	importer "github.com/LukeHagar/Rivet/internal/import"
 	"github.com/LukeHagar/Rivet/internal/jobs/queue"
 	"github.com/LukeHagar/Rivet/internal/security"
 	"github.com/LukeHagar/Rivet/internal/storage"
@@ -22,6 +21,7 @@ type MonitorDeps struct {
 	Policy    security.OutboundPolicy
 	PollEvery time.Duration
 	Hub       publisher
+	StallAfter time.Duration
 }
 
 type setupPaths struct {
@@ -33,6 +33,9 @@ type setupPaths struct {
 func MonitorAcquisition(ctx context.Context, deps MonitorDeps, acquisitionID string) error {
 	if deps.PollEvery <= 0 {
 		deps.PollEvery = 10 * time.Second
+	}
+	if deps.StallAfter <= 0 {
+		deps.StallAfter = 30 * time.Minute
 	}
 	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
@@ -76,8 +79,21 @@ func MonitorAcquisition(ctx context.Context, deps MonitorDeps, acquisitionID str
 		return nil
 	}
 
+	// Ensure we have download start/progress-change timestamps.
+	now := time.Now().UTC()
+	if a.Status == "pending" || a.Status == "enqueued" {
+		_ = storage.MarkAcquisitionDownloading(ctx, deps.DB, a.ID, now, now)
+	}
+
 	progress := info.Progress
+	oldProgress := 0.0
+	if a.Progress != nil {
+		oldProgress = *a.Progress
+	}
 	_ = storage.UpdateAcquisitionProgress(ctx, deps.DB, a.ID, "downloading", &progress, strPtr(info.ContentPath))
+	if progress > oldProgress+0.001 {
+		_ = storage.TouchAcquisitionProgressChanged(ctx, deps.DB, a.ID, now)
+	}
 	if deps.Hub != nil {
 		deps.Hub.Publish("download.progress", map[string]any{
 			"acquisitionId": a.ID,
@@ -112,76 +128,24 @@ func MonitorAcquisition(ctx context.Context, deps MonitorDeps, acquisitionID str
 			})
 		}
 
-		// Import.
+		// Verify -> import pipeline.
+		_, _ = queue.Enqueue(ctx, deps.DB, "acquisition_verify", map[string]string{"acquisitionId": a.ID}, queue.EnqueueOpts{RunAfter: time.Now().UTC().Add(1 * time.Second)})
+		return nil
+	}
+
+	// Stall detection: no progress change for too long.
+	if a.ProgressChangedAt != nil && now.Sub(*a.ProgressChangedAt) > deps.StallAfter {
+		_ = storage.MarkAcquisitionStalled(ctx, deps.DB, a.ID)
 		if deps.Hub != nil {
-			deps.Hub.Publish("import.started", map[string]any{
+			deps.Hub.Publish("download.stalled", map[string]any{
 				"acquisitionId": a.ID,
 				"candidateId":   a.CandidateID,
 				"targetId":      a.TargetID,
-				"contentPath":   cp,
+				"progress":      progress,
+				"state":         info.State,
 			})
 		}
-		paths, err := loadSetupPaths(ctx, deps.DB)
-		if err != nil {
-			_ = storage.MarkAcquisitionFailed(ctx, deps.DB, a.ID, err.Error())
-			if deps.Hub != nil {
-				deps.Hub.Publish("import.failed", map[string]any{
-					"acquisitionId": a.ID,
-					"candidateId":   a.CandidateID,
-					"targetId":      a.TargetID,
-					"error":         err.Error(),
-				})
-			}
-			return err
-		}
-		if len(paths.LibraryRoots) == 0 {
-			_ = storage.MarkAcquisitionFailed(ctx, deps.DB, a.ID, "no_library_roots")
-			if deps.Hub != nil {
-				deps.Hub.Publish("import.failed", map[string]any{
-					"acquisitionId": a.ID,
-					"candidateId":   a.CandidateID,
-					"targetId":      a.TargetID,
-					"error":         "no_library_roots",
-				})
-			}
-			return errors.New("no_library_roots")
-		}
-		// Minimal verification: choose a media file that is safe to import.
-		src, err := importer.PickBestMediaFile(cp)
-		if err != nil {
-			_ = storage.MarkAcquisitionFailed(ctx, deps.DB, a.ID, err.Error())
-			if deps.Hub != nil {
-				deps.Hub.Publish("import.failed", map[string]any{
-					"acquisitionId": a.ID,
-					"candidateId":   a.CandidateID,
-					"targetId":      a.TargetID,
-					"error":         err.Error(),
-				})
-			}
-			return err
-		}
-		dest, err := importer.ImportFile(src, paths.LibraryRoots[0])
-		if err != nil {
-			_ = storage.MarkAcquisitionFailed(ctx, deps.DB, a.ID, err.Error())
-			if deps.Hub != nil {
-				deps.Hub.Publish("import.failed", map[string]any{
-					"acquisitionId": a.ID,
-					"candidateId":   a.CandidateID,
-					"targetId":      a.TargetID,
-					"error":         err.Error(),
-				})
-			}
-			return err
-		}
-		_ = storage.MarkAcquisitionImported(ctx, deps.DB, a.ID, dest)
-		if deps.Hub != nil {
-			deps.Hub.Publish("import.completed", map[string]any{
-				"acquisitionId": a.ID,
-				"candidateId":   a.CandidateID,
-				"targetId":      a.TargetID,
-				"importedPath":  dest,
-			})
-		}
+		_, _ = queue.Enqueue(ctx, deps.DB, "acquisition_recover", map[string]string{"acquisitionId": a.ID}, queue.EnqueueOpts{RunAfter: time.Now().UTC().Add(1 * time.Second)})
 		return nil
 	}
 

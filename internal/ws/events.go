@@ -37,6 +37,8 @@ func ChannelsForType(t string) []string {
 		return append(ch, "audit")
 	case "health":
 		return append(ch, "health")
+	case "verify":
+		return append(ch, "imports")
 	case "import":
 		return append(ch, "imports")
 	case "download":

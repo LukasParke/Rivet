@@ -20,10 +20,17 @@ type Acquisition struct {
 	SourceURL  *string
 	ExternalID *string
 	ContentPath *string
+	VerifiedPath *string
+	QuarantinedPath *string
+	VerifyStatus *string
 	ImportedPath *string
 	CompletedAt  *time.Time
 	ImportedAt   *time.Time
 	Progress     *float64
+	DownloadStartedAt *time.Time
+	ProgressChangedAt *time.Time
+	StalledAt         *time.Time
+	RecoveryAttempt   int
 	LastError  *string
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
@@ -62,6 +69,85 @@ UPDATE acquisitions
 SET status = ?, progress = ?, content_path = COALESCE(?, content_path), updated_at = ?
 WHERE id = ?
 `, status, progress, contentPath, now.Format(time.RFC3339Nano), id)
+	return err
+}
+
+func MarkAcquisitionDownloading(ctx context.Context, db *sql.DB, id string, downloadStartedAt time.Time, progressChangedAt time.Time) error {
+	now := time.Now().UTC()
+	_, err := db.ExecContext(ctx, `
+UPDATE acquisitions
+SET status = 'downloading',
+    download_started_at = COALESCE(download_started_at, ?),
+    progress_changed_at = COALESCE(progress_changed_at, ?),
+    stalled_at = NULL,
+    updated_at = ?
+WHERE id = ?
+`, downloadStartedAt.Format(time.RFC3339Nano), progressChangedAt.Format(time.RFC3339Nano), now.Format(time.RFC3339Nano), id)
+	return err
+}
+
+func TouchAcquisitionProgressChanged(ctx context.Context, db *sql.DB, id string, when time.Time) error {
+	now := time.Now().UTC()
+	_, err := db.ExecContext(ctx, `
+UPDATE acquisitions
+SET progress_changed_at = ?, updated_at = ?
+WHERE id = ?
+`, when.Format(time.RFC3339Nano), now.Format(time.RFC3339Nano), id)
+	return err
+}
+
+func MarkAcquisitionStalled(ctx context.Context, db *sql.DB, id string) error {
+	now := time.Now().UTC()
+	_, err := db.ExecContext(ctx, `
+UPDATE acquisitions
+SET status = 'stalled', stalled_at = ?, updated_at = ?
+WHERE id = ?
+`, now.Format(time.RFC3339Nano), now.Format(time.RFC3339Nano), id)
+	return err
+}
+
+func IncrementAcquisitionRecoveryAttempt(ctx context.Context, db *sql.DB, id string) (int, error) {
+	now := time.Now().UTC()
+	_, err := db.ExecContext(ctx, `
+UPDATE acquisitions
+SET recovery_attempt = COALESCE(recovery_attempt, 0) + 1, updated_at = ?
+WHERE id = ?
+`, now.Format(time.RFC3339Nano), id)
+	if err != nil {
+		return 0, err
+	}
+	var n int
+	_ = db.QueryRowContext(ctx, `SELECT COALESCE(recovery_attempt, 0) FROM acquisitions WHERE id = ?`, id).Scan(&n)
+	return n, nil
+}
+
+func MarkAcquisitionVerifying(ctx context.Context, db *sql.DB, id string) error {
+	now := time.Now().UTC()
+	_, err := db.ExecContext(ctx, `
+UPDATE acquisitions
+SET status = 'verifying', verify_status = 'running', last_error = NULL, updated_at = ?
+WHERE id = ?
+`, now.Format(time.RFC3339Nano), id)
+	return err
+}
+
+func MarkAcquisitionVerified(ctx context.Context, db *sql.DB, id string, verifiedPath string) error {
+	now := time.Now().UTC()
+	_, err := db.ExecContext(ctx, `
+UPDATE acquisitions
+SET verify_status = 'passed', verified_path = ?, quarantined_path = NULL, updated_at = ?
+WHERE id = ?
+`, verifiedPath, now.Format(time.RFC3339Nano), id)
+	return err
+}
+
+func MarkAcquisitionNeedsReview(ctx context.Context, db *sql.DB, id string, verifyStatus string, quarantinedPath *string, errStr string) error {
+	now := time.Now().UTC()
+	_, err := db.ExecContext(ctx, `
+UPDATE acquisitions
+SET status = 'needs_review', verify_status = ?, quarantined_path = ?, last_error = ?, updated_at = ?
+WHERE id = ?
+`, verifyStatus, quarantinedPath, errStr, now.Format(time.RFC3339Nano), id)
 	return err
 }
 
@@ -125,14 +211,17 @@ func GetAcquisition(ctx context.Context, db *sql.DB, id string) (Acquisition, er
 	var a Acquisition
 	var externalID, lastErr sql.NullString
 	var sourceURL, contentPath, importedPath sql.NullString
+	var verifiedPath, quarantinedPath, verifyStatus sql.NullString
 	var completedAt, importedAt sql.NullString
 	var progress sql.NullFloat64
+	var downloadStartedAt, progressChangedAt, stalledAt sql.NullString
+	var recoveryAttempt sql.NullInt64
 	var createdAt, updatedAt string
 	if err := db.QueryRowContext(ctx, `
-SELECT id, candidate_id, target_id, kind, status, client_kind, client_name, source_url, external_id, content_path, imported_path, completed_at, imported_at, progress, last_error, created_at, updated_at
+SELECT id, candidate_id, target_id, kind, status, client_kind, client_name, source_url, external_id, content_path, verified_path, quarantined_path, verify_status, imported_path, completed_at, imported_at, progress, download_started_at, progress_changed_at, stalled_at, COALESCE(recovery_attempt, 0), last_error, created_at, updated_at
 FROM acquisitions
 WHERE id = ?
-`, id).Scan(&a.ID, &a.CandidateID, &a.TargetID, &a.Kind, &a.Status, &a.ClientKind, &a.ClientName, &sourceURL, &externalID, &contentPath, &importedPath, &completedAt, &importedAt, &progress, &lastErr, &createdAt, &updatedAt); err != nil {
+`, id).Scan(&a.ID, &a.CandidateID, &a.TargetID, &a.Kind, &a.Status, &a.ClientKind, &a.ClientName, &sourceURL, &externalID, &contentPath, &verifiedPath, &quarantinedPath, &verifyStatus, &importedPath, &completedAt, &importedAt, &progress, &downloadStartedAt, &progressChangedAt, &stalledAt, &recoveryAttempt, &lastErr, &createdAt, &updatedAt); err != nil {
 		return Acquisition{}, err
 	}
 	if sourceURL.Valid {
@@ -143,6 +232,15 @@ WHERE id = ?
 	}
 	if contentPath.Valid {
 		a.ContentPath = &contentPath.String
+	}
+	if verifiedPath.Valid {
+		a.VerifiedPath = &verifiedPath.String
+	}
+	if quarantinedPath.Valid {
+		a.QuarantinedPath = &quarantinedPath.String
+	}
+	if verifyStatus.Valid {
+		a.VerifyStatus = &verifyStatus.String
 	}
 	if importedPath.Valid {
 		a.ImportedPath = &importedPath.String
@@ -161,6 +259,24 @@ WHERE id = ?
 		v := progress.Float64
 		a.Progress = &v
 	}
+	if downloadStartedAt.Valid {
+		if t, err := time.Parse(time.RFC3339Nano, downloadStartedAt.String); err == nil {
+			a.DownloadStartedAt = &t
+		}
+	}
+	if progressChangedAt.Valid {
+		if t, err := time.Parse(time.RFC3339Nano, progressChangedAt.String); err == nil {
+			a.ProgressChangedAt = &t
+		}
+	}
+	if stalledAt.Valid {
+		if t, err := time.Parse(time.RFC3339Nano, stalledAt.String); err == nil {
+			a.StalledAt = &t
+		}
+	}
+	if recoveryAttempt.Valid {
+		a.RecoveryAttempt = int(recoveryAttempt.Int64)
+	}
 	if lastErr.Valid {
 		a.LastError = &lastErr.String
 	}
@@ -175,7 +291,9 @@ func ListAcquisitions(ctx context.Context, db *sql.DB, limit int) ([]Acquisition
 	}
 	rows, err := db.QueryContext(ctx, `
 SELECT id, candidate_id, target_id, kind, status, client_kind, client_name,
-       source_url, external_id, content_path, imported_path, completed_at, imported_at, progress,
+       source_url, external_id, content_path, verified_path, quarantined_path, verify_status, imported_path,
+       completed_at, imported_at, progress,
+       download_started_at, progress_changed_at, stalled_at, COALESCE(recovery_attempt, 0),
        last_error, created_at, updated_at
 FROM acquisitions
 ORDER BY created_at DESC
@@ -190,12 +308,17 @@ LIMIT ?
 	for rows.Next() {
 		var a Acquisition
 		var sourceURL, externalID, contentPath, importedPath sql.NullString
+		var verifiedPath, quarantinedPath, verifyStatus sql.NullString
 		var completedAt, importedAt sql.NullString
 		var progress sql.NullFloat64
+		var downloadStartedAt, progressChangedAt, stalledAt sql.NullString
+		var recoveryAttempt sql.NullInt64
 		var lastErr sql.NullString
 		var createdAt, updatedAt string
 		if err := rows.Scan(&a.ID, &a.CandidateID, &a.TargetID, &a.Kind, &a.Status, &a.ClientKind, &a.ClientName,
-			&sourceURL, &externalID, &contentPath, &importedPath, &completedAt, &importedAt, &progress,
+			&sourceURL, &externalID, &contentPath, &verifiedPath, &quarantinedPath, &verifyStatus, &importedPath,
+			&completedAt, &importedAt, &progress,
+			&downloadStartedAt, &progressChangedAt, &stalledAt, &recoveryAttempt,
 			&lastErr, &createdAt, &updatedAt); err != nil {
 			return nil, err
 		}
@@ -207,6 +330,15 @@ LIMIT ?
 		}
 		if contentPath.Valid {
 			a.ContentPath = &contentPath.String
+		}
+		if verifiedPath.Valid {
+			a.VerifiedPath = &verifiedPath.String
+		}
+		if quarantinedPath.Valid {
+			a.QuarantinedPath = &quarantinedPath.String
+		}
+		if verifyStatus.Valid {
+			a.VerifyStatus = &verifyStatus.String
 		}
 		if importedPath.Valid {
 			a.ImportedPath = &importedPath.String
@@ -224,6 +356,24 @@ LIMIT ?
 		if progress.Valid {
 			v := progress.Float64
 			a.Progress = &v
+		}
+		if downloadStartedAt.Valid {
+			if t, err := time.Parse(time.RFC3339Nano, downloadStartedAt.String); err == nil {
+				a.DownloadStartedAt = &t
+			}
+		}
+		if progressChangedAt.Valid {
+			if t, err := time.Parse(time.RFC3339Nano, progressChangedAt.String); err == nil {
+				a.ProgressChangedAt = &t
+			}
+		}
+		if stalledAt.Valid {
+			if t, err := time.Parse(time.RFC3339Nano, stalledAt.String); err == nil {
+				a.StalledAt = &t
+			}
+		}
+		if recoveryAttempt.Valid {
+			a.RecoveryAttempt = int(recoveryAttempt.Int64)
 		}
 		if lastErr.Valid {
 			a.LastError = &lastErr.String

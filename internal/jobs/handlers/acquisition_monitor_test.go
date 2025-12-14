@@ -31,7 +31,8 @@ func TestAcquisitionFlow_EnqueueThenMonitorImports(t *testing.T) {
 	}
 
 	contentPath := filepath.Join(downloadsDir, "movie.mkv")
-	if err := os.WriteFile(contentPath, []byte("data"), 0o644); err != nil {
+	// Make it large enough to pass verifier (>=25MB).
+	if err := os.WriteFile(contentPath, make([]byte, 26*1024*1024), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -120,24 +121,40 @@ func TestAcquisitionFlow_EnqueueThenMonitorImports(t *testing.T) {
 		t.Fatalf("expected monitor job")
 	}
 
-	// Run monitor once: should import.
+	// Run monitor once: should mark completed and enqueue verify.
 	if err := MonitorAcquisition(ctx, MonitorDeps{DB: db.SQL, SecretBox: sb, Policy: security.OutboundPolicy{AllowInternal: true}, Hub: pub}, acq.ID); err != nil {
 		t.Fatalf("monitor: %v", err)
 	}
 
 	acq3, _ := storage.GetAcquisition(ctx, db.SQL, acq.ID)
-	if acq3.Status != "imported" {
-		t.Fatalf("expected imported, got %s", acq3.Status)
+	if acq3.Status != "completed" {
+		t.Fatalf("expected completed, got %s", acq3.Status)
 	}
-	if acq3.ImportedPath == nil {
+
+	// Verify then import.
+	if err := VerifyAcquisition(ctx, VerifyDeps{DB: db.SQL, Hub: pub}, acq.ID); err != nil {
+		t.Fatalf("verify: %v", err)
+	}
+	if err := ImportAcquisition(ctx, ImportDeps{DB: db.SQL, Hub: pub}, acq.ID); err != nil {
+		t.Fatalf("import: %v", err)
+	}
+
+	acq4, _ := storage.GetAcquisition(ctx, db.SQL, acq.ID)
+	if acq4.Status != "imported" {
+		t.Fatalf("expected imported, got %s", acq4.Status)
+	}
+	if acq4.ImportedPath == nil {
 		t.Fatalf("expected imported path")
 	}
-	if _, err := os.Stat(*acq3.ImportedPath); err != nil {
+	if _, err := os.Stat(*acq4.ImportedPath); err != nil {
 		t.Fatalf("imported file missing: %v", err)
 	}
 	// Sanity: we emitted some lifecycle events.
 	if pub.countPrefix("download.") < 2 {
 		t.Fatalf("expected download events")
+	}
+	if pub.countPrefix("verify.") < 2 {
+		t.Fatalf("expected verify events")
 	}
 	if pub.countPrefix("import.") < 2 {
 		t.Fatalf("expected import events")

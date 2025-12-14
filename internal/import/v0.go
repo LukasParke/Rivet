@@ -61,6 +61,40 @@ func PickBestMediaFile(root string) (string, error) {
 	return bestPath, nil
 }
 
+// Quarantine moves srcPath into quarantineRoot/quarantine/ and returns new path.
+func Quarantine(srcPath, quarantineRoot string) (string, error) {
+	srcPath = filepath.Clean(srcPath)
+	quarantineRoot = filepath.Clean(quarantineRoot)
+	base := filepath.Base(srcPath)
+	if base == "." || base == string(filepath.Separator) {
+		return "", errors.New("invalid_source")
+	}
+	destDir := filepath.Join(quarantineRoot, "quarantine")
+	if err := os.MkdirAll(destDir, 0o755); err != nil {
+		return "", err
+	}
+	dest := uniquify(filepath.Join(destDir, base))
+	if err := os.Rename(srcPath, dest); err == nil {
+		return dest, nil
+	}
+	// Fallback: copy + remove.
+	in, err := os.Open(srcPath)
+	if err != nil {
+		return "", err
+	}
+	defer in.Close()
+	out, err := os.OpenFile(dest, os.O_CREATE|os.O_WRONLY|os.O_EXCL, 0o644)
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = out.Close() }()
+	if _, err := io.Copy(out, in); err != nil {
+		return "", err
+	}
+	_ = os.Remove(srcPath)
+	return dest, nil
+}
+
 // ImportFile attempts hardlink then copy.
 func ImportFile(srcPath, libraryRoot string) (string, error) {
 	srcPath = filepath.Clean(srcPath)

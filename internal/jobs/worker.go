@@ -142,6 +142,48 @@ func handleJob(ctx context.Context, deps WorkerDeps, job queue.Job) error {
 			return errors.New("invalid_payload")
 		}
 		return handlers.MonitorAcquisition(ctx, handlers.MonitorDeps{DB: deps.DB, SecretBox: deps.SecretBox, Policy: deps.Policy, Hub: deps.Hub}, p.AcquisitionID)
+	case "acquisition_recover":
+		var p struct {
+			AcquisitionID string `json:"acquisitionId"`
+		}
+		if job.PayloadJSON == nil {
+			return errors.New("missing_payload")
+		}
+		if err := json.Unmarshal([]byte(*job.PayloadJSON), &p); err != nil {
+			return err
+		}
+		if p.AcquisitionID == "" {
+			return errors.New("invalid_payload")
+		}
+		return handlers.RecoverAcquisition(ctx, handlers.RecoverDeps{DB: deps.DB, SecretBox: deps.SecretBox, Policy: deps.Policy, Hub: deps.Hub}, p.AcquisitionID)
+	case "acquisition_verify":
+		var p struct {
+			AcquisitionID string `json:"acquisitionId"`
+		}
+		if job.PayloadJSON == nil {
+			return errors.New("missing_payload")
+		}
+		if err := json.Unmarshal([]byte(*job.PayloadJSON), &p); err != nil {
+			return err
+		}
+		if p.AcquisitionID == "" {
+			return errors.New("invalid_payload")
+		}
+		return handlers.VerifyAcquisition(ctx, handlers.VerifyDeps{DB: deps.DB, Hub: deps.Hub}, p.AcquisitionID)
+	case "acquisition_import":
+		var p struct {
+			AcquisitionID string `json:"acquisitionId"`
+		}
+		if job.PayloadJSON == nil {
+			return errors.New("missing_payload")
+		}
+		if err := json.Unmarshal([]byte(*job.PayloadJSON), &p); err != nil {
+			return err
+		}
+		if p.AcquisitionID == "" {
+			return errors.New("invalid_payload")
+		}
+		return handlers.ImportAcquisition(ctx, handlers.ImportDeps{DB: deps.DB, Hub: deps.Hub}, p.AcquisitionID)
 	default:
 		return errors.New("unknown_job_kind")
 	}
