@@ -273,6 +273,11 @@ paths:
           schema: { type: string }
       responses:
         '200': { description: OK }
+  /api/v1/diagnostics/bundle:
+    get:
+      summary: Diagnostics bundle (sanitized)
+      responses:
+        '200': { description: OK }
   /healthz:
     get:
       summary: Liveness

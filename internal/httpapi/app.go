@@ -57,6 +57,7 @@ func NewApp(ctx context.Context, deps Deps) (*fiber.App, *middleware.SetupGate, 
 	}
 
 	api := app.Group("/api/v1")
+	routes.RegisterDiagnostics(api, routes.DiagnosticsDeps{DB: deps.DB, Metrics: deps.Metrics})
 	routes.RegisterSetup(api, routes.SetupDeps{DB: deps.DB, SetupMode: setupGate.IsSetupMode, Hub: deps.Hub})
 	routes.RegisterSetupPaths(api, deps.DB, deps.Hub)
 	sb, _ := security.NewSecretBox(deps.SecretKeyBase64)

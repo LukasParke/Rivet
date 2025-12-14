@@ -49,6 +49,7 @@ func main() {
 	}
 
 	hub := ws.NewHub()
+	ws.StartHealthPublisher(ctx, ws.HealthPublisherDeps{DB: db.SQL, Hub: hub, Metrics: metrics}, 10*time.Second)
 
 	app, _, err := httpapi.NewApp(ctx, httpapi.Deps{
 		DB:                db.SQL,
