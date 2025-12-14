@@ -160,6 +160,30 @@ paths:
                 type: object
                 properties:
                   saved: { type: boolean }
+  /api/v1/setup/indexers/validate:
+    post:
+      summary: Validate indexers (Torznab/Newznab) (setup wizard)
+      responses:
+        '200':
+          description: Validation result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+  /api/v1/setup/indexers/save:
+    post:
+      summary: Save indexer configs (setup wizard)
+      responses:
+        '200':
+          description: Saved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  saved: { type: boolean }
   /healthz:
     get:
       summary: Liveness

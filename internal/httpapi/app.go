@@ -51,10 +51,16 @@ func NewApp(ctx context.Context, deps Deps) (*fiber.App, *middleware.SetupGate, 
 	routes.RegisterSetup(api, routes.SetupDeps{DB: deps.DB, SetupMode: setupGate.IsSetupMode})
 	routes.RegisterSetupPaths(api, deps.DB)
 	sb, _ := security.NewSecretBox(deps.SecretKeyBase64)
+	policy := security.OutboundPolicy{AllowInternal: deps.AllowInternalURLs}
 	routes.RegisterSetupClients(api, routes.SetupClientsDeps{
 		DB:        deps.DB,
 		SecretBox: sb,
-		Policy:    security.OutboundPolicy{AllowInternal: deps.AllowInternalURLs},
+		Policy:    policy,
+	})
+	routes.RegisterSetupIndexers(api, routes.SetupIndexersDeps{
+		DB:        deps.DB,
+		SecretBox: sb,
+		Policy:    policy,
 	})
 	routes.RegisterAuth(api, routes.AuthDeps{
 		DB:                deps.DB,

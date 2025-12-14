@@ -5,5 +5,6 @@
 		<a href="/setup/admin"><button>Create Admin</button></a>
 		<a href="/setup/paths"><button class="secondary">Paths</button></a>
 		<a href="/setup/clients"><button class="secondary">Download clients</button></a>
+		<a href="/setup/indexers"><button class="secondary">Indexers</button></a>
 	</div>
 </div>

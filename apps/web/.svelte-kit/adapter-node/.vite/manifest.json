@@ -193,6 +193,22 @@
       "_index.js"
     ]
   },
+  "src/routes/setup/indexers/+page.server.ts": {
+    "file": "entries/pages/setup/indexers/_page.server.ts.js",
+    "name": "entries/pages/setup/indexers/_page.server.ts",
+    "src": "src/routes/setup/indexers/+page.server.ts",
+    "isEntry": true
+  },
+  "src/routes/setup/indexers/+page.svelte": {
+    "file": "entries/pages/setup/indexers/_page.svelte.js",
+    "name": "entries/pages/setup/indexers/_page.svelte",
+    "src": "src/routes/setup/indexers/+page.svelte",
+    "isEntry": true,
+    "imports": [
+      "_attributes.js",
+      "_index.js"
+    ]
+  },
   "src/routes/setup/paths/+page.server.ts": {
     "file": "entries/pages/setup/paths/_page.server.ts.js",
     "name": "entries/pages/setup/paths/_page.server.ts",

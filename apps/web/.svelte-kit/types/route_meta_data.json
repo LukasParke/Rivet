@@ -21,6 +21,11 @@
 		"src/routes/setup/+layout.server.ts",
 		"src/routes/+layout.server.ts"
 	],
+	"/setup/indexers": [
+		"src/routes/setup/indexers/+page.server.ts",
+		"src/routes/setup/+layout.server.ts",
+		"src/routes/+layout.server.ts"
+	],
 	"/setup/paths": [
 		"src/routes/setup/paths/+page.server.ts",
 		"src/routes/setup/+layout.server.ts",

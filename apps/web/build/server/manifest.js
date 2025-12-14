@@ -10,16 +10,17 @@ return {
 	assets: new Set([]),
 	mimeTypes: {},
 	_: {
-		client: {start:"_app/immutable/entry/start.7-hRtgay.js",app:"_app/immutable/entry/app.C_0wDNAK.js",imports:["_app/immutable/entry/start.7-hRtgay.js","_app/immutable/chunks/QDDk6FXQ.js","_app/immutable/chunks/D65C3x6o.js","_app/immutable/chunks/k8YrP_PO.js","_app/immutable/entry/app.C_0wDNAK.js","_app/immutable/chunks/D65C3x6o.js","_app/immutable/chunks/DmVZp85x.js","_app/immutable/chunks/9z75sjEA.js","_app/immutable/chunks/D5Af684K.js","_app/immutable/chunks/k8YrP_PO.js"],stylesheets:[],fonts:[],uses_env_dynamic_public:false},
+		client: {start:"_app/immutable/entry/start.DaWyo4dO.js",app:"_app/immutable/entry/app.CM3VBDmm.js",imports:["_app/immutable/entry/start.DaWyo4dO.js","_app/immutable/chunks/CNr0DJ5d.js","_app/immutable/chunks/D65C3x6o.js","_app/immutable/chunks/k8YrP_PO.js","_app/immutable/entry/app.CM3VBDmm.js","_app/immutable/chunks/D65C3x6o.js","_app/immutable/chunks/DmVZp85x.js","_app/immutable/chunks/9z75sjEA.js","_app/immutable/chunks/D5Af684K.js","_app/immutable/chunks/k8YrP_PO.js"],stylesheets:[],fonts:[],uses_env_dynamic_public:false},
 		nodes: [
 			__memo(() => import('./chunks/0-Bq1L6iqc.js')),
-			__memo(() => import('./chunks/1-DH-Goj3u.js')),
+			__memo(() => import('./chunks/1-BXTePtxm.js')),
 			__memo(() => import('./chunks/2-Cv_rPGHR.js')),
 			__memo(() => import('./chunks/3-DzmPCOmq.js')),
-			__memo(() => import('./chunks/4-BBKCkZDL.js')),
+			__memo(() => import('./chunks/4-BSCSu-io.js')),
 			__memo(() => import('./chunks/5-DvWnTpGL.js')),
 			__memo(() => import('./chunks/6-BOxC-b9M.js')),
-			__memo(() => import('./chunks/7-CZ9BLa3X.js'))
+			__memo(() => import('./chunks/7-BffIBaeG.js')),
+			__memo(() => import('./chunks/8-Br-ie35D.js'))
 		],
 		remotes: {
 			
@@ -54,10 +55,17 @@ return {
 				endpoint: null
 			},
 			{
+				id: "/setup/indexers",
+				pattern: /^\/setup\/indexers\/?$/,
+				params: [],
+				page: { layouts: [0,2,], errors: [1,,], leaf: 7 },
+				endpoint: null
+			},
+			{
 				id: "/setup/paths",
 				pattern: /^\/setup\/paths\/?$/,
 				params: [],
-				page: { layouts: [0,2,], errors: [1,,], leaf: 7 },
+				page: { layouts: [0,2,], errors: [1,,], leaf: 8 },
 				endpoint: null
 			}
 		],
