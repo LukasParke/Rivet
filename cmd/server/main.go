@@ -49,6 +49,8 @@ func main() {
 		DB:                db.SQL,
 		SessionCookieName: cfg.SessionCookieName,
 		SessionTTL:        cfg.SessionTTL,
+		SecretKeyBase64:   cfg.SecretKeyBase64,
+		AllowInternalURLs: cfg.AllowInternalURLs,
 	})
 	if err != nil {
 		log.Error("build app", slog.Any("err", err))

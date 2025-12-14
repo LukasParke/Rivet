@@ -136,6 +136,30 @@ paths:
                 type: object
                 properties:
                   saved: { type: boolean }
+  /api/v1/setup/clients/validate:
+    post:
+      summary: Validate download clients (setup wizard)
+      responses:
+        '200':
+          description: Validation result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+  /api/v1/setup/clients/save:
+    post:
+      summary: Save download client configs (setup wizard)
+      responses:
+        '200':
+          description: Saved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  saved: { type: boolean }
   /healthz:
     get:
       summary: Liveness

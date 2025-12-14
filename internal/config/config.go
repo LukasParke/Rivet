@@ -23,6 +23,10 @@ type Config struct {
 	SessionTTL        time.Duration
 
 	SetupMode bool
+
+	// AllowInternalURLs controls SSRF protections for integration endpoints.
+	// When false, private/loopback/link-local IPs are blocked for outbound integration calls.
+	AllowInternalURLs bool
 }
 
 func Load() (Config, error) {
@@ -37,6 +41,7 @@ func Load() (Config, error) {
 	cfg.SessionTTL = getenvDuration("SESSION_TTL", 30*24*time.Hour)
 
 	cfg.SetupMode = getenvBool("SETUP_MODE", false)
+	cfg.AllowInternalURLs = getenvBool("ALLOW_INTERNAL_URLS", cfg.Env == "dev")
 
 	if cfg.SecretKeyBase64 == "" {
 		// We allow empty in dev to get started, but it must be set for real deployments.

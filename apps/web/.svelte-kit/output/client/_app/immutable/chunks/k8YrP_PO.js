@@ -1,0 +1,1 @@
+import{w as t,u as o,F as c,y as u}from"./D65C3x6o.js";function l(n){throw new Error("lifecycle_outside_component")}function r(n){o===null&&l(),c&&o.l!==null?a(o).m.push(n):t(()=>{const e=u(n);if(typeof e=="function")return e})}function a(n){var e=n.l;return e.u??={a:[],b:[],m:[]}}export{r as o};

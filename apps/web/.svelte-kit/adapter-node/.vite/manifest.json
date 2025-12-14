@@ -177,6 +177,22 @@
       "_index.js"
     ]
   },
+  "src/routes/setup/clients/+page.server.ts": {
+    "file": "entries/pages/setup/clients/_page.server.ts.js",
+    "name": "entries/pages/setup/clients/_page.server.ts",
+    "src": "src/routes/setup/clients/+page.server.ts",
+    "isEntry": true
+  },
+  "src/routes/setup/clients/+page.svelte": {
+    "file": "entries/pages/setup/clients/_page.svelte.js",
+    "name": "entries/pages/setup/clients/_page.svelte",
+    "src": "src/routes/setup/clients/+page.svelte",
+    "isEntry": true,
+    "imports": [
+      "_attributes.js",
+      "_index.js"
+    ]
+  },
   "src/routes/setup/paths/+page.server.ts": {
     "file": "entries/pages/setup/paths/_page.server.ts.js",
     "name": "entries/pages/setup/paths/_page.server.ts",

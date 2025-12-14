@@ -18,6 +18,9 @@ type Deps struct {
 
 	SessionCookieName string
 	SessionTTL        time.Duration
+
+	SecretKeyBase64   string
+	AllowInternalURLs bool
 }
 
 func NewApp(ctx context.Context, deps Deps) (*fiber.App, *middleware.SetupGate, error) {
@@ -47,6 +50,12 @@ func NewApp(ctx context.Context, deps Deps) (*fiber.App, *middleware.SetupGate, 
 	api := app.Group("/api/v1")
 	routes.RegisterSetup(api, routes.SetupDeps{DB: deps.DB, SetupMode: setupGate.IsSetupMode})
 	routes.RegisterSetupPaths(api, deps.DB)
+	sb, _ := security.NewSecretBox(deps.SecretKeyBase64)
+	routes.RegisterSetupClients(api, routes.SetupClientsDeps{
+		DB:        deps.DB,
+		SecretBox: sb,
+		Policy:    security.OutboundPolicy{AllowInternal: deps.AllowInternalURLs},
+	})
 	routes.RegisterAuth(api, routes.AuthDeps{
 		DB:                deps.DB,
 		SessionCookieName: deps.SessionCookieName,

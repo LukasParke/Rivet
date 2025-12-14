@@ -1,1 +1,0 @@
-import{t,a as n}from"../chunks/suzeVJXb.js";import"../chunks/QtC0aoLg.js";var o=t('<div class="card"><h2>Welcome</h2> <p class="muted">We’ll create an admin account, validate paths, then configure download clients and indexers.</p> <div class="row"><a href="/setup/admin"><button>Create Admin</button></a></div></div>');function r(a){var e=o();n(a,e)}export{r as component};

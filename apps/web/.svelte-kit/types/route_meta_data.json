@@ -16,6 +16,11 @@
 		"src/routes/setup/+layout.server.ts",
 		"src/routes/+layout.server.ts"
 	],
+	"/setup/clients": [
+		"src/routes/setup/clients/+page.server.ts",
+		"src/routes/setup/+layout.server.ts",
+		"src/routes/+layout.server.ts"
+	],
 	"/setup/paths": [
 		"src/routes/setup/paths/+page.server.ts",
 		"src/routes/setup/+layout.server.ts",
