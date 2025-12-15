@@ -8,6 +8,10 @@
 		"src/routes/app/+page.server.ts",
 		"src/routes/+layout.server.ts"
 	],
+	"/app/review": [
+		"src/routes/app/review/+page.server.ts",
+		"src/routes/+layout.server.ts"
+	],
 	"/setup": [
 		"src/routes/setup/+page.server.ts",
 		"src/routes/setup/+layout.server.ts",

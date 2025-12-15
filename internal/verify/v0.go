@@ -46,7 +46,7 @@ func VerifyFile(path string) (Result, error) {
 		return Result{OK: false, Reason: "extension_not_allowed", FilePath: path, FileSize: st.Size()}, nil
 	}
 	name := strings.ToLower(filepath.Base(path))
-	if strings.Contains(name, "sample") {
+	if strings.Contains(name, "sample") || strings.Contains(name, "trailer") {
 		return Result{OK: false, Reason: "sample_detected", FilePath: path, FileSize: st.Size()}, nil
 	}
 	// Avoid super tiny files (common for samples, broken downloads).

@@ -163,6 +163,9 @@
 <div class="container">
 	<h1>Rivet (MVP pipeline demo)</h1>
 	<p class="muted">Create a target, run an indexer search, store candidates + decisions.</p>
+	<div class="row" style="margin-bottom: 12px;">
+		<a href="/app/review"><button class="secondary">Review queue</button></a>
+	</div>
 
 	<div class="card">
 		<h2>Create target</h2>

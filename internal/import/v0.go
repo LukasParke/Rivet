@@ -32,8 +32,11 @@ func PickBestMediaFile(root string) (string, error) {
 		return root, nil
 	}
 
+	// Prefer the largest non-sample media file; fall back to the largest media file.
 	var bestPath string
 	var bestSize int64 = -1
+	var bestSamplePath string
+	var bestSampleSize int64 = -1
 	_ = filepath.WalkDir(root, func(p string, d os.DirEntry, err error) error {
 		if err != nil {
 			return nil
@@ -49,6 +52,15 @@ func PickBestMediaFile(root string) (string, error) {
 		if err != nil {
 			return nil
 		}
+		name := strings.ToLower(filepath.Base(p))
+		isSample := strings.Contains(name, "sample") || strings.Contains(name, "trailer")
+		if isSample {
+			if info.Size() > bestSampleSize {
+				bestSampleSize = info.Size()
+				bestSamplePath = p
+			}
+			return nil
+		}
 		if info.Size() > bestSize {
 			bestSize = info.Size()
 			bestPath = p
@@ -56,6 +68,9 @@ func PickBestMediaFile(root string) (string, error) {
 		return nil
 	})
 	if bestPath == "" {
+		if bestSamplePath != "" {
+			return bestSamplePath, nil
+		}
 		return "", errors.New("no_media_found")
 	}
 	return bestPath, nil
