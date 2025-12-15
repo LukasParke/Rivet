@@ -6,6 +6,99 @@ Core goals: **fast**, **explainable**, **secure**, **observable**, great as a **
 
 ---
 
+## Current implementation status (pick up here)
+
+This repo already contains a working “MVP spine” (API + DB + worker + WS + basic UI). Below is a consolidated snapshot of what is implemented so far and what’s next.
+
+### Implemented (today)
+
+- **Backend service (Go + Fiber)**
+  - **Auth + security**: sessions, CSRF for cookie-auth mutations, RBAC (admin/operator/viewer), login rate limiting, Argon2id password hashing, secrets encryption (AES-256-GCM), SSRF defenses for outbound HTTP, audit event recording.
+  - **DB**: SQLite via `modernc.org/sqlite` + embedded SQL migrations.
+  - **Durable jobs**: DB-backed job queue with leases, retries, exponential backoff + jitter; in-process worker loop.
+  - **Observability**: structured JSON logging (`slog`), `/healthz`, `/readyz`, `/metrics`, diagnostics bundle endpoint.
+  - **WebSockets**: `/ws` with channel subscriptions; server publishes events for jobs, health, audit, downloads, imports.
+
+- **Setup wizard (API + UI)**
+  - Wizard steps exist in the UI and corresponding API endpoints store validated configs in settings:
+    - Paths (`setup.paths`): downloads, library roots, quarantine
+    - Clients (`setup.clients`): qBittorrent credentials stored encrypted
+    - Indexers (`setup.indexers`): Newznab/Torznab configs (stored + validated)
+    - Metadata (`setup.metadata`): TMDB/TVDB configs (stored + validated)
+    - Policies (`setup.policies`): profile/policy JSON (validated + stored)
+
+- **Discovery → decisioning pipeline**
+  - Wanted targets, search runs, release candidates, decisions stored in DB.
+  - `search_run` job executes: searches indexers, normalizes candidates, runs decisioning, stores decisions, emits WS events.
+
+- **Acquisition pipeline (qBittorrent MVP)**
+  - Unified `acquisitions` record with lifecycle state.
+  - `acquisition_enqueue` job:
+    - Reads candidate URL (enclosure/link), sends to qBittorrent, extracts `btih` hash from magnet, stores `external_id`, emits `download.enqueued`.
+    - Schedules monitoring (`acquisition_monitor`).
+  - `acquisition_monitor` job:
+    - Polls qBittorrent `/api/v2/torrents/info`, updates progress in DB, emits `download.progress`.
+    - On completion: marks acquisition completed, emits `download.completed`, schedules `acquisition_verify`.
+    - Stall detection v1: if no progress change within a window, sets `status=stalled`, emits `download.stalled`, schedules `acquisition_recover`.
+  - **Verification v0** (`acquisition_verify` job):
+    - Picks a media file, applies minimal safety checks (extension allowlist, “sample” detection, minimum size).
+    - On failure: quarantines file and marks `status=needs_review`, emits `verify.failed`.
+    - On success: marks verified and schedules `acquisition_import`, emits `verify.completed`.
+  - **Import v0** (`acquisition_import` job):
+    - Hardlink-first import into library root (fallback copy), marks `status=imported`, emits `import.completed`.
+  - **Recovery v1** (`acquisition_recover` job, qBittorrent):
+    - Attempts: resume → reannounce → recheck, emits `download.recovery_*` events, then resumes monitoring.
+    - Escalates to `needs_review` after repeated failures/attempts.
+
+- **API endpoints (implemented)**
+  - Auth: `/api/v1/auth/*` (login/logout/me/csrf)
+  - Setup: `/api/v1/setup/*`
+  - Targets/search: `/api/v1/targets`, `/api/v1/targets/{id}/search`, `/api/v1/search/runs/{id}`
+  - Diagnostics: `/api/v1/diagnostics/bundle`
+  - Acquisitions:
+    - `GET /api/v1/acquisitions`
+    - `GET /api/v1/acquisitions/{id}`
+
+- **Web UI (SvelteKit)**
+  - Setup wizard pages.
+  - `/app` demo page: create target → start search → poll results + live WS feed.
+  - Acquisitions view on `/app`: refreshes automatically when `download.*` / `import.*` / `verify.*` events arrive.
+
+### WebSocket event types (implemented)
+
+- **Jobs**: `job.claimed`, `job.completed`, `job.failed`, `job.retry_scheduled`
+- **Downloads** (`downloads` channel): `download.enqueued`, `download.progress`, `download.completed`, `download.failed`, `download.stalled`, `download.recovery_attempt`, `download.recovery_scheduled`, `download.recovery_failed`, `download.needs_review`
+- **Verification/import** (`imports` channel): `verify.started`, `verify.completed`, `verify.failed`, `import.started`, `import.completed`, `import.failed`
+- **Audit** (`audit` channel): `audit.*`
+- **Health** (`health` channel): `health.snapshot`
+
+### Job kinds (implemented)
+
+- `search_run`
+- `acquisition_enqueue`
+- `acquisition_monitor`
+- `acquisition_verify`
+- `acquisition_import`
+- `acquisition_recover`
+
+### Migrations added so far (high-level)
+
+- Core auth/session/audit/settings/jobs tables
+- Core domain tables (targets/search runs/candidates/decisions)
+- Acquisition tables and follow-on fields:
+  - `0004_acquisitions.sql` (base)
+  - `0005_acquisitions_fields.sql` (source/content/import/progress fields)
+  - `0006_acquisition_verify_stall.sql` (verify/quarantine + stall/recovery fields)
+
+### How to run
+
+- **Go tests**:
+  - `go test ./...`
+- **Web build**:
+  - `npm -C apps/web run build`
+
+---
+
 ## Architecture overview
 
 ### Components
@@ -176,7 +269,7 @@ Failures go to a **Review Queue** with full evidence and override options (admin
 
 ### Unified acquisition state machine
 
-Queued → Downloading → Verifying → Completed → Imported
+Queued → Downloading → Completed → Verifying → Imported
 
 With side states: Degraded, Stalled, Failed, NeedsReview, Blacklisted.
 
@@ -297,6 +390,14 @@ These tests validate the real request/response contract, rate-limit handling, an
 ### MVP
 
 Wizard + qBittorrent + Torznab + one domain + verify/import + WS feed + stall recovery v1.
+
+### Next (recommended order)
+
+- **Review queue UI + admin actions** (needs_review acquisitions: view evidence, re-run verify/import, manual override; audited)
+- **Acquisition controls API** (pause/resume/remove/retry) and wire to qBittorrent controls
+- **Better verification** (ffprobe/mediainfo, sample detection beyond filename, hash/dedupe)
+- **Rename + folder layout** (movie vs TV rules, year tolerance, season/episode formatting)
+- **Rescout v1** (when stalled/failed: search alternatives and re-enqueue)
 
 ### v1
 
