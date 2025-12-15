@@ -4,8 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"errors"
-	"strings"
 
 	"github.com/LukeHagar/Rivet/internal/adapters/indexers/newznab"
 	"github.com/LukeHagar/Rivet/internal/decisioning"
@@ -22,23 +20,6 @@ type SearchRunDeps struct {
 	Policy    security.OutboundPolicy
 	Hub       *ws.Hub
 	Metrics   *observability.Metrics
-}
-
-type persistedIndexers struct {
-	Torznab []struct {
-		Name        string `json:"name"`
-		URL         string `json:"url"`
-		APIKeyEnc   string `json:"apiKeyEnc"`
-		Username    string `json:"username"`
-		PasswordEnc string `json:"passwordEnc"`
-	} `json:"torznab"`
-	Newznab []struct {
-		Name        string `json:"name"`
-		URL         string `json:"url"`
-		APIKeyEnc   string `json:"apiKeyEnc"`
-		Username    string `json:"username"`
-		PasswordEnc string `json:"passwordEnc"`
-	} `json:"newznab"`
 }
 
 func ExecuteSearchRun(ctx context.Context, deps SearchRunDeps, runID, targetID string) error {
@@ -63,7 +44,7 @@ func ExecuteSearchRun(ctx context.Context, deps SearchRunDeps, runID, targetID s
 	}
 
 	// Load indexers
-	indexers, err := loadIndexers(ctx, deps)
+	indexers, err := loadIndexersFromSettings(ctx, deps.DB, deps.SecretBox)
 	if err != nil {
 		e := err.Error()
 		_ = storage.UpdateSearchRunCompleted(ctx, deps.DB, runID, &e)
@@ -148,57 +129,4 @@ func ExecuteSearchRun(ctx context.Context, deps SearchRunDeps, runID, targetID s
 		deps.Metrics.SearchRunsCompleted.Add(1)
 	}
 	return nil
-}
-
-func loadTargetQuery(ctx context.Context, db *sql.DB, targetID string) string {
-	row := db.QueryRowContext(ctx, `SELECT payload_json FROM wanted_targets WHERE id = ?`, targetID)
-	var payload sql.NullString
-	if err := row.Scan(&payload); err == nil && payload.Valid {
-		var p map[string]any
-		if json.Unmarshal([]byte(payload.String), &p) == nil {
-			if v, ok := p["query"].(string); ok {
-				q := strings.TrimSpace(v)
-				if q != "" {
-					return q
-				}
-			}
-		}
-	}
-	return "ubuntu"
-}
-
-func loadIndexers(ctx context.Context, deps SearchRunDeps) ([]newznab.Config, error) {
-	cfgStr, ok, err := storage.GetSetting(ctx, deps.DB, "setup.indexers")
-	if err != nil {
-		return nil, err
-	}
-	if !ok {
-		return nil, errors.New("no_indexers_configured")
-	}
-	var p persistedIndexers
-	if err := json.Unmarshal([]byte(cfgStr), &p); err != nil {
-		return nil, err
-	}
-
-	var out []newznab.Config
-	add := func(name, urlStr, keyEnc, user, passEnc string) {
-		key, err := deps.SecretBox.DecryptString(keyEnc)
-		if err != nil {
-			return
-		}
-		pass := ""
-		if strings.TrimSpace(passEnc) != "" {
-			if b, err := deps.SecretBox.DecryptString(passEnc); err == nil {
-				pass = string(b)
-			}
-		}
-		out = append(out, newznab.Config{Name: name, BaseURL: urlStr, APIKey: string(key), Username: user, Password: pass})
-	}
-	for _, ix := range p.Torznab {
-		add(ix.Name, ix.URL, ix.APIKeyEnc, ix.Username, ix.PasswordEnc)
-	}
-	for _, ix := range p.Newznab {
-		add(ix.Name, ix.URL, ix.APIKeyEnc, ix.Username, ix.PasswordEnc)
-	}
-	return out, nil
 }

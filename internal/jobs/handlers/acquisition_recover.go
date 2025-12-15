@@ -77,6 +77,8 @@ func RecoverAcquisition(ctx context.Context, deps RecoverDeps, acquisitionID str
 		if deps.Hub != nil {
 			deps.Hub.Publish("download.needs_review", map[string]any{"acquisitionId": a.ID, "reason": "stalled"})
 		}
+		// Rescout v1: try to find an alternative and enqueue a replacement acquisition.
+		_, _ = queue.Enqueue(ctx, deps.DB, "acquisition_rescout", map[string]string{"acquisitionId": a.ID}, queue.EnqueueOpts{RunAfter: time.Now().UTC().Add(1 * time.Second)})
 		return nil
 	}
 

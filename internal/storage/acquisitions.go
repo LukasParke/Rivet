@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -286,19 +287,40 @@ WHERE id = ?
 }
 
 func ListAcquisitions(ctx context.Context, db *sql.DB, limit int) ([]Acquisition, error) {
+	return listAcquisitions(ctx, db, limit, nil)
+}
+
+func ListAcquisitionsByStatus(ctx context.Context, db *sql.DB, status string, limit int) ([]Acquisition, error) {
+	status = strings.TrimSpace(status)
+	if status == "" {
+		return listAcquisitions(ctx, db, limit, nil)
+	}
+	return listAcquisitions(ctx, db, limit, &status)
+}
+
+func listAcquisitions(ctx context.Context, db *sql.DB, limit int, status *string) ([]Acquisition, error) {
 	if limit <= 0 || limit > 200 {
 		limit = 50
 	}
-	rows, err := db.QueryContext(ctx, `
+	q := `
 SELECT id, candidate_id, target_id, kind, status, client_kind, client_name,
        source_url, external_id, content_path, verified_path, quarantined_path, verify_status, imported_path,
        completed_at, imported_at, progress,
        download_started_at, progress_changed_at, stalled_at, COALESCE(recovery_attempt, 0),
        last_error, created_at, updated_at
 FROM acquisitions
+`
+	args := []any{}
+	if status != nil {
+		q += "WHERE status = ?\n"
+		args = append(args, *status)
+	}
+	q += `
 ORDER BY created_at DESC
 LIMIT ?
-`, limit)
+`
+	args = append(args, limit)
+	rows, err := db.QueryContext(ctx, q, args...)
 	if err != nil {
 		return nil, err
 	}

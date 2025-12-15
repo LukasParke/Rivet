@@ -49,6 +49,8 @@ func VerifyAcquisition(ctx context.Context, deps VerifyDeps, acquisitionID strin
 		if deps.Hub != nil {
 			deps.Hub.Publish("verify.failed", map[string]any{"acquisitionId": a.ID, "error": err.Error()})
 		}
+		// Rescout v1: try alternatives (missing/bad content path is common).
+		_, _ = queue.Enqueue(ctx, deps.DB, "acquisition_rescout", map[string]string{"acquisitionId": a.ID}, queue.EnqueueOpts{RunAfter: time.Now().UTC().Add(2 * time.Second)})
 		return err
 	}
 
@@ -58,6 +60,8 @@ func VerifyAcquisition(ctx context.Context, deps VerifyDeps, acquisitionID strin
 		if deps.Hub != nil {
 			deps.Hub.Publish("verify.failed", map[string]any{"acquisitionId": a.ID, "error": err.Error()})
 		}
+		// Rescout v1: verifier errors may indicate partial/bad downloads.
+		_, _ = queue.Enqueue(ctx, deps.DB, "acquisition_rescout", map[string]string{"acquisitionId": a.ID}, queue.EnqueueOpts{RunAfter: time.Now().UTC().Add(2 * time.Second)})
 		return err
 	}
 	if !res.OK {
@@ -70,6 +74,8 @@ func VerifyAcquisition(ctx context.Context, deps VerifyDeps, acquisitionID strin
 		if deps.Hub != nil {
 			deps.Hub.Publish("verify.failed", map[string]any{"acquisitionId": a.ID, "reason": res.Reason, "quarantinedPath": qPtr})
 		}
+		// Rescout v1: verification failure often means wrong release; try alternatives.
+		_, _ = queue.Enqueue(ctx, deps.DB, "acquisition_rescout", map[string]string{"acquisitionId": a.ID}, queue.EnqueueOpts{RunAfter: time.Now().UTC().Add(2 * time.Second)})
 		return errors.New("verify_failed")
 	}
 

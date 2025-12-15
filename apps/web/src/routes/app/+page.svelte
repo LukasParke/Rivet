@@ -16,6 +16,8 @@
 	let acqError = null;
 	let acqBusy = false;
 	let acqRefreshTimer = null;
+	let acqStatusFilter = '';
+	let overrideImportedPath = '';
 
 	function csrfHeader() {
 		const t = sessionStorage.getItem('csrf');
@@ -81,10 +83,30 @@
 		acqBusy = true;
 		acqError = null;
 		try {
-			const res = await fetch('/api/v1/acquisitions');
+			const q = acqStatusFilter ? `?status=${encodeURIComponent(acqStatusFilter)}` : '';
+			const res = await fetch(`/api/v1/acquisitions${q}`);
 			const data = await res.json().catch(() => null);
 			if (!res.ok) throw new Error(data?.error || 'fetch_failed');
 			acquisitions = Array.isArray(data) ? data : [];
+		} catch (e) {
+			acqError = e instanceof Error ? e.message : String(e);
+		} finally {
+			acqBusy = false;
+		}
+	}
+
+	async function act(acquisitionId, action, body = null) {
+		acqBusy = true;
+		acqError = null;
+		try {
+			const res = await fetch(`/api/v1/acquisitions/${acquisitionId}/actions/${action}`, {
+				method: 'POST',
+				headers: { 'content-type': 'application/json', ...csrfHeader() },
+				body: body ? JSON.stringify(body) : undefined
+			});
+			const data = await res.json().catch(() => null);
+			if (!res.ok) throw new Error(data?.error || 'action_failed');
+			scheduleAcqRefresh();
 		} catch (e) {
 			acqError = e instanceof Error ? e.message : String(e);
 		} finally {
@@ -141,6 +163,9 @@
 <div class="container">
 	<h1>Rivet (MVP pipeline demo)</h1>
 	<p class="muted">Create a target, run an indexer search, store candidates + decisions.</p>
+	<div class="row" style="margin-bottom: 12px;">
+		<a href="/app/review"><button class="secondary">Review queue</button></a>
+	</div>
 
 	<div class="card">
 		<h2>Create target</h2>
@@ -177,15 +202,53 @@
 
 	<div class="card" style="margin-top: 16px;">
 		<h2>Acquisitions</h2>
-		<p class="muted">Live updates from download/import events.</p>
+		<p class="muted">Live updates from download/import events. Filter by status to use this as a minimal “review queue”.</p>
 		<div class="row">
+			<input placeholder="status filter (e.g. needs_review)" bind:value={acqStatusFilter} />
 			<button class="secondary" disabled={acqBusy} on:click={refreshAcquisitions}>Refresh acquisitions</button>
 		</div>
 		{#if acqError}
 			<p class="error">{acqError}</p>
 		{/if}
 		{#if acquisitions?.length}
-			<pre style="max-height: 340px; overflow: auto;">{JSON.stringify(acquisitions, null, 2)}</pre>
+			<div style="display: grid; gap: 12px; margin-top: 12px;">
+				{#each acquisitions as a (a.id)}
+					<div class="card" style="margin: 0;">
+						<div class="row" style="justify-content: space-between; align-items: center;">
+							<div>
+								<div><strong>{a.id}</strong></div>
+								<div class="muted">status: <code>{a.status}</code> client: <code>{a.clientKind}</code> verify: <code>{a.verifyStatus ?? ''}</code></div>
+								{#if a.lastError}<div class="error">lastError: {a.lastError}</div>{/if}
+							</div>
+							<div class="row" style="gap: 8px; flex-wrap: wrap;">
+								<button class="secondary" disabled={acqBusy} on:click={() => act(a.id, 'pause')}>Pause</button>
+								<button class="secondary" disabled={acqBusy} on:click={() => act(a.id, 'resume')}>Resume</button>
+								<button class="secondary" disabled={acqBusy} on:click={() => act(a.id, 'retry')}>Retry</button>
+								{#if a.status === 'needs_review'}
+									<button class="secondary" disabled={acqBusy} on:click={() => act(a.id, 'reverify')}>Re-verify</button>
+									<button class="secondary" disabled={acqBusy} on:click={() => act(a.id, 'reimport')}>Re-import</button>
+								{/if}
+							</div>
+						</div>
+						<details style="margin-top: 8px;">
+							<summary class="muted">Details</summary>
+							<pre style="max-height: 240px; overflow: auto;">{JSON.stringify(a, null, 2)}</pre>
+						</details>
+						{#if a.status === 'needs_review'}
+							<div class="row" style="margin-top: 8px;">
+								<input placeholder="override importedPath (admin)" bind:value={overrideImportedPath} />
+								<button
+									class="secondary"
+									disabled={acqBusy || !overrideImportedPath}
+									on:click={() => act(a.id, 'override_imported', { importedPath: overrideImportedPath })}
+								>
+									Mark imported
+								</button>
+							</div>
+						{/if}
+					</div>
+				{/each}
+			</div>
 		{:else}
 			<p class="muted">No acquisitions yet.</p>
 		{/if}

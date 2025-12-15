@@ -281,8 +281,115 @@ paths:
   /api/v1/acquisitions:
     get:
       summary: List acquisitions
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema: { type: string }
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer }
       responses:
         '200': { description: OK }
+  /api/v1/acquisitions/{id}/actions/pause:
+    post:
+      summary: Pause an acquisition download (client control)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: OK }
+        '401': { description: Unauthorized }
+        '403': { description: Forbidden/CSRF }
+  /api/v1/acquisitions/{id}/actions/resume:
+    post:
+      summary: Resume an acquisition download (client control)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: OK }
+        '401': { description: Unauthorized }
+        '403': { description: Forbidden/CSRF }
+  /api/v1/acquisitions/{id}/actions/retry:
+    post:
+      summary: Retry an acquisition (re-enqueue acquisition_enqueue)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: OK }
+        '401': { description: Unauthorized }
+        '403': { description: Forbidden/CSRF }
+  /api/v1/acquisitions/{id}/actions/remove:
+    post:
+      summary: Remove an acquisition from client (admin)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+        - name: deleteFiles
+          in: query
+          required: false
+          schema: { type: boolean }
+      responses:
+        '200': { description: OK }
+        '401': { description: Unauthorized }
+        '403': { description: Forbidden/CSRF }
+  /api/v1/acquisitions/{id}/actions/reverify:
+    post:
+      summary: Re-run verification for a needs_review acquisition (admin)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: OK }
+        '401': { description: Unauthorized }
+        '403': { description: Forbidden/CSRF }
+  /api/v1/acquisitions/{id}/actions/reimport:
+    post:
+      summary: Re-run import for a needs_review acquisition (admin)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: OK }
+        '401': { description: Unauthorized }
+        '403': { description: Forbidden/CSRF }
+  /api/v1/acquisitions/{id}/actions/override_imported:
+    post:
+      summary: Manually mark an acquisition imported (admin)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [importedPath]
+              properties:
+                importedPath:
+                  type: string
+      responses:
+        '200': { description: OK }
+        '401': { description: Unauthorized }
+        '403': { description: Forbidden/CSRF }
   /api/v1/acquisitions/{id}:
     get:
       summary: Get acquisition

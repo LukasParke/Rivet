@@ -90,6 +90,13 @@ func MonitorAcquisition(ctx context.Context, deps MonitorDeps, acquisitionID str
 	if a.Progress != nil {
 		oldProgress = *a.Progress
 	}
+	// If paused, record state but don't trigger stall detection.
+	if qbittorrent.IsPausedState(info.State) {
+		_ = storage.UpdateAcquisitionProgress(ctx, deps.DB, a.ID, "paused", &progress, strPtr(info.ContentPath))
+		_, _ = queue.Enqueue(ctx, deps.DB, "acquisition_monitor", map[string]string{"acquisitionId": a.ID}, queue.EnqueueOpts{RunAfter: time.Now().UTC().Add(deps.PollEvery)})
+		return nil
+	}
+
 	_ = storage.UpdateAcquisitionProgress(ctx, deps.DB, a.ID, "downloading", &progress, strPtr(info.ContentPath))
 	if progress > oldProgress+0.001 {
 		_ = storage.TouchAcquisitionProgressChanged(ctx, deps.DB, a.ID, now)

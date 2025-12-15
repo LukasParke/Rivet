@@ -105,6 +105,8 @@ func EnqueueAcquisition(ctx context.Context, deps AcquisitionDeps, acquisitionID
 					"error":         err.Error(),
 				})
 			}
+			// Rescout v1: attempt to find an alternative when enqueue fails.
+			_, _ = queue.Enqueue(ctx, deps.DB, "acquisition_rescout", map[string]string{"acquisitionId": a.ID}, queue.EnqueueOpts{RunAfter: time.Now().UTC().Add(1 * time.Second)})
 			return err
 		}
 

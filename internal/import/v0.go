@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 )
 
@@ -32,8 +33,11 @@ func PickBestMediaFile(root string) (string, error) {
 		return root, nil
 	}
 
+	// Prefer the largest non-sample media file; fall back to the largest media file.
 	var bestPath string
 	var bestSize int64 = -1
+	var bestSamplePath string
+	var bestSampleSize int64 = -1
 	_ = filepath.WalkDir(root, func(p string, d os.DirEntry, err error) error {
 		if err != nil {
 			return nil
@@ -49,6 +53,15 @@ func PickBestMediaFile(root string) (string, error) {
 		if err != nil {
 			return nil
 		}
+		name := strings.ToLower(filepath.Base(p))
+		isSample := strings.Contains(name, "sample") || strings.Contains(name, "trailer")
+		if isSample {
+			if info.Size() > bestSampleSize {
+				bestSampleSize = info.Size()
+				bestSamplePath = p
+			}
+			return nil
+		}
 		if info.Size() > bestSize {
 			bestSize = info.Size()
 			bestPath = p
@@ -56,6 +69,9 @@ func PickBestMediaFile(root string) (string, error) {
 		return nil
 	})
 	if bestPath == "" {
+		if bestSamplePath != "" {
+			return bestSamplePath, nil
+		}
 		return "", errors.New("no_media_found")
 	}
 	return bestPath, nil
@@ -100,12 +116,21 @@ func ImportFile(srcPath, libraryRoot string) (string, error) {
 	srcPath = filepath.Clean(srcPath)
 	libraryRoot = filepath.Clean(libraryRoot)
 
+	destDir := filepath.Join(libraryRoot, "imports")
+	return ImportFileToDir(srcPath, destDir)
+}
+
+// ImportFileToDir attempts hardlink then copy into destDir.
+func ImportFileToDir(srcPath, destDir string) (string, error) {
 	base := filepath.Base(srcPath)
 	if base == "." || base == string(filepath.Separator) {
 		return "", errors.New("invalid_source")
 	}
 
-	destDir := filepath.Join(libraryRoot, "imports")
+	destDir = filepath.Clean(destDir)
+	if destDir == "" || destDir == "." || destDir == string(filepath.Separator) {
+		return "", errors.New("invalid_dest_dir")
+	}
 	if err := os.MkdirAll(destDir, 0o755); err != nil {
 		return "", err
 	}
@@ -134,6 +159,28 @@ func ImportFile(srcPath, libraryRoot string) (string, error) {
 		return "", err
 	}
 	return dest, nil
+}
+
+var sanitizeRe = regexp.MustCompile(`[^a-zA-Z0-9._ -]+`)
+
+// SanitizePathComponent makes a best-effort safe directory/file name.
+func SanitizePathComponent(s string) string {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return "unknown"
+	}
+	s = sanitizeRe.ReplaceAllString(s, " ")
+	s = strings.TrimSpace(s)
+	s = strings.Join(strings.Fields(s), " ")
+	s = strings.Trim(s, ". ")
+	if s == "" {
+		return "unknown"
+	}
+	if len(s) > 120 {
+		s = s[:120]
+		s = strings.TrimSpace(s)
+	}
+	return s
 }
 
 func uniquify(p string) string {
