@@ -50,3 +50,14 @@ func TestPickBestMediaFile_FallsBackToSampleIfOnlyOption(t *testing.T) {
 	}
 }
 
+func TestSanitizePathComponent(t *testing.T) {
+	got := SanitizePathComponent(`  My:Movie/Title (2024)   `)
+	if got == "" || got == "unknown" {
+		t.Fatalf("expected non-empty sanitized value, got %q", got)
+	}
+	// Should not contain path separators.
+	if got != "My Movie Title 2024" {
+		t.Fatalf("unexpected sanitize result: %q", got)
+	}
+}
+

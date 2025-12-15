@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 )
 
@@ -115,12 +116,21 @@ func ImportFile(srcPath, libraryRoot string) (string, error) {
 	srcPath = filepath.Clean(srcPath)
 	libraryRoot = filepath.Clean(libraryRoot)
 
+	destDir := filepath.Join(libraryRoot, "imports")
+	return ImportFileToDir(srcPath, destDir)
+}
+
+// ImportFileToDir attempts hardlink then copy into destDir.
+func ImportFileToDir(srcPath, destDir string) (string, error) {
 	base := filepath.Base(srcPath)
 	if base == "." || base == string(filepath.Separator) {
 		return "", errors.New("invalid_source")
 	}
 
-	destDir := filepath.Join(libraryRoot, "imports")
+	destDir = filepath.Clean(destDir)
+	if destDir == "" || destDir == "." || destDir == string(filepath.Separator) {
+		return "", errors.New("invalid_dest_dir")
+	}
 	if err := os.MkdirAll(destDir, 0o755); err != nil {
 		return "", err
 	}
@@ -149,6 +159,28 @@ func ImportFile(srcPath, libraryRoot string) (string, error) {
 		return "", err
 	}
 	return dest, nil
+}
+
+var sanitizeRe = regexp.MustCompile(`[^a-zA-Z0-9._ -]+`)
+
+// SanitizePathComponent makes a best-effort safe directory/file name.
+func SanitizePathComponent(s string) string {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return "unknown"
+	}
+	s = sanitizeRe.ReplaceAllString(s, " ")
+	s = strings.TrimSpace(s)
+	s = strings.Join(strings.Fields(s), " ")
+	s = strings.Trim(s, ". ")
+	if s == "" {
+		return "unknown"
+	}
+	if len(s) > 120 {
+		s = s[:120]
+		s = strings.TrimSpace(s)
+	}
+	return s
 }
 
 func uniquify(p string) string {
