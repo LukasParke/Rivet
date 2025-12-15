@@ -37,6 +37,22 @@ func RescoutAcquisition(ctx context.Context, deps RescoutDeps, acquisitionID str
 		return errors.New("missing_target_id")
 	}
 
+	// Loop prevention: if there's already a newer "active" acquisition for this target, do nothing.
+	var existing int
+	_ = deps.DB.QueryRowContext(ctx, `
+SELECT COUNT(1)
+FROM acquisitions
+WHERE target_id = ?
+  AND created_at > ?
+  AND status NOT IN ('failed', 'needs_review', 'removed')
+`, a.TargetID, a.CreatedAt.Format(time.RFC3339Nano)).Scan(&existing)
+	if existing > 0 {
+		if deps.Hub != nil {
+			deps.Hub.Publish("download.rescout.skipped_existing", map[string]any{"acquisitionId": a.ID, "targetId": a.TargetID})
+		}
+		return nil
+	}
+
 	excludeCandidateID := strings.TrimSpace(a.CandidateID)
 	excludeHash := ""
 	if a.ExternalID != nil {
@@ -45,6 +61,25 @@ func RescoutAcquisition(ctx context.Context, deps RescoutDeps, acquisitionID str
 	excludeURL := loadCandidateURL(ctx, deps.DB, excludeCandidateID)
 	if excludeHash == "" && excludeURL != "" {
 		excludeHash = extractBTIH(excludeURL)
+	}
+
+	// Loop prevention: exclude already-tried hashes for this target.
+	tried := map[string]bool{}
+	rows, err := deps.DB.QueryContext(ctx, `SELECT external_id FROM acquisitions WHERE target_id = ? AND external_id IS NOT NULL`, a.TargetID)
+	if err == nil {
+		defer rows.Close()
+		for rows.Next() {
+			var s string
+			if rows.Scan(&s) == nil {
+				s = strings.ToLower(strings.TrimSpace(s))
+				if s != "" {
+					tried[s] = true
+				}
+			}
+		}
+	}
+	if excludeHash != "" {
+		tried[strings.ToLower(excludeHash)] = true
 	}
 
 	if deps.Hub != nil {
@@ -133,6 +168,9 @@ func RescoutAcquisition(ctx context.Context, deps RescoutDeps, acquisitionID str
 
 			hash := extractBTIH(urlToUse)
 			if excludeHash != "" && hash != "" && strings.EqualFold(hash, excludeHash) {
+				continue
+			}
+			if hash != "" && tried[strings.ToLower(strings.TrimSpace(hash))] {
 				continue
 			}
 			if excludeURL != "" && strings.EqualFold(urlToUse, excludeURL) {
