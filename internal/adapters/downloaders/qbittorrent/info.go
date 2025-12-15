@@ -69,3 +69,13 @@ func IsCompletedState(state string) bool {
 		return false
 	}
 }
+
+func IsPausedState(state string) bool {
+	s := strings.ToLower(strings.TrimSpace(state))
+	switch s {
+	case "pauseddl", "pausedup":
+		return true
+	default:
+		return false
+	}
+}
