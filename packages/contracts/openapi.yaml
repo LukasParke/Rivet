@@ -1,0 +1,310 @@
+openapi: 3.0.3
+info:
+  title: Rivet Media Automation Control Plane API
+  version: 0.1.0
+paths:
+  /api/v1/auth/csrf:
+    get:
+      summary: Get CSRF token for current session
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+        '401':
+          description: Unauthorized
+  /api/v1/auth/login:
+    post:
+      summary: Login (creates session cookie)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                password:
+                  type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+        '401':
+          description: Invalid credentials
+        '429':
+          description: Rate limited
+  /api/v1/auth/logout:
+    post:
+      summary: Logout (revokes session cookie)
+      responses:
+        '204':
+          description: No content
+        '403':
+          description: CSRF required
+  /api/v1/auth/me:
+    get:
+      summary: Current user
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  userId:
+                    type: string
+                  email:
+                    type: string
+                  role:
+                    type: string
+        '401':
+          description: Unauthorized
+  /api/v1/setup/status:
+    get:
+      summary: Setup mode status
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  setupMode:
+                    type: boolean
+  /api/v1/setup/admin:
+    post:
+      summary: Create initial admin (setup only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                password:
+                  type: string
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  userId:
+                    type: string
+  /api/v1/setup/paths/validate:
+    post:
+      summary: Validate filesystem paths (setup wizard)
+      responses:
+        '200':
+          description: Validation result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+  /api/v1/setup/paths/save:
+    post:
+      summary: Save filesystem paths (setup wizard)
+      responses:
+        '200':
+          description: Saved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  saved: { type: boolean }
+  /api/v1/setup/clients/validate:
+    post:
+      summary: Validate download clients (setup wizard)
+      responses:
+        '200':
+          description: Validation result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+  /api/v1/setup/clients/save:
+    post:
+      summary: Save download client configs (setup wizard)
+      responses:
+        '200':
+          description: Saved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  saved: { type: boolean }
+  /api/v1/setup/indexers/validate:
+    post:
+      summary: Validate indexers (Torznab/Newznab) (setup wizard)
+      responses:
+        '200':
+          description: Validation result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+  /api/v1/setup/indexers/save:
+    post:
+      summary: Save indexer configs (setup wizard)
+      responses:
+        '200':
+          description: Saved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  saved: { type: boolean }
+  /api/v1/setup/metadata/validate:
+    post:
+      summary: Validate metadata providers (TMDB/TVDB) (setup wizard)
+      responses:
+        '200':
+          description: Validation result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+  /api/v1/setup/metadata/save:
+    post:
+      summary: Save metadata provider configs (setup wizard)
+      responses:
+        '200':
+          description: Saved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  saved: { type: boolean }
+  /api/v1/setup/policies/validate:
+    post:
+      summary: Validate policies (setup wizard)
+      responses:
+        '200':
+          description: Validation result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+  /api/v1/setup/policies/save:
+    post:
+      summary: Save policies (setup wizard)
+      responses:
+        '200':
+          description: Saved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  saved: { type: boolean }
+  /api/v1/setup/finish:
+    post:
+      summary: Finish setup (store report, close registration)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+  /api/v1/targets:
+    get:
+      summary: List targets
+      responses:
+        '200': { description: OK }
+    post:
+      summary: Create target
+      responses:
+        '201': { description: Created }
+  /api/v1/targets/{id}/search:
+    post:
+      summary: Start a search run for target
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '202': { description: Accepted }
+  /api/v1/search/runs/{id}:
+    get:
+      summary: Get search run results
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: OK }
+  /api/v1/diagnostics/bundle:
+    get:
+      summary: Diagnostics bundle (sanitized)
+      responses:
+        '200': { description: OK }
+  /api/v1/acquisitions:
+    get:
+      summary: List acquisitions
+      responses:
+        '200': { description: OK }
+  /api/v1/acquisitions/{id}:
+    get:
+      summary: Get acquisition
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: OK }
+        '404': { description: Not found }
+  /healthz:
+    get:
+      summary: Liveness
+      responses:
+        '200':
+          description: OK
+  /readyz:
+    get:
+      summary: Readiness
+      responses:
+        '200':
+          description: Ready
+        '503':
+          description: Not ready

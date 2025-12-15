@@ -1,0 +1,53 @@
+{
+	"/": [
+		"src/routes/+page.server.ts",
+		"src/routes/+layout.server.ts",
+		"src/routes/+layout.server.ts"
+	],
+	"/app": [
+		"src/routes/app/+page.server.ts",
+		"src/routes/+layout.server.ts"
+	],
+	"/setup": [
+		"src/routes/setup/+page.server.ts",
+		"src/routes/setup/+layout.server.ts",
+		"src/routes/+layout.server.ts",
+		"src/routes/setup/+layout.server.ts",
+		"src/routes/+layout.server.ts"
+	],
+	"/setup/admin": [
+		"src/routes/setup/admin/+page.server.ts",
+		"src/routes/setup/+layout.server.ts",
+		"src/routes/+layout.server.ts"
+	],
+	"/setup/clients": [
+		"src/routes/setup/clients/+page.server.ts",
+		"src/routes/setup/+layout.server.ts",
+		"src/routes/+layout.server.ts"
+	],
+	"/setup/finish": [
+		"src/routes/setup/finish/+page.server.ts",
+		"src/routes/setup/+layout.server.ts",
+		"src/routes/+layout.server.ts"
+	],
+	"/setup/indexers": [
+		"src/routes/setup/indexers/+page.server.ts",
+		"src/routes/setup/+layout.server.ts",
+		"src/routes/+layout.server.ts"
+	],
+	"/setup/metadata": [
+		"src/routes/setup/metadata/+page.server.ts",
+		"src/routes/setup/+layout.server.ts",
+		"src/routes/+layout.server.ts"
+	],
+	"/setup/paths": [
+		"src/routes/setup/paths/+page.server.ts",
+		"src/routes/setup/+layout.server.ts",
+		"src/routes/+layout.server.ts"
+	],
+	"/setup/policies": [
+		"src/routes/setup/policies/+page.server.ts",
+		"src/routes/setup/+layout.server.ts",
+		"src/routes/+layout.server.ts"
+	]
+}

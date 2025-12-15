@@ -1,0 +1,1 @@
+import{D as a}from"./Dc2GWTX7.js";a();

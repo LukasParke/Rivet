@@ -1,0 +1,1 @@
+import{t as o,a as i}from"../chunks/CY-7o9oA.js";import"../chunks/BLmVtnhA.js";import{s as e,c as p,r as d}from"../chunks/Dc2GWTX7.js";import{s as m}from"../chunks/DTnBG67W.js";var n=o('<div class="container"><h1>Setup</h1> <p class="muted">First-run guided setup wizard.</p> <!></div>');function f(a,r){var t=n(),s=e(p(t),4);m(s,r,"default",{}),d(t),i(a,t)}export{f as component};
