@@ -64,11 +64,9 @@ func (g *SetupGate) Middleware() fiber.Handler {
 			return c.Next()
 		}
 
-		// Fast-path exit: after the admin is created, flip setup mode off ASAP.
-		if n, err := g.countUsers(c.UserContext()); err == nil && n != 0 {
-			g.setupMode.Store(false)
-			return c.Next()
-		}
+		// Don't turn off setup mode immediately after admin creation.
+		// Keep it active until /setup/finish is called.
+		// The frontend will check setupComplete to determine redirect behavior.
 
 		path := c.Path()
 		// Always allow health endpoints.

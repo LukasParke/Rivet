@@ -24,6 +24,7 @@ type Acquisition struct {
 	VerifiedPath *string
 	QuarantinedPath *string
 	VerifyStatus *string
+	VerifyEvidenceJSON *string
 	ImportedPath *string
 	CompletedAt  *time.Time
 	ImportedAt   *time.Time
@@ -152,6 +153,33 @@ WHERE id = ?
 	return err
 }
 
+func SetAcquisitionVerifyEvidence(ctx context.Context, db *sql.DB, id string, evidenceJSON string) error {
+	now := time.Now().UTC()
+	_, err := db.ExecContext(ctx, `
+UPDATE acquisitions
+SET verify_evidence_json = ?, updated_at = ?
+WHERE id = ?
+`, evidenceJSON, now.Format(time.RFC3339Nano), id)
+	return err
+}
+
+// AdminAcceptAcquisitionVerified marks an acquisition as verified (passed) and clears it from the review queue.
+// It does not touch the filesystem; the caller should enqueue import if desired.
+func AdminAcceptAcquisitionVerified(ctx context.Context, db *sql.DB, id string, verifiedPath string) error {
+	now := time.Now().UTC()
+	_, err := db.ExecContext(ctx, `
+UPDATE acquisitions
+SET status = 'completed',
+    verify_status = 'passed',
+    verified_path = ?,
+    quarantined_path = NULL,
+    last_error = NULL,
+    updated_at = ?
+WHERE id = ?
+`, verifiedPath, now.Format(time.RFC3339Nano), id)
+	return err
+}
+
 func MarkAcquisitionCompleted(ctx context.Context, db *sql.DB, id string, contentPath *string) error {
 	now := time.Now().UTC()
 	_, err := db.ExecContext(ctx, `
@@ -213,16 +241,17 @@ func GetAcquisition(ctx context.Context, db *sql.DB, id string) (Acquisition, er
 	var externalID, lastErr sql.NullString
 	var sourceURL, contentPath, importedPath sql.NullString
 	var verifiedPath, quarantinedPath, verifyStatus sql.NullString
+	var verifyEvidence sql.NullString
 	var completedAt, importedAt sql.NullString
 	var progress sql.NullFloat64
 	var downloadStartedAt, progressChangedAt, stalledAt sql.NullString
 	var recoveryAttempt sql.NullInt64
 	var createdAt, updatedAt string
 	if err := db.QueryRowContext(ctx, `
-SELECT id, candidate_id, target_id, kind, status, client_kind, client_name, source_url, external_id, content_path, verified_path, quarantined_path, verify_status, imported_path, completed_at, imported_at, progress, download_started_at, progress_changed_at, stalled_at, COALESCE(recovery_attempt, 0), last_error, created_at, updated_at
+SELECT id, candidate_id, target_id, kind, status, client_kind, client_name, source_url, external_id, content_path, verified_path, quarantined_path, verify_status, verify_evidence_json, imported_path, completed_at, imported_at, progress, download_started_at, progress_changed_at, stalled_at, COALESCE(recovery_attempt, 0), last_error, created_at, updated_at
 FROM acquisitions
 WHERE id = ?
-`, id).Scan(&a.ID, &a.CandidateID, &a.TargetID, &a.Kind, &a.Status, &a.ClientKind, &a.ClientName, &sourceURL, &externalID, &contentPath, &verifiedPath, &quarantinedPath, &verifyStatus, &importedPath, &completedAt, &importedAt, &progress, &downloadStartedAt, &progressChangedAt, &stalledAt, &recoveryAttempt, &lastErr, &createdAt, &updatedAt); err != nil {
+`, id).Scan(&a.ID, &a.CandidateID, &a.TargetID, &a.Kind, &a.Status, &a.ClientKind, &a.ClientName, &sourceURL, &externalID, &contentPath, &verifiedPath, &quarantinedPath, &verifyStatus, &verifyEvidence, &importedPath, &completedAt, &importedAt, &progress, &downloadStartedAt, &progressChangedAt, &stalledAt, &recoveryAttempt, &lastErr, &createdAt, &updatedAt); err != nil {
 		return Acquisition{}, err
 	}
 	if sourceURL.Valid {
@@ -242,6 +271,9 @@ WHERE id = ?
 	}
 	if verifyStatus.Valid {
 		a.VerifyStatus = &verifyStatus.String
+	}
+	if verifyEvidence.Valid {
+		a.VerifyEvidenceJSON = &verifyEvidence.String
 	}
 	if importedPath.Valid {
 		a.ImportedPath = &importedPath.String
@@ -304,7 +336,7 @@ func listAcquisitions(ctx context.Context, db *sql.DB, limit int, status *string
 	}
 	q := `
 SELECT id, candidate_id, target_id, kind, status, client_kind, client_name,
-       source_url, external_id, content_path, verified_path, quarantined_path, verify_status, imported_path,
+       source_url, external_id, content_path, verified_path, quarantined_path, verify_status, verify_evidence_json, imported_path,
        completed_at, imported_at, progress,
        download_started_at, progress_changed_at, stalled_at, COALESCE(recovery_attempt, 0),
        last_error, created_at, updated_at
@@ -331,6 +363,7 @@ LIMIT ?
 		var a Acquisition
 		var sourceURL, externalID, contentPath, importedPath sql.NullString
 		var verifiedPath, quarantinedPath, verifyStatus sql.NullString
+		var verifyEvidence sql.NullString
 		var completedAt, importedAt sql.NullString
 		var progress sql.NullFloat64
 		var downloadStartedAt, progressChangedAt, stalledAt sql.NullString
@@ -338,7 +371,7 @@ LIMIT ?
 		var lastErr sql.NullString
 		var createdAt, updatedAt string
 		if err := rows.Scan(&a.ID, &a.CandidateID, &a.TargetID, &a.Kind, &a.Status, &a.ClientKind, &a.ClientName,
-			&sourceURL, &externalID, &contentPath, &verifiedPath, &quarantinedPath, &verifyStatus, &importedPath,
+			&sourceURL, &externalID, &contentPath, &verifiedPath, &quarantinedPath, &verifyStatus, &verifyEvidence, &importedPath,
 			&completedAt, &importedAt, &progress,
 			&downloadStartedAt, &progressChangedAt, &stalledAt, &recoveryAttempt,
 			&lastErr, &createdAt, &updatedAt); err != nil {
@@ -361,6 +394,9 @@ LIMIT ?
 		}
 		if verifyStatus.Valid {
 			a.VerifyStatus = &verifyStatus.String
+		}
+		if verifyEvidence.Valid {
+			a.VerifyEvidenceJSON = &verifyEvidence.String
 		}
 		if importedPath.Valid {
 			a.ImportedPath = &importedPath.String

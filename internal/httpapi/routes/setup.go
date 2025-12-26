@@ -18,10 +18,15 @@ type SetupDeps struct {
 	DB *sql.DB
 	SetupMode func() bool
 	Hub *ws.Hub
+	DryRun            bool
+	DryRunFixturePath string
 }
 
 type SetupStatusResponse struct {
-	SetupMode bool `json:"setupMode"`
+	SetupMode         bool `json:"setupMode"`
+	SetupComplete     bool `json:"setupComplete"`
+	DryRun            bool `json:"dryRun"`
+	DryRunFixturePathSet bool `json:"dryRunFixturePathSet"`
 }
 
 type CreateAdminRequest struct {
@@ -35,7 +40,17 @@ type CreateAdminResponse struct {
 
 func RegisterSetup(app fiber.Router, deps SetupDeps) {
 	app.Get("/setup/status", func(c *fiber.Ctx) error {
-		return c.JSON(SetupStatusResponse{SetupMode: deps.SetupMode()})
+		// Check if setup is actually complete by looking for the finish report
+		ctx, cancel := context.WithTimeout(c.UserContext(), 2*time.Second)
+		defer cancel()
+		_, setupComplete, _ := storage.GetSetting(ctx, deps.DB, "setup.report.latest")
+		
+		return c.JSON(SetupStatusResponse{
+			SetupMode:         deps.SetupMode(),
+			SetupComplete:     setupComplete,
+			DryRun:            deps.DryRun,
+			DryRunFixturePathSet: strings.TrimSpace(deps.DryRunFixturePath) != "",
+		})
 	})
 
 	app.Post("/setup/admin", func(c *fiber.Ctx) error {

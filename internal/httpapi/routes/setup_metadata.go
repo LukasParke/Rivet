@@ -90,7 +90,9 @@ func RegisterSetupMetadata(api fiber.Router, deps SetupMetadataDeps) {
 
 		persist := map[string]any{}
 		if req.TMDB != nil {
-			keyEnc, _ := deps.SecretBox.EncryptToString([]byte(strings.TrimSpace(req.TMDB.APIKey)))
+			// Store empty string if no key provided (will use fallback in client)
+			apiKey := strings.TrimSpace(req.TMDB.APIKey)
+			keyEnc, _ := deps.SecretBox.EncryptToString([]byte(apiKey))
 			persist["tmdb"] = map[string]any{"baseUrl": strings.TrimSpace(req.TMDB.BaseURL), "apiKeyEnc": keyEnc}
 		}
 		if req.TVDB != nil {
@@ -117,45 +119,133 @@ func validateMetadata(ctx context.Context, deps SetupMetadataDeps, req SetupMeta
 	resp := SetupMetadataValidateResponse{Ok: true}
 	if req.TMDB == nil && req.TVDB == nil {
 		resp.Ok = false
+		if deps.Hub != nil {
+			deps.Hub.Publish("setup.metadata.validation.error", map[string]any{
+				"error":   "no_providers_provided",
+				"message": "At least one metadata provider (TMDB or TVDB) must be configured",
+			})
+		}
 		return resp
 	}
 
+	if deps.Hub != nil {
+		deps.Hub.Publish("setup.metadata.validation.started", map[string]any{
+			"tmdb": req.TMDB != nil,
+			"tvdb": req.TVDB != nil,
+		})
+	}
+
 	if req.TMDB != nil {
+		if deps.Hub != nil {
+			deps.Hub.Publish("setup.metadata.validation.progress", map[string]any{
+				"provider": "tmdb",
+				"status":   "testing",
+			})
+		}
+		usingFallback := strings.TrimSpace(req.TMDB.APIKey) == ""
 		c, err := tmdb.New(req.TMDB.BaseURL, req.TMDB.APIKey, deps.Policy)
 		if err != nil {
 			r := ProviderTestResult{Ok: false, Error: err.Error()}
 			resp.TMDB = &r
 			resp.Ok = false
+			if deps.Hub != nil {
+				deps.Hub.Publish("setup.metadata.validation.progress", map[string]any{
+					"provider": "tmdb",
+					"status":   "failed",
+					"ok":       false,
+					"error":    err.Error(),
+				})
+			}
 		} else {
 			base, err := c.Validate(ctx)
 			if err != nil {
 				r := ProviderTestResult{Ok: false, Error: err.Error()}
 				resp.TMDB = &r
 				resp.Ok = false
+				if deps.Hub != nil {
+					deps.Hub.Publish("setup.metadata.validation.progress", map[string]any{
+						"provider": "tmdb",
+						"status":   "failed",
+						"ok":       false,
+						"error":    err.Error(),
+					})
+				}
 			} else {
-				r := ProviderTestResult{Ok: true, Details: map[string]string{"imagesBaseUrl": base}}
+				details := map[string]string{"imagesBaseUrl": base}
+				if usingFallback {
+					details["warning"] = "Using fallback API key (rate-limited). Get your own free key at https://www.themoviedb.org/settings/api"
+				}
+				r := ProviderTestResult{Ok: true, Details: details}
 				resp.TMDB = &r
+				if deps.Hub != nil {
+					deps.Hub.Publish("setup.metadata.validation.progress", map[string]any{
+						"provider": "tmdb",
+						"status":   "completed",
+						"ok":       true,
+						"details":  details,
+					})
+				}
 			}
 		}
 	}
 
 	if req.TVDB != nil {
+		if deps.Hub != nil {
+			deps.Hub.Publish("setup.metadata.validation.progress", map[string]any{
+				"provider": "tvdb",
+				"status":   "testing",
+			})
+		}
 		c, err := tvdb.New(req.TVDB.BaseURL, req.TVDB.APIKey, deps.Policy)
 		if err != nil {
 			r := ProviderTestResult{Ok: false, Error: err.Error()}
 			resp.TVDB = &r
 			resp.Ok = false
+			if deps.Hub != nil {
+				deps.Hub.Publish("setup.metadata.validation.progress", map[string]any{
+					"provider": "tvdb",
+					"status":   "failed",
+					"ok":       false,
+					"error":    err.Error(),
+				})
+			}
 		} else {
 			ok, err := c.Validate(ctx)
 			if err != nil {
 				r := ProviderTestResult{Ok: false, Error: err.Error()}
 				resp.TVDB = &r
 				resp.Ok = false
+				if deps.Hub != nil {
+					deps.Hub.Publish("setup.metadata.validation.progress", map[string]any{
+						"provider": "tvdb",
+						"status":   "failed",
+						"ok":       false,
+						"error":    err.Error(),
+					})
+				}
 			} else {
 				r := ProviderTestResult{Ok: true, Details: map[string]string{"status": ok}}
 				resp.TVDB = &r
+				if deps.Hub != nil {
+					deps.Hub.Publish("setup.metadata.validation.progress", map[string]any{
+						"provider": "tvdb",
+						"status":   "completed",
+						"ok":       true,
+						"details":  r.Details,
+					})
+				}
 			}
 		}
+	}
+
+	if deps.Hub != nil {
+		deps.Hub.Publish("setup.metadata.validation.completed", map[string]any{
+			"ok": resp.Ok,
+			"summary": map[string]any{
+				"tmdbOk": resp.TMDB != nil && resp.TMDB.Ok,
+				"tvdbOk": resp.TVDB != nil && resp.TVDB.Ok,
+			},
+		})
 	}
 
 	return resp

@@ -11,6 +11,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 
+	"github.com/LukeHagar/Rivet/internal/adapters/downloaders/dryrun"
 	"github.com/LukeHagar/Rivet/internal/adapters/downloaders/qbittorrent"
 	"github.com/LukeHagar/Rivet/internal/httpapi/middleware"
 	"github.com/LukeHagar/Rivet/internal/jobs/queue"
@@ -24,6 +25,9 @@ type AcquisitionsDeps struct {
 	SecretBox *security.SecretBox
 	Policy    security.OutboundPolicy
 	Hub       *ws.Hub
+
+	DryRun            bool
+	DryRunFixturePath string
 }
 
 func RegisterAcquisitions(api fiber.Router, deps AcquisitionsDeps) {
@@ -90,9 +94,272 @@ func RegisterAcquisitions(api fiber.Router, deps AcquisitionsDeps) {
 	api.Post("/acquisitions/:id/actions/reimport", middleware.RequireRole("admin"), func(c *fiber.Ctx) error {
 		return handleAcqEnqueueJob(c, deps, "acquisition_import", "acquisition.reimport")
 	})
+	api.Post("/acquisitions/:id/actions/accept_verified", middleware.RequireRole("admin"), func(c *fiber.Ctx) error {
+		return handleAcqAcceptVerified(c, deps)
+	})
 	api.Post("/acquisitions/:id/actions/override_imported", middleware.RequireRole("admin"), func(c *fiber.Ctx) error {
 		return handleAcqOverrideImported(c, deps)
 	})
+	api.Post("/acquisitions/:id/actions/blacklist", middleware.RequireRole("admin"), func(c *fiber.Ctx) error {
+		return handleAcqBlacklist(c, deps, false)
+	})
+	api.Post("/acquisitions/:id/actions/blacklist_and_rescout", middleware.RequireRole("admin"), func(c *fiber.Ctx) error {
+		return handleAcqBlacklist(c, deps, true)
+	})
+}
+
+type acceptVerifiedRequest struct {
+	VerifiedPath string `json:"verifiedPath"`
+}
+
+func handleAcqAcceptVerified(c *fiber.Ctx, deps AcquisitionsDeps) error {
+	ctx, cancel := context.WithTimeout(c.UserContext(), 10*time.Second)
+	defer cancel()
+
+	id := strings.TrimSpace(c.Params("id"))
+	if id == "" {
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "invalid_id"})
+	}
+	a, err := storage.GetAcquisition(ctx, deps.DB, id)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return c.Status(http.StatusNotFound).JSON(fiber.Map{"error": "not_found"})
+		}
+		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{"error": "db_error"})
+	}
+
+	var req acceptVerifiedRequest
+	_ = c.BodyParser(&req)
+	req.VerifiedPath = strings.TrimSpace(req.VerifiedPath)
+
+	// Default to best available local path (admin should know what they're doing).
+	verifiedPath := req.VerifiedPath
+	if verifiedPath == "" && a.QuarantinedPath != nil {
+		verifiedPath = strings.TrimSpace(*a.QuarantinedPath)
+	}
+	if verifiedPath == "" && a.VerifiedPath != nil {
+		verifiedPath = strings.TrimSpace(*a.VerifiedPath)
+	}
+	if verifiedPath == "" && a.ContentPath != nil {
+		verifiedPath = strings.TrimSpace(*a.ContentPath)
+	}
+	if verifiedPath == "" {
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "missing_verified_path"})
+	}
+
+	if err := storage.AdminAcceptAcquisitionVerified(ctx, deps.DB, a.ID, verifiedPath); err != nil {
+		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{"error": "update_failed"})
+	}
+
+	// Enqueue import immediately.
+	job, _ := queue.Enqueue(ctx, deps.DB, "acquisition_import", map[string]string{"acquisitionId": a.ID}, queue.EnqueueOpts{RunAfter: time.Now().UTC().Add(1 * time.Second)})
+
+	actor := actorUserIDPtr(c)
+	_ = storage.InsertAuditEvent(ctx, deps.DB, storage.AuditEvent{
+		ActorUserID: actor,
+		Action:      "acquisition.accept_verified",
+		TargetType:  strPtr("acquisition"),
+		TargetID:    &a.ID,
+		DetailsJSON: strPtr(mustJSON(map[string]any{"verifiedPath": verifiedPath, "jobId": job.ID})),
+	})
+	emitAudit(deps.Hub, "acquisition.accept_verified", actor, map[string]any{"acquisitionId": a.ID, "verifiedPath": verifiedPath})
+	if deps.Hub != nil {
+		deps.Hub.Publish("verify.completed", map[string]any{"acquisitionId": a.ID, "verifiedPath": verifiedPath, "overridden": true})
+		deps.Hub.Publish("job.enqueued", map[string]any{"jobId": job.ID, "kind": job.Kind, "acquisitionId": a.ID})
+	}
+
+	return c.JSON(fiber.Map{"ok": true, "jobId": job.ID})
+}
+
+type blacklistRequest struct {
+	Scope  string `json:"scope"`  // "target" (default) or "global"
+	Reason string `json:"reason"` // optional
+}
+
+func handleAcqBlacklist(c *fiber.Ctx, deps AcquisitionsDeps, alsoRescout bool) error {
+	ctx, cancel := context.WithTimeout(c.UserContext(), 10*time.Second)
+	defer cancel()
+
+	id := strings.TrimSpace(c.Params("id"))
+	if id == "" {
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "invalid_id"})
+	}
+	a, err := storage.GetAcquisition(ctx, deps.DB, id)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return c.Status(http.StatusNotFound).JSON(fiber.Map{"error": "not_found"})
+		}
+		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{"error": "db_error"})
+	}
+
+	var req blacklistRequest
+	_ = c.BodyParser(&req)
+	scope := strings.ToLower(strings.TrimSpace(req.Scope))
+	if scope == "" {
+		scope = "target"
+	}
+	reason := strings.TrimSpace(req.Reason)
+	var reasonPtr *string
+	if reason != "" {
+		reasonPtr = &reason
+	}
+
+	// Resolve candidate URL/title for extra matching.
+	candURL, candTitle := loadCandidateURLAndTitle(ctx, deps.DB, a.CandidateID)
+
+	hash := ""
+	if a.ExternalID != nil {
+		hash = strings.TrimSpace(*a.ExternalID)
+	}
+	if hash == "" && candURL != "" {
+		hash = extractBTIH(candURL)
+	}
+
+	var targetPtr *string
+	if scope == "target" && strings.TrimSpace(a.TargetID) != "" {
+		t := strings.TrimSpace(a.TargetID)
+		targetPtr = &t
+	}
+
+	created := 0
+	matches := []map[string]any{}
+
+	// Prefer hash blacklist (most stable).
+	if hash != "" {
+		_, err := storage.InsertBlacklistEntry(ctx, deps.DB, storage.BlacklistEntry{
+			Scope:      scope,
+			TargetID:   targetPtr,
+			MatchType:  "hash",
+			MatchValue: hash,
+			Reason:     reasonPtr,
+			CreatedByUserID: actorUserIDPtr(c),
+		})
+		if err == nil {
+			created++
+			matches = append(matches, map[string]any{"type": "hash", "value": hash})
+		}
+	}
+	if candURL != "" {
+		_, err := storage.InsertBlacklistEntry(ctx, deps.DB, storage.BlacklistEntry{
+			Scope:      scope,
+			TargetID:   targetPtr,
+			MatchType:  "url",
+			MatchValue: candURL,
+			Reason:     reasonPtr,
+			CreatedByUserID: actorUserIDPtr(c),
+		})
+		if err == nil {
+			created++
+			matches = append(matches, map[string]any{"type": "url", "value": candURL})
+		}
+	}
+	if candTitle != "" {
+		// Title blacklist is optional/weak; still useful as a last resort.
+		_, err := storage.InsertBlacklistEntry(ctx, deps.DB, storage.BlacklistEntry{
+			Scope:      scope,
+			TargetID:   targetPtr,
+			MatchType:  "title",
+			MatchValue: candTitle,
+			Reason:     reasonPtr,
+			CreatedByUserID: actorUserIDPtr(c),
+		})
+		if err == nil {
+			created++
+			matches = append(matches, map[string]any{"type": "title", "value": candTitle})
+		}
+	}
+	if created == 0 {
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "no_match_to_blacklist"})
+	}
+
+	action := "acquisition.blacklist"
+	if alsoRescout {
+		action = "acquisition.blacklist_and_rescout"
+	}
+	_ = storage.InsertAuditEvent(ctx, deps.DB, storage.AuditEvent{
+		ActorUserID: actorUserIDPtr(c),
+		Action:      action,
+		TargetType:  strPtr("acquisition"),
+		TargetID:    &a.ID,
+		DetailsJSON: strPtr(mustJSON(map[string]any{"scope": scope, "reason": reason, "matches": matches, "targetId": a.TargetID})),
+	})
+	emitAudit(deps.Hub, action, actorUserIDPtr(c), map[string]any{"acquisitionId": a.ID, "scope": scope})
+	if deps.Hub != nil {
+		deps.Hub.Publish("download.blacklisted", map[string]any{"acquisitionId": a.ID, "scope": scope, "matches": matches})
+	}
+
+	var jobID *string
+	if alsoRescout {
+		job, _ := queue.Enqueue(ctx, deps.DB, "acquisition_rescout", map[string]string{"acquisitionId": a.ID}, queue.EnqueueOpts{RunAfter: time.Now().UTC().Add(1 * time.Second)})
+		if job.ID != "" {
+			jobID = &job.ID
+		}
+		if deps.Hub != nil {
+			deps.Hub.Publish("download.rescout.scheduled", map[string]any{"acquisitionId": a.ID, "jobId": jobID})
+		}
+	}
+
+	return c.JSON(fiber.Map{"ok": true, "created": created, "jobId": jobID})
+}
+
+func actorUserIDPtr(c *fiber.Ctx) *string {
+	u, _ := middleware.UserFromContext(c)
+	if u.ID == "" {
+		return nil
+	}
+	id := u.ID
+	return &id
+}
+
+func loadCandidateURLAndTitle(ctx context.Context, db *sql.DB, candidateID string) (string, string) {
+	candidateID = strings.TrimSpace(candidateID)
+	if candidateID == "" {
+		return "", ""
+	}
+	row := db.QueryRowContext(ctx, `SELECT raw_json FROM release_candidates WHERE id = ?`, candidateID)
+	var rawJSON string
+	if err := row.Scan(&rawJSON); err != nil {
+		return "", ""
+	}
+	var raw struct {
+		EnclosureURL string `json:"enclosureUrl"`
+		Link         string `json:"link"`
+		Title        string `json:"title"`
+	}
+	_ = json.Unmarshal([]byte(rawJSON), &raw)
+	u := strings.TrimSpace(raw.EnclosureURL)
+	if u == "" {
+		u = strings.TrimSpace(raw.Link)
+	}
+	return u, strings.TrimSpace(raw.Title)
+}
+
+func extractBTIH(u string) string {
+	u = strings.TrimSpace(u)
+	if !strings.HasPrefix(strings.ToLower(u), "magnet:?") {
+		return ""
+	}
+	lower := strings.ToLower(u)
+	idx := strings.Index(lower, "xt=urn:btih:")
+	if idx == -1 {
+		return ""
+	}
+	start := idx + len("xt=urn:btih:")
+	end := start
+	for end < len(u) {
+		ch := u[end]
+		if ch == '&' || ch == '#' {
+			break
+		}
+		end++
+	}
+	h := u[start:end]
+	return strings.TrimSpace(h)
+}
+
+func mustJSON(v any) string {
+	b, _ := json.Marshal(v)
+	return string(b)
 }
 
 type persistedClients struct {
@@ -149,26 +416,45 @@ func handleAcqControl(c *fiber.Ctx, deps AcquisitionsDeps, action string) error 
 		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "missing_external_id"})
 	}
 
-	cfg, err := loadQBittorrentConfig(ctx, deps)
-	if err != nil {
-		if fe, ok := err.(*fiber.Error); ok {
-			return c.Status(fe.Code).JSON(fiber.Map{"error": fe.Message})
+	var cli *qbittorrent.Client
+	var dry *dryrun.Client
+	if deps.DryRun {
+		dry = dryrun.Default(deps.DryRunFixturePath)
+	} else {
+		cfg, err := loadQBittorrentConfig(ctx, deps)
+		if err != nil {
+			if fe, ok := err.(*fiber.Error); ok {
+				return c.Status(fe.Code).JSON(fiber.Map{"error": fe.Message})
+			}
+			return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "client_config_error"})
 		}
-		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "client_config_error"})
-	}
-	cli, err := qbittorrent.New(cfg, deps.Policy)
-	if err != nil {
-		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "client_init_failed"})
+		c2, err := qbittorrent.New(cfg, deps.Policy)
+		if err != nil {
+			return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "client_init_failed"})
+		}
+		cli = c2
 	}
 
 	switch action {
 	case "pause":
-		if err := cli.Pause(ctx, *a.ExternalID); err != nil {
+		var err error
+		if deps.DryRun {
+			err = dry.Pause(ctx, *a.ExternalID)
+		} else {
+			err = cli.Pause(ctx, *a.ExternalID)
+		}
+		if err != nil {
 			return c.Status(http.StatusBadGateway).JSON(fiber.Map{"error": err.Error()})
 		}
 		_ = storage.UpdateAcquisitionProgress(ctx, deps.DB, a.ID, "paused", a.Progress, a.ContentPath)
 	case "resume":
-		if err := cli.Resume(ctx, *a.ExternalID); err != nil {
+		var err error
+		if deps.DryRun {
+			err = dry.Resume(ctx, *a.ExternalID)
+		} else {
+			err = cli.Resume(ctx, *a.ExternalID)
+		}
+		if err != nil {
 			return c.Status(http.StatusBadGateway).JSON(fiber.Map{"error": err.Error()})
 		}
 		_ = storage.UpdateAcquisitionProgress(ctx, deps.DB, a.ID, "downloading", a.Progress, a.ContentPath)
@@ -206,9 +492,9 @@ func handleAcqRemove(c *fiber.Ctx, deps AcquisitionsDeps) error {
 	deleteFiles := strings.TrimSpace(c.Query("deleteFiles"))
 	del := deleteFiles == "1" || strings.EqualFold(deleteFiles, "true") || strings.EqualFold(deleteFiles, "yes")
 
-	a, err := storage.GetAcquisition(ctx, deps.DB, id)
-	if err != nil {
-		if err == sql.ErrNoRows {
+	a, getErr := storage.GetAcquisition(ctx, deps.DB, id)
+	if getErr != nil {
+		if getErr == sql.ErrNoRows {
 			return c.Status(http.StatusNotFound).JSON(fiber.Map{"error": "not_found"})
 		}
 		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{"error": "db_error"})
@@ -220,19 +506,26 @@ func handleAcqRemove(c *fiber.Ctx, deps AcquisitionsDeps) error {
 		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "missing_external_id"})
 	}
 
-	cfg, err := loadQBittorrentConfig(ctx, deps)
-	if err != nil {
-		if fe, ok := err.(*fiber.Error); ok {
-			return c.Status(fe.Code).JSON(fiber.Map{"error": fe.Message})
+	var opErr error
+	if deps.DryRun {
+		dry := dryrun.Default(deps.DryRunFixturePath)
+		opErr = dry.Delete(ctx, *a.ExternalID, del)
+	} else {
+		cfg, err2 := loadQBittorrentConfig(ctx, deps)
+		if err2 != nil {
+			if fe, ok := err2.(*fiber.Error); ok {
+				return c.Status(fe.Code).JSON(fiber.Map{"error": fe.Message})
+			}
+			return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "client_config_error"})
 		}
-		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "client_config_error"})
+		cli, err2 := qbittorrent.New(cfg, deps.Policy)
+		if err2 != nil {
+			return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "client_init_failed"})
+		}
+		opErr = cli.Delete(ctx, *a.ExternalID, del)
 	}
-	cli, err := qbittorrent.New(cfg, deps.Policy)
-	if err != nil {
-		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "client_init_failed"})
-	}
-	if err := cli.Delete(ctx, *a.ExternalID, del); err != nil {
-		return c.Status(http.StatusBadGateway).JSON(fiber.Map{"error": err.Error()})
+	if opErr != nil {
+		return c.Status(http.StatusBadGateway).JSON(fiber.Map{"error": opErr.Error()})
 	}
 	_ = storage.UpdateAcquisitionProgress(ctx, deps.DB, a.ID, "removed", a.Progress, a.ContentPath)
 

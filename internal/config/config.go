@@ -15,6 +15,17 @@ type Config struct {
 
 	DatabaseURL string
 
+	// DryRun enables a mode intended for local testing where external download clients
+	// and filesystem writes are simulated. Network calls to indexers/metadata remain real.
+	DryRun bool
+	// DryRunFixturePath optionally points to a local file/dir used for verify/import in dry run.
+	// This is read-only; no filesystem writes should be performed in dry run.
+	DryRunFixturePath string
+
+	// FFProbePath optionally points to ffprobe for deeper media inspection.
+	// If empty, verification will try to find ffprobe on PATH.
+	FFProbePath string
+
 	// SecretKey is used for encrypting secrets at rest.
 	// It must be exactly 32 bytes after base64 decode.
 	SecretKeyBase64 string
@@ -35,6 +46,11 @@ func Load() (Config, error) {
 	cfg.Env = strings.TrimSpace(getenvDefault("APP_ENV", "dev"))
 	cfg.HTTPAddr = strings.TrimSpace(getenvDefault("HTTP_ADDR", ":8080"))
 	cfg.DatabaseURL = strings.TrimSpace(getenvDefault("DATABASE_URL", "file:/data/app.db?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)"))
+
+	cfg.DryRun = getenvBool("DRY_RUN", false)
+	cfg.DryRunFixturePath = strings.TrimSpace(os.Getenv("DRY_RUN_FIXTURE_PATH"))
+	cfg.FFProbePath = strings.TrimSpace(os.Getenv("FFPROBE_PATH"))
+
 	cfg.SecretKeyBase64 = strings.TrimSpace(os.Getenv("APP_SECRET_KEY"))
 
 	cfg.SessionCookieName = strings.TrimSpace(getenvDefault("SESSION_COOKIE_NAME", "rivet_session"))

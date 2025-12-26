@@ -87,6 +87,10 @@ paths:
                 properties:
                   setupMode:
                     type: boolean
+                  dryRun:
+                    type: boolean
+                  dryRunFixturePathSet:
+                    type: boolean
   /api/v1/setup/admin:
     post:
       summary: Create initial admin (setup only)
@@ -366,6 +370,78 @@ paths:
           schema: { type: string }
       responses:
         '200': { description: OK }
+        '401': { description: Unauthorized }
+        '403': { description: Forbidden/CSRF }
+  /api/v1/acquisitions/{id}/actions/accept_verified:
+    post:
+      summary: Admin override - accept an acquisition as verified and enqueue import (admin)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                verifiedPath:
+                  type: string
+      responses:
+        '200': { description: OK }
+        '400': { description: Bad request }
+        '401': { description: Unauthorized }
+        '403': { description: Forbidden/CSRF }
+  /api/v1/acquisitions/{id}/actions/blacklist:
+    post:
+      summary: Add current acquisition candidate to blacklist (admin)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                scope:
+                  type: string
+                  description: target|global
+                reason:
+                  type: string
+      responses:
+        '200': { description: OK }
+        '400': { description: Bad request }
+        '401': { description: Unauthorized }
+        '403': { description: Forbidden/CSRF }
+  /api/v1/acquisitions/{id}/actions/blacklist_and_rescout:
+    post:
+      summary: Add candidate to blacklist and enqueue rescout (admin)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                scope:
+                  type: string
+                  description: target|global
+                reason:
+                  type: string
+      responses:
+        '200': { description: OK }
+        '400': { description: Bad request }
         '401': { description: Unauthorized }
         '403': { description: Forbidden/CSRF }
   /api/v1/acquisitions/{id}/actions/override_imported:

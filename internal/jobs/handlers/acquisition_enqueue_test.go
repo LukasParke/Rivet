@@ -99,7 +99,7 @@ func TestEnqueueAcquisition_QBittorrent_AddURL(t *testing.T) {
 		DB:        db.SQL,
 		SecretBox: sb,
 		Policy:    security.OutboundPolicy{AllowInternal: true},
-		NewQb: func(cfg qbittorrent.Config, policy security.OutboundPolicy) (qbAdder, error) {
+		NewQb: func(cfg qbittorrent.Config, policy security.OutboundPolicy) (qbClient, error) {
 			// Ensure url is exactly our server
 			if !strings.Contains(cfg.BaseURL, srv.URL) {
 				t.Fatalf("unexpected base url: %s", cfg.BaseURL)
@@ -152,7 +152,7 @@ func TestEnqueueAcquisition_MissingURL_Fails(t *testing.T) {
 	_ = storage.UpsertSetting(ctx, db.SQL, "setup.clients", clientsJSON)
 
 	a, _ := storage.CreateAcquisition(ctx, db.SQL, cand.ID, tgt.ID, "torrent", "qbittorrent", "default")
-	err = EnqueueAcquisition(ctx, AcquisitionDeps{DB: db.SQL, SecretBox: sb, Policy: security.OutboundPolicy{AllowInternal: true}, NewQb: func(cfg qbittorrent.Config, policy security.OutboundPolicy) (qbAdder, error) {
+	err = EnqueueAcquisition(ctx, AcquisitionDeps{DB: db.SQL, SecretBox: sb, Policy: security.OutboundPolicy{AllowInternal: true}, NewQb: func(cfg qbittorrent.Config, policy security.OutboundPolicy) (qbClient, error) {
 		return &fakeQb{}, nil
 	}}, a.ID)
 	if err == nil {
@@ -191,7 +191,7 @@ func TestEnqueueAcquisition_AddURLFails_EnqueuesRescout(t *testing.T) {
 		DB:        db.SQL,
 		SecretBox: sb,
 		Policy:    security.OutboundPolicy{AllowInternal: true},
-		NewQb: func(cfg qbittorrent.Config, policy security.OutboundPolicy) (qbAdder, error) {
+		NewQb: func(cfg qbittorrent.Config, policy security.OutboundPolicy) (qbClient, error) {
 			return &fakeQbFail{err: errors.New("add_failed")}, nil
 		},
 	}, a.ID)
@@ -209,9 +209,29 @@ func TestEnqueueAcquisition_AddURLFails_EnqueuesRescout(t *testing.T) {
 type fakeQb struct{}
 
 func (f *fakeQb) AddURL(ctx context.Context, torrentURL string) error { return nil }
+func (f *fakeQb) GetInfo(ctx context.Context, hash string) (qbittorrent.TorrentInfo, bool, error) {
+	return qbittorrent.TorrentInfo{}, false, nil
+}
+func (f *fakeQb) Resume(ctx context.Context, hash string) error     { return nil }
+func (f *fakeQb) Pause(ctx context.Context, hash string) error      { return nil }
+func (f *fakeQb) Recheck(ctx context.Context, hash string) error    { return nil }
+func (f *fakeQb) Reannounce(ctx context.Context, hash string) error { return nil }
+func (f *fakeQb) Delete(ctx context.Context, hash string, deleteFiles bool) error {
+	return nil
+}
 
 type fakeQbFail struct{ err error }
 
 func (f *fakeQbFail) AddURL(ctx context.Context, torrentURL string) error { return f.err }
+func (f *fakeQbFail) GetInfo(ctx context.Context, hash string) (qbittorrent.TorrentInfo, bool, error) {
+	return qbittorrent.TorrentInfo{}, false, nil
+}
+func (f *fakeQbFail) Resume(ctx context.Context, hash string) error     { return nil }
+func (f *fakeQbFail) Pause(ctx context.Context, hash string) error      { return nil }
+func (f *fakeQbFail) Recheck(ctx context.Context, hash string) error    { return nil }
+func (f *fakeQbFail) Reannounce(ctx context.Context, hash string) error { return nil }
+func (f *fakeQbFail) Delete(ctx context.Context, hash string, deleteFiles bool) error {
+	return nil
+}
 
 var _ = sql.ErrNoRows

@@ -57,6 +57,8 @@ func main() {
 		SessionTTL:        cfg.SessionTTL,
 		SecretKeyBase64:   cfg.SecretKeyBase64,
 		AllowInternalURLs: cfg.AllowInternalURLs,
+		DryRun:            cfg.DryRun,
+		DryRunFixturePath: cfg.DryRunFixturePath,
 		Hub:              hub,
 		Metrics:          metrics,
 	})
@@ -74,6 +76,9 @@ func main() {
 		Logger:    log,
 		Hub:       hub,
 		Metrics:   metrics,
+		DryRun:    cfg.DryRun,
+		DryRunFixturePath: cfg.DryRunFixturePath,
+		FFProbePath: cfg.FFProbePath,
 	})
 
 	errCh := make(chan error, 1)

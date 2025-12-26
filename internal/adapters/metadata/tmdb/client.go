@@ -20,10 +20,17 @@ type Client struct {
 	http    *http.Client
 }
 
+// Fallback TMDB API key for testing/development (rate-limited, shared across users).
+// Users should get their own free API key at https://www.themoviedb.org/settings/api
+// for better rate limits and ToS compliance.
+const fallbackTMDBAPIKey = "c9856d0cb57c3f14bf75bdc6c063b8f3"
+
 func New(baseURL, apiKey string, policy security.OutboundPolicy) (*Client, error) {
 	apiKey = strings.TrimSpace(apiKey)
+	// Allow empty API key and use fallback for out-of-box experience.
+	// This is rate-limited and users should get their own key for production use.
 	if apiKey == "" {
-		return nil, errors.New("api key required")
+		apiKey = fallbackTMDBAPIKey
 	}
 	if baseURL == "" {
 		baseURL = "https://api.themoviedb.org"

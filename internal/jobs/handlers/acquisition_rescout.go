@@ -82,6 +82,8 @@ WHERE target_id = ?
 		tried[strings.ToLower(excludeHash)] = true
 	}
 
+	blacklist, _ := storage.LoadBlacklistSet(ctx, deps.DB, a.TargetID)
+
 	if deps.Hub != nil {
 		deps.Hub.Publish("download.rescout.started", map[string]any{
 			"acquisitionId": a.ID,
@@ -108,7 +110,7 @@ WHERE target_id = ?
 	}
 
 	// Indexers
-	indexers, err := loadIndexersFromSettings(ctx, deps.DB, deps.SecretBox)
+	indexers, err := loadIndexersFromSettings(ctx, deps.DB, deps.SecretBox, deps.Hub, run.ID, a.TargetID)
 	if err != nil {
 		e := err.Error()
 		_ = storage.UpdateSearchRunCompleted(ctx, deps.DB, run.ID, &e)
@@ -171,6 +173,12 @@ WHERE target_id = ?
 				continue
 			}
 			if hash != "" && tried[strings.ToLower(strings.TrimSpace(hash))] {
+				continue
+			}
+			if hash != "" && blacklist != nil && blacklist["hash"] != nil && blacklist["hash"][strings.ToLower(strings.TrimSpace(hash))] {
+				continue
+			}
+			if urlToUse != "" && blacklist != nil && blacklist["url"] != nil && blacklist["url"][strings.ToLower(strings.TrimSpace(urlToUse))] {
 				continue
 			}
 			if excludeURL != "" && strings.EqualFold(urlToUse, excludeURL) {

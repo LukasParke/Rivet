@@ -67,7 +67,7 @@ This repo already contains a working “MVP spine” (API + DB + worker + WS + b
 ### WebSocket event types (implemented)
 
 - **Jobs**: `job.claimed`, `job.completed`, `job.failed`, `job.retry_scheduled`
-- **Downloads** (`downloads` channel): `download.enqueued`, `download.progress`, `download.completed`, `download.failed`, `download.stalled`, `download.recovery_attempt`, `download.recovery_scheduled`, `download.recovery_failed`, `download.needs_review`
+- **Downloads** (`downloads` channel): `download.enqueued`, `download.progress`, `download.completed`, `download.failed`, `download.stalled`, `download.recovery_attempt`, `download.recovery_scheduled`, `download.recovery_failed`, `download.needs_review`, `download.blacklisted`, `download.rescout.*`
 - **Verification/import** (`imports` channel): `verify.started`, `verify.completed`, `verify.failed`, `import.started`, `import.completed`, `import.failed`
 - **Audit** (`audit` channel): `audit.*`
 - **Health** (`health` channel): `health.snapshot`
@@ -80,6 +80,7 @@ This repo already contains a working “MVP spine” (API + DB + worker + WS + b
 - `acquisition_verify`
 - `acquisition_import`
 - `acquisition_recover`
+- `acquisition_rescout`
 
 ### Migrations added so far (high-level)
 
@@ -89,6 +90,8 @@ This repo already contains a working “MVP spine” (API + DB + worker + WS + b
   - `0004_acquisitions.sql` (base)
   - `0005_acquisitions_fields.sql` (source/content/import/progress fields)
   - `0006_acquisition_verify_stall.sql` (verify/quarantine + stall/recovery fields)
+  - `0007_blacklist.sql` (blacklist entries)
+  - `0008_verify_evidence.sql` (verification evidence JSON)
 
 ### How to run
 
@@ -97,6 +100,97 @@ This repo already contains a working “MVP spine” (API + DB + worker + WS + b
 - **Web build**:
   - `npm -C apps/web run build`
 
+---
+
+## Local development (preview UI + API)
+
+Run the Go API/WS server on port 8080 and the SvelteKit dev server on port 5173. The web app proxies `/api/*` and `/ws` to the Go server during development (see `apps/web/vite.config.ts`).
+
+**Important**: Secrets and configuration are persisted between runs:
+- Secret key is stored in `.rivet-secret-key` (auto-created on first run)
+- Database is stored in `rivet-dev.db` (in the project root)
+- Both files are git-ignored for security
+
+### Quick start (recommended)
+
+```bash
+# Start both backend and web servers (auto-creates persistent secret key)
+make dev
+```
+
+This will:
+- Create `.rivet-secret-key` if it doesn't exist (persists between runs)
+- Use `rivet-dev.db` for the database (persists between runs)
+- Start both servers in parallel
+
+### Manual start
+
+- **Backend (Go)**:
+
+```bash
+# The Makefile will auto-load the secret key from .rivet-secret-key if APP_SECRET_KEY is not set
+make backend
+
+# Or manually:
+export APP_SECRET_KEY="$(cat .rivet-secret-key 2>/dev/null || python3 -c 'import base64, os; print(base64.b64encode(os.urandom(32)).decode())')"
+export APP_ENV=dev
+export HTTP_ADDR=":8080"
+export DATABASE_URL="file:rivet-dev.db?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)"
+go run ./cmd/server
+```
+
+- **Web (SvelteKit)**:
+
+```bash
+npm -C apps/web install
+npm -C apps/web run dev
+```
+
+Then open the web UI at `http://localhost:5173` (it will call the API at `http://localhost:8080` via proxy).
+
+### Dry Run mode (recommended for local testing)
+
+Dry Run keeps real indexer/metadata network calls but simulates download client operations and filesystem writes.
+
+```bash
+# Uses persistent secret key and database
+make backend-dry-run
+
+# Or manually:
+export DRY_RUN=1
+# Optional: point at an existing local media file or directory so verify/import can run read-only.
+export DRY_RUN_FIXTURE_PATH="/path/to/a/media/file-or-folder"
+make backend
+```
+
+---
+
+## Single-container MVP (Docker + nginx)
+
+This repo can be built into a single container that runs:
+
+- **nginx** on `:8080` (public)
+- **Go API/WS** on `127.0.0.1:8081` (internal)
+- **SvelteKit SSR** on `127.0.0.1:3000` (internal)
+
+Data persists under `/data` (SQLite default).
+
+```bash
+# Build
+docker build -t rivet:dev .
+
+# Run (bind to localhost:8080 and persist db under ./data)
+docker run --rm -p 8080:8080 -v "$PWD/data:/data" \
+  -e APP_ENV=prod \
+  -e APP_SECRET_KEY="$(python3 - <<'PY'
+import base64, os
+print(base64.b64encode(os.urandom(32)).decode())
+PY
+)" \
+  rivet:dev
+```
+
+Then open the UI at `http://localhost:8080`.
 ---
 
 ## Architecture overview
@@ -155,10 +249,13 @@ If **no users exist**, the site enters **Setup Mode**:
    - Usenet: NZBGet (required) + SABnzbd (recommended)
    - Test connectivity; store secrets encrypted
 4. **Indexers**
-   - Torznab (torrents), Newznab (usenet)
+   - **Recommended**: Add Prowlarr as a Torznab indexer (manages multiple indexers)
+   - Or add individual Torznab (torrents) / Newznab (usenet) indexers
    - Test search + parsing
 5. **Metadata providers**
-   - TMDB/TVDB etc.
+   - **TMDB**: Optional API key (leave blank to use shared key, rate-limited)
+   - **TVDB**: Optional API key
+   - Get free API keys: [TMDB](https://www.themoviedb.org/settings/api) | [TVDB](https://thetvdb.com/dashboard/account/apikey)
    - Test and set request budgets
 6. **Policies**
    - Quality profiles, language, upgrade rules, safety gates
@@ -178,7 +275,33 @@ Validations are not cosmetic: connectivity, permissions, basic search/parse, plu
 - **Torznab adapter** (torrent searching)
 - **Newznab adapter** (usenet searching)
 
-This supports Prowlarr-style setups without tightly coupling to Prowlarr.
+#### Recommended: Prowlarr for indexer management
+
+**Prowlarr** is a standalone indexer manager that aggregates multiple indexers (both Torznab and Newznab) and provides a single unified Torznab endpoint. This is the easiest way to get started:
+
+1. **Install Prowlarr** (Docker):
+   ```bash
+   docker run -d --name prowlarr -p 9696:9696 lscr.io/linuxserver/prowlarr
+   ```
+
+2. **Configure indexers in Prowlarr**:
+   - Access Prowlarr web UI at `http://localhost:9696`
+   - Add your indexers (public or private) through Prowlarr's interface
+   - Prowlarr manages API keys, rate limits, and health checks
+
+3. **Add Prowlarr to Rivet**:
+   - In Rivet's setup wizard, add Prowlarr as a Torznab indexer
+   - URL: `http://localhost:9696` (or your Prowlarr instance URL)
+   - API Key: Found in Prowlarr Settings → General → API Key
+   - Name: "Prowlarr"
+
+This approach gives you:
+- **Single endpoint** instead of managing multiple indexers individually
+- **Automatic health monitoring** and failover
+- **Unified search** across all configured indexers
+- **Easy indexer management** through Prowlarr's UI
+
+You can also add individual Torznab/Newznab indexers directly if you prefer, but Prowlarr is recommended for most users.
 
 ### Download clients (native support)
 

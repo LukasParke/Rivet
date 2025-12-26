@@ -16,6 +16,7 @@ import (
 type ImportDeps struct {
 	DB  *sql.DB
 	Hub publisher
+	DryRun bool
 }
 
 func ImportAcquisition(ctx context.Context, deps ImportDeps, acquisitionID string) error {
@@ -38,22 +39,31 @@ func ImportAcquisition(ctx context.Context, deps ImportDeps, acquisitionID strin
 	}
 
 	if deps.Hub != nil {
-		deps.Hub.Publish("import.started", map[string]any{"acquisitionId": a.ID, "verifiedPath": *a.VerifiedPath})
+		deps.Hub.Publish("import.started", map[string]any{"acquisitionId": a.ID, "verifiedPath": *a.VerifiedPath, "dryRun": deps.DryRun})
 	}
 
 	targetKind, targetName := loadTargetForImport(ctx, deps.DB, a.TargetID)
-	destDir := computeLibraryDestDir(paths.LibraryRoots[0], targetKind, targetName)
-	dest, err := importer.ImportFileToDir(*a.VerifiedPath, destDir)
-	if err != nil {
-		_ = storage.MarkAcquisitionFailed(ctx, deps.DB, a.ID, err.Error())
-		if deps.Hub != nil {
-			deps.Hub.Publish("import.failed", map[string]any{"acquisitionId": a.ID, "error": err.Error()})
+	destDir, destPath := computeImportDestination(paths.LibraryRoots[0], targetKind, targetName, *a.VerifiedPath)
+
+	var dest string
+	if deps.DryRun {
+		// Compute what would have happened, but do not mutate disk.
+		dest = destPath
+	} else {
+		var err error
+		dest, err = importer.ImportFileToPath(*a.VerifiedPath, destPath)
+		if err != nil {
+			_ = storage.MarkAcquisitionFailed(ctx, deps.DB, a.ID, err.Error())
+			if deps.Hub != nil {
+				deps.Hub.Publish("import.failed", map[string]any{"acquisitionId": a.ID, "error": err.Error(), "dryRun": deps.DryRun})
+			}
+			return err
 		}
-		return err
 	}
+
 	_ = storage.MarkAcquisitionImported(ctx, deps.DB, a.ID, dest)
 	if deps.Hub != nil {
-		deps.Hub.Publish("import.completed", map[string]any{"acquisitionId": a.ID, "importedPath": dest, "destDir": destDir})
+		deps.Hub.Publish("import.completed", map[string]any{"acquisitionId": a.ID, "importedPath": dest, "destDir": destDir, "dryRun": deps.DryRun})
 	}
 	return nil
 }
@@ -88,17 +98,43 @@ func loadTargetForImport(ctx context.Context, db *sql.DB, targetID string) (kind
 	return kind, name
 }
 
-func computeLibraryDestDir(libraryRoot, targetKind, targetName string) string {
+func computeImportDestination(libraryRoot, targetKind, targetName, verifiedPath string) (destDir string, destPath string) {
 	libraryRoot = filepath.Clean(strings.TrimSpace(libraryRoot))
 	targetKind = strings.ToLower(strings.TrimSpace(targetKind))
 	targetName = importer.SanitizePathComponent(targetName)
 
 	switch targetKind {
 	case "movie":
-		return filepath.Join(libraryRoot, "Movies", targetName)
+		destDir = filepath.Join(libraryRoot, "Movies", targetName)
+		ext := strings.ToLower(filepath.Ext(verifiedPath))
+		if ext == "" {
+			ext = strings.ToLower(filepath.Ext(filepath.Base(verifiedPath)))
+		}
+		if ext == "" {
+			ext = ".mkv"
+		}
+		destPath = filepath.Join(destDir, targetName+ext)
+		return destDir, destPath
 	case "episode", "season_pack", "tv":
-		return filepath.Join(libraryRoot, "TV", targetName)
+		// Minimal MVP layout until we have strong episode/season parsing:
+		// TV/<Show>/Season 01/<Show> - Imported.ext
+		destDir = filepath.Join(libraryRoot, "TV", targetName, "Season 01")
+		ext := strings.ToLower(filepath.Ext(verifiedPath))
+		if ext == "" {
+			ext = strings.ToLower(filepath.Ext(filepath.Base(verifiedPath)))
+		}
+		if ext == "" {
+			ext = ".mkv"
+		}
+		destPath = filepath.Join(destDir, targetName+" - Imported"+ext)
+		return destDir, destPath
 	default:
-		return filepath.Join(libraryRoot, "imports", targetName)
+		destDir = filepath.Join(libraryRoot, "imports", targetName)
+		base := filepath.Base(strings.TrimSpace(verifiedPath))
+		if base == "" || base == "." || base == string(filepath.Separator) {
+			base = targetName + ".mkv"
+		}
+		destPath = filepath.Join(destDir, base)
+		return destDir, destPath
 	}
 }

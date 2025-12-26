@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/LukeHagar/Rivet/internal/adapters/downloaders/dryrun"
 	"github.com/LukeHagar/Rivet/internal/adapters/downloaders/qbittorrent"
 	"github.com/LukeHagar/Rivet/internal/jobs/queue"
 	"github.com/LukeHagar/Rivet/internal/security"
@@ -18,6 +19,12 @@ type RecoverDeps struct {
 	SecretBox *security.SecretBox
 	Policy    security.OutboundPolicy
 	Hub       publisher
+
+	DryRun            bool
+	DryRunFixturePath string
+
+	// For tests: override client factory.
+	NewQb func(cfg qbittorrent.Config, policy security.OutboundPolicy) (qbClient, error)
 }
 
 func RecoverAcquisition(ctx context.Context, deps RecoverDeps, acquisitionID string) error {
@@ -45,13 +52,25 @@ func RecoverAcquisition(ctx context.Context, deps RecoverDeps, acquisitionID str
 	}
 
 	// Recovery ladder (MVP): resume -> reannounce -> recheck.
-	cfg, err := loadQBittorrentConfig(ctx, AcquisitionDeps{DB: deps.DB, SecretBox: deps.SecretBox, Policy: deps.Policy})
-	if err != nil {
-		return err
-	}
-	cli, err := qbittorrent.New(cfg, deps.Policy)
-	if err != nil {
-		return err
+	var cli qbClient
+	if deps.DryRun {
+		cli = dryrun.Default(deps.DryRunFixturePath)
+	} else {
+		cfg, err := loadQBittorrentConfig(ctx, AcquisitionDeps{DB: deps.DB, SecretBox: deps.SecretBox, Policy: deps.Policy})
+		if err != nil {
+			return err
+		}
+		factory := deps.NewQb
+		if factory == nil {
+			factory = func(cfg qbittorrent.Config, policy security.OutboundPolicy) (qbClient, error) {
+				return qbittorrent.New(cfg, policy)
+			}
+		}
+		c, err := factory(cfg, deps.Policy)
+		if err != nil {
+			return err
+		}
+		cli = c
 	}
 
 	var opErr error

@@ -24,6 +24,9 @@ type Deps struct {
 	SecretKeyBase64   string
 	AllowInternalURLs bool
 
+	DryRun            bool
+	DryRunFixturePath string
+
 	Hub *ws.Hub
 	Metrics *observability.Metrics
 }
@@ -57,11 +60,11 @@ func NewApp(ctx context.Context, deps Deps) (*fiber.App, *middleware.SetupGate, 
 	}
 
 	api := app.Group("/api/v1")
-	routes.RegisterDiagnostics(api, routes.DiagnosticsDeps{DB: deps.DB, Metrics: deps.Metrics})
-	routes.RegisterSetup(api, routes.SetupDeps{DB: deps.DB, SetupMode: setupGate.IsSetupMode, Hub: deps.Hub})
-	routes.RegisterSetupPaths(api, deps.DB, deps.Hub)
 	sb, _ := security.NewSecretBox(deps.SecretKeyBase64)
 	policy := security.OutboundPolicy{AllowInternal: deps.AllowInternalURLs}
+	routes.RegisterDiagnostics(api, routes.DiagnosticsDeps{DB: deps.DB, Metrics: deps.Metrics, DryRun: deps.DryRun, DryRunFixturePath: deps.DryRunFixturePath, Policy: policy})
+	routes.RegisterSetup(api, routes.SetupDeps{DB: deps.DB, SetupMode: setupGate.IsSetupMode, Hub: deps.Hub, DryRun: deps.DryRun, DryRunFixturePath: deps.DryRunFixturePath})
+	routes.RegisterSetupPaths(api, routes.SetupPathsDeps{DB: deps.DB, Hub: deps.Hub, DryRun: deps.DryRun})
 	routes.RegisterSetupClients(api, routes.SetupClientsDeps{
 		DB:        deps.DB,
 		SecretBox: sb,
@@ -82,6 +85,7 @@ func NewApp(ctx context.Context, deps Deps) (*fiber.App, *middleware.SetupGate, 
 	})
 	routes.RegisterSetupPolicies(api, deps.DB, deps.Hub)
 	routes.RegisterSetupFinish(api, deps.DB, deps.Hub)
+	routes.RegisterSetupConfig(api, routes.SetupConfigDeps{DB: deps.DB, SecretBox: sb})
 	routes.RegisterTargetsAndSearch(api, routes.TargetsDeps{
 		DB:        deps.DB,
 		SecretBox: sb,
@@ -89,7 +93,14 @@ func NewApp(ctx context.Context, deps Deps) (*fiber.App, *middleware.SetupGate, 
 		Hub:       deps.Hub,
 		Metrics:   deps.Metrics,
 	})
-	routes.RegisterAcquisitions(api, routes.AcquisitionsDeps{DB: deps.DB, SecretBox: sb, Policy: policy, Hub: deps.Hub})
+	routes.RegisterAcquisitions(api, routes.AcquisitionsDeps{
+		DB:                deps.DB,
+		SecretBox:          sb,
+		Policy:             policy,
+		Hub:                deps.Hub,
+		DryRun:             deps.DryRun,
+		DryRunFixturePath:  deps.DryRunFixturePath,
+	})
 	routes.RegisterAuth(api, routes.AuthDeps{
 		DB:                deps.DB,
 		SessionCookieName: deps.SessionCookieName,

@@ -13,3 +13,21 @@ node_modules/
 # Core dumps
 core
 core.*
+
+# Local dev secrets and config
+.rivet-secret-key
+rivet-dev.db
+rivet-dev.db-shm
+rivet-dev.db-wal
+
+# Build outputs
+dist/
+build/
+apps/web/.svelte-kit/
+apps/web/build/
+apps/web/.env
+apps/web/.env.*
+
+# Air hot reload
+tmp/
+build-errors.log

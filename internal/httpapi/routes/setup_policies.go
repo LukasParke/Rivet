@@ -47,7 +47,7 @@ func RegisterSetupPolicies(api fiber.Router, db *sql.DB, hub *ws.Hub) {
 		ctx, cancel := context.WithTimeout(c.UserContext(), 5*time.Second)
 		defer cancel()
 		_ = ctx
-		resp := validatePolicies(req)
+		resp := validatePolicies(hub, req)
 		return c.JSON(resp)
 	})
 
@@ -57,7 +57,7 @@ func RegisterSetupPolicies(api fiber.Router, db *sql.DB, hub *ws.Hub) {
 			return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "invalid_json"})
 		}
 
-		v := validatePolicies(req)
+		v := validatePolicies(hub, req)
 		if !v.Ok {
 			return c.Status(http.StatusBadRequest).JSON(v)
 		}
@@ -79,7 +79,14 @@ func RegisterSetupPolicies(api fiber.Router, db *sql.DB, hub *ws.Hub) {
 	})
 }
 
-func validatePolicies(req SetupPoliciesRequest) SetupPoliciesValidateResponse {
+func validatePolicies(hub *ws.Hub, req SetupPoliciesRequest) SetupPoliciesValidateResponse {
+	if hub != nil {
+		hub.Publish("setup.policies.validation.started", map[string]any{
+			"qualityProfilesCount": len(req.QualityProfiles),
+			"bannedTagsCount":       len(req.BannedTags),
+		})
+	}
+
 	var errs []string
 
 	lang := strings.TrimSpace(req.Language)
@@ -116,7 +123,25 @@ func validatePolicies(req SetupPoliciesRequest) SetupPoliciesValidateResponse {
 	}
 
 	if len(errs) > 0 {
+		if hub != nil {
+			hub.Publish("setup.policies.validation.error", map[string]any{
+				"error":   "validation_failed",
+				"errors":  errs,
+				"message": "Policy validation failed",
+			})
+		}
 		return SetupPoliciesValidateResponse{Ok: false, Errors: errs}
+	}
+
+	if hub != nil {
+		hub.Publish("setup.policies.validation.completed", map[string]any{
+			"ok": true,
+			"summary": map[string]any{
+				"language":           lang,
+				"qualityProfiles":    len(req.QualityProfiles),
+				"bannedTags":         len(req.BannedTags),
+			},
+		})
 	}
 	return SetupPoliciesValidateResponse{Ok: true}
 }

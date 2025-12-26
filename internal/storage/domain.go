@@ -166,8 +166,8 @@ VALUES (?, ?, ?, ?, ?, ?)
 }
 
 type CandidateWithDecision struct {
-	Candidate ReleaseCandidate
-	Decision  *Decision
+	Candidate ReleaseCandidate `json:"candidate"`
+	Decision  *Decision        `json:"decision"`
 }
 
 func GetSearchRunWithResults(ctx context.Context, db *sql.DB, runID string) (SearchRun, []CandidateWithDecision, error) {

@@ -1,1 +1,0 @@
-import{t as p,a as t}from"../chunks/CY-7o9oA.js";import"../chunks/BLmVtnhA.js";var o=p('<div class="container"><h1>Rivet</h1> <p class="muted">Control plane UI scaffold. Full app UI coming next.</p> <div class="card"><p>Setup has already been completed.</p></div></div>');function i(a){var e=o();t(a,e)}export{i as component};

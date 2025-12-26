@@ -82,8 +82,14 @@
 	<label><input type="checkbox" bind:checked={includeTMDB} /> Enable</label>
 	<div class="row" style="margin-top: 8px;">
 		<input placeholder="Base URL" bind:value={tmdbBaseUrl} disabled={!includeTMDB} />
-		<input placeholder="API key" type="password" bind:value={tmdbKey} disabled={!includeTMDB} />
+		<input placeholder="API key (optional - leave blank for shared key)" type="password" bind:value={tmdbKey} disabled={!includeTMDB} />
 	</div>
+	{#if includeTMDB}
+		<p class="muted" style="margin-top: 4px; font-size: 0.9em;">
+			Optional: Leave blank to use shared key (rate-limited). 
+			<a href="https://www.themoviedb.org/settings/api" target="_blank" rel="noopener">Get your own free API key</a> (takes 2 minutes).
+		</p>
+	{/if}
 
 	<h3 style="margin-top: 16px;">TVDB</h3>
 	<label><input type="checkbox" bind:checked={includeTVDB} /> Enable</label>
@@ -104,6 +110,9 @@
 	{#if result}
 		<div style="margin-top: 12px;">
 			<p><strong>Overall:</strong> {result.ok ? 'OK' : 'Needs changes'}</p>
+			{#if result.tmdb?.details?.warning}
+				<p class="muted" style="margin-top: 8px;">⚠️ {result.tmdb.details.warning}</p>
+			{/if}
 			<pre>{JSON.stringify(result, null, 2)}</pre>
 		</div>
 	{/if}

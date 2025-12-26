@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/LukeHagar/Rivet/internal/adapters/downloaders/dryrun"
 	"github.com/LukeHagar/Rivet/internal/adapters/downloaders/qbittorrent"
 	"github.com/LukeHagar/Rivet/internal/jobs/queue"
 	"github.com/LukeHagar/Rivet/internal/security"
@@ -22,6 +23,12 @@ type MonitorDeps struct {
 	PollEvery time.Duration
 	Hub       publisher
 	StallAfter time.Duration
+
+	DryRun            bool
+	DryRunFixturePath string
+
+	// For tests: override client factory.
+	NewQb func(cfg qbittorrent.Config, policy security.OutboundPolicy) (qbClient, error)
 }
 
 type setupPaths struct {
@@ -51,13 +58,25 @@ func MonitorAcquisition(ctx context.Context, deps MonitorDeps, acquisitionID str
 		_ = storage.MarkAcquisitionFailed(ctx, deps.DB, a.ID, "missing_hash")
 		return errors.New("missing_hash")
 	}
-	cfg, err := loadQBittorrentConfig(ctx, AcquisitionDeps{DB: deps.DB, SecretBox: deps.SecretBox, Policy: deps.Policy})
-	if err != nil {
-		return err
-	}
-	cli, err := qbittorrent.New(cfg, deps.Policy)
-	if err != nil {
-		return err
+	var cli qbClient
+	if deps.DryRun {
+		cli = dryrun.Default(deps.DryRunFixturePath)
+	} else {
+		cfg, err := loadQBittorrentConfig(ctx, AcquisitionDeps{DB: deps.DB, SecretBox: deps.SecretBox, Policy: deps.Policy})
+		if err != nil {
+			return err
+		}
+		factory := deps.NewQb
+		if factory == nil {
+			factory = func(cfg qbittorrent.Config, policy security.OutboundPolicy) (qbClient, error) {
+				return qbittorrent.New(cfg, policy)
+			}
+		}
+		c, err := factory(cfg, deps.Policy)
+		if err != nil {
+			return err
+		}
+		cli = c
 	}
 	info, ok, err := cli.GetInfo(ctx, *a.ExternalID)
 	if err != nil {

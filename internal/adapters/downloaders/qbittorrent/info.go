@@ -20,6 +20,35 @@ type TorrentInfo struct {
 	CompletionOn int64 `json:"completion_on"`
 }
 
+// GetAllTorrents returns all torrents from qBittorrent.
+func (c *Client) GetAllTorrents(ctx context.Context) ([]TorrentInfo, error) {
+	cookie, err := c.login(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	infoURL := c.baseURL.ResolveReference(&url.URL{Path: "/api/v2/torrents/info"})
+
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, infoURL.String(), nil)
+	if cookie != "" {
+		req.Header.Set("cookie", cookie)
+	}
+	res, err := c.http.Do(req)
+	if err != nil {
+		return nil, errors.New("connect_failed")
+	}
+	defer res.Body.Close()
+	if res.StatusCode != 200 {
+		return nil, errors.New("info_failed")
+	}
+	b, _ := io.ReadAll(io.LimitReader(res.Body, 1<<20))
+	var arr []TorrentInfo
+	if err := json.Unmarshal(b, &arr); err != nil {
+		return nil, errors.New("parse_failed")
+	}
+	return arr, nil
+}
+
 func (c *Client) GetInfo(ctx context.Context, hash string) (TorrentInfo, bool, error) {
 	hash = strings.TrimSpace(hash)
 	if hash == "" {

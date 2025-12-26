@@ -44,7 +44,14 @@ func ExecuteSearchRun(ctx context.Context, deps SearchRunDeps, runID, targetID s
 	}
 
 	// Load indexers
-	indexers, err := loadIndexersFromSettings(ctx, deps.DB, deps.SecretBox)
+	if deps.Hub != nil {
+		deps.Hub.Publish("search.indexers.loading.start", map[string]any{
+			"runId":    runID,
+			"targetId": targetID,
+			"hasSecretBox": deps.SecretBox != nil,
+		})
+	}
+	indexers, err := loadIndexersFromSettings(ctx, deps.DB, deps.SecretBox, deps.Hub, runID, targetID)
 	if err != nil {
 		e := err.Error()
 		_ = storage.UpdateSearchRunCompleted(ctx, deps.DB, runID, &e)
@@ -57,13 +64,106 @@ func ExecuteSearchRun(ctx context.Context, deps SearchRunDeps, runID, targetID s
 		return err
 	}
 
+	// Publish indexer loading event
+	if deps.Hub != nil {
+		indexerNames := make([]string, len(indexers))
+		for i, ix := range indexers {
+			indexerNames[i] = ix.Name
+		}
+		deps.Hub.Publish("search.indexers.loaded", map[string]any{
+			"runId":        runID,
+			"targetId":     targetID,
+			"count":        len(indexers),
+			"indexerNames": indexerNames,
+		})
+	}
+
+	// Publish search loop start event
+	if deps.Hub != nil {
+		deps.Hub.Publish("search.loop.started", map[string]any{
+			"runId":    runID,
+			"targetId": targetID,
+			"query":    query,
+			"count":    len(indexers),
+		})
+	}
+
 	// Run searches
 	for _, ix := range indexers {
+		// Publish individual indexer search start event
+		if deps.Hub != nil {
+			deps.Hub.Publish("search.indexer.started", map[string]any{
+				"runId":    runID,
+				"targetId": targetID,
+				"indexer":  ix.Name,
+				"query":    query,
+			})
+		}
 		cli, err := newznab.New(ix, deps.Policy)
 		if err != nil {
+			if deps.Hub != nil {
+				deps.Hub.Publish("search.indexer.error", map[string]any{
+					"runId":    runID,
+					"targetId": targetID,
+					"indexer":  ix.Name,
+					"error":    "client_create_failed: " + err.Error(),
+				})
+			}
 			continue
 		}
-		items, err := cli.Search(ctx, query, 25)
+
+		var debug newznab.DebugInfo
+		items, err := cli.SearchWithDebug(ctx, query, 25, &debug)
+
+		// Publish debug info for all searches (successful or failed)
+		if deps.Hub != nil {
+			if err != nil {
+				deps.Hub.Publish("search.indexer.error", map[string]any{
+					"runId":      runID,
+					"targetId":   targetID,
+					"indexer":    ix.Name,
+					"query":      query,
+					"error":      err.Error(),
+					"debug": map[string]any{
+						"url":        debug.URL,
+						"statusCode": debug.StatusCode,
+						"bodyLength": debug.BodyLength,
+						"body":       debug.Body,
+						"parseError": debug.ParseError,
+					},
+				})
+			} else if len(items) == 0 {
+				// Search succeeded but returned no items
+				deps.Hub.Publish("search.indexer.empty", map[string]any{
+					"runId":      runID,
+					"targetId":   targetID,
+					"indexer":    ix.Name,
+					"query":      query,
+					"debug": map[string]any{
+						"url":        debug.URL,
+						"statusCode": debug.StatusCode,
+						"bodyLength": debug.BodyLength,
+						"body":       debug.Body,
+						"itemCount":  debug.ItemCount,
+					},
+				})
+			} else {
+				// Search succeeded with items - publish basic debug info
+				deps.Hub.Publish("search.indexer.debug", map[string]any{
+					"runId":      runID,
+					"targetId":   targetID,
+					"indexer":    ix.Name,
+					"query":      query,
+					"itemCount":  len(items),
+					"debug": map[string]any{
+						"url":        debug.URL,
+						"statusCode": debug.StatusCode,
+						"bodyLength": debug.BodyLength,
+					},
+				})
+			}
+		}
+
 		if err != nil {
 			continue
 		}

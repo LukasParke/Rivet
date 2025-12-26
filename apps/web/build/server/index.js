@@ -1,6 +1,6 @@
 import { j as json, t as text, R as Redirect, S as SvelteKitError, H as HttpError, e as error, A as ActionFailure } from './chunks/index-wpIsICWW.js';
 import { t as text_decoder, b as base64_decode, d as define_property, s as safe_equals, g as get_descriptor, a as array_from, e as equals, i as is_array, c as decode_pathname, f as decode_params, n as normalize_path, h as disable_search, w as with_request_store, v as validate_layout_server_exports, j as validate_layout_exports, k as validate_page_server_exports, l as validate_page_exports, m as text_encoder, r as resolve, o as make_trackable, p as get_relative_path, q as base64_encode, u as readable, x as writable } from './chunks/exports-CtoNEvoV.js';
-import { r as render, H as HYDRATION_START, a as HYDRATION_ERROR, b as HYDRATION_END, p as push$1, s as setContext, c as pop$1 } from './chunks/index-DyZnF-0d.js';
+import { r as render, H as HYDRATION_START, a as HYDRATION_ERROR, b as HYDRATION_END, p as push$1, s as setContext, c as pop$1 } from './chunks/index-CZnVKyzU.js';
 
 const BROWSER = false;
 let base = "";
@@ -33,584 +33,127 @@ function merge_tracing(event_like, current) {
 	};
 }
 
-/** @type {Record<string, string>} */
 const escaped = {
-	'<': '\\u003C',
-	'\\': '\\\\',
-	'\b': '\\b',
-	'\f': '\\f',
-	'\n': '\\n',
-	'\r': '\\r',
-	'\t': '\\t',
-	'\u2028': '\\u2028',
-	'\u2029': '\\u2029'
+  "<": "\\u003C",
+  "\\": "\\\\",
+  "\b": "\\b",
+  "\f": "\\f",
+  "\n": "\\n",
+  "\r": "\\r",
+  "	": "\\t",
+  "\u2028": "\\u2028",
+  "\u2029": "\\u2029"
 };
-
 class DevalueError extends Error {
-	/**
-	 * @param {string} message
-	 * @param {string[]} keys
-	 * @param {any} [value] - The value that failed to be serialized
-	 * @param {any} [root] - The root value being serialized
-	 */
-	constructor(message, keys, value, root) {
-		super(message);
-		this.name = 'DevalueError';
-		this.path = keys.join('');
-		this.value = value;
-		this.root = root;
-	}
+  /**
+   * @param {string} message
+   * @param {string[]} keys
+   * @param {any} [value] - The value that failed to be serialized
+   * @param {any} [root] - The root value being serialized
+   */
+  constructor(message, keys, value, root) {
+    super(message);
+    this.name = "DevalueError";
+    this.path = keys.join("");
+    this.value = value;
+    this.root = root;
+  }
 }
-
-/** @param {any} thing */
 function is_primitive(thing) {
-	return Object(thing) !== thing;
+  return Object(thing) !== thing;
 }
-
 const object_proto_names = /* @__PURE__ */ Object.getOwnPropertyNames(
-	Object.prototype
-)
-	.sort()
-	.join('\0');
-
-/** @param {any} thing */
+  Object.prototype
+).sort().join("\0");
 function is_plain_object(thing) {
-	const proto = Object.getPrototypeOf(thing);
-
-	return (
-		proto === Object.prototype ||
-		proto === null ||
-		Object.getPrototypeOf(proto) === null ||
-		Object.getOwnPropertyNames(proto).sort().join('\0') === object_proto_names
-	);
+  const proto = Object.getPrototypeOf(thing);
+  return proto === Object.prototype || proto === null || Object.getPrototypeOf(proto) === null || Object.getOwnPropertyNames(proto).sort().join("\0") === object_proto_names;
 }
-
-/** @param {any} thing */
 function get_type(thing) {
-	return Object.prototype.toString.call(thing).slice(8, -1);
+  return Object.prototype.toString.call(thing).slice(8, -1);
 }
-
-/** @param {string} char */
 function get_escaped_char(char) {
-	switch (char) {
-		case '"':
-			return '\\"';
-		case '<':
-			return '\\u003C';
-		case '\\':
-			return '\\\\';
-		case '\n':
-			return '\\n';
-		case '\r':
-			return '\\r';
-		case '\t':
-			return '\\t';
-		case '\b':
-			return '\\b';
-		case '\f':
-			return '\\f';
-		case '\u2028':
-			return '\\u2028';
-		case '\u2029':
-			return '\\u2029';
-		default:
-			return char < ' '
-				? `\\u${char.charCodeAt(0).toString(16).padStart(4, '0')}`
-				: '';
-	}
+  switch (char) {
+    case '"':
+      return '\\"';
+    case "<":
+      return "\\u003C";
+    case "\\":
+      return "\\\\";
+    case "\n":
+      return "\\n";
+    case "\r":
+      return "\\r";
+    case "	":
+      return "\\t";
+    case "\b":
+      return "\\b";
+    case "\f":
+      return "\\f";
+    case "\u2028":
+      return "\\u2028";
+    case "\u2029":
+      return "\\u2029";
+    default:
+      return char < " " ? `\\u${char.charCodeAt(0).toString(16).padStart(4, "0")}` : "";
+  }
 }
-
-/** @param {string} str */
 function stringify_string(str) {
-	let result = '';
-	let last_pos = 0;
-	const len = str.length;
-
-	for (let i = 0; i < len; i += 1) {
-		const char = str[i];
-		const replacement = get_escaped_char(char);
-		if (replacement) {
-			result += str.slice(last_pos, i) + replacement;
-			last_pos = i + 1;
-		}
-	}
-
-	return `"${last_pos === 0 ? str : result + str.slice(last_pos)}"`;
+  let result = "";
+  let last_pos = 0;
+  const len = str.length;
+  for (let i = 0; i < len; i += 1) {
+    const char = str[i];
+    const replacement = get_escaped_char(char);
+    if (replacement) {
+      result += str.slice(last_pos, i) + replacement;
+      last_pos = i + 1;
+    }
+  }
+  return `"${last_pos === 0 ? str : result + str.slice(last_pos)}"`;
 }
-
-/** @param {Record<string | symbol, any>} object */
 function enumerable_symbols(object) {
-	return Object.getOwnPropertySymbols(object).filter(
-		(symbol) => Object.getOwnPropertyDescriptor(object, symbol).enumerable
-	);
+  return Object.getOwnPropertySymbols(object).filter(
+    (symbol) => Object.getOwnPropertyDescriptor(object, symbol).enumerable
+  );
 }
-
 const is_identifier = /^[a-zA-Z_$][a-zA-Z_$0-9]*$/;
-
-/** @param {string} key */
 function stringify_key(key) {
-	return is_identifier.test(key) ? '.' + key : '[' + JSON.stringify(key) + ']';
+  return is_identifier.test(key) ? "." + key : "[" + JSON.stringify(key) + "]";
 }
-
-const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_$';
-const unsafe_chars = /[<\b\f\n\r\t\0\u2028\u2029]/g;
-const reserved =
-	/^(?:do|if|in|for|int|let|new|try|var|byte|case|char|else|enum|goto|long|this|void|with|await|break|catch|class|const|final|float|short|super|throw|while|yield|delete|double|export|import|native|return|switch|throws|typeof|boolean|default|extends|finally|package|private|abstract|continue|debugger|function|volatile|interface|protected|transient|implements|instanceof|synchronized)$/;
-
-/**
- * Turn a value into the JavaScript that creates an equivalent value
- * @param {any} value
- * @param {(value: any, uneval: (value: any) => string) => string | void} [replacer]
- */
-function uneval(value, replacer) {
-	const counts = new Map();
-
-	/** @type {string[]} */
-	const keys = [];
-
-	const custom = new Map();
-
-	/** @param {any} thing */
-	function walk(thing) {
-		if (!is_primitive(thing)) {
-			if (counts.has(thing)) {
-				counts.set(thing, counts.get(thing) + 1);
-				return;
-			}
-
-			counts.set(thing, 1);
-
-			if (replacer) {
-				const str = replacer(thing, (value) => uneval(value, replacer));
-
-				if (typeof str === 'string') {
-					custom.set(thing, str);
-					return;
-				}
-			}
-
-			if (typeof thing === 'function') {
-				throw new DevalueError(`Cannot stringify a function`, keys, thing, value);
-			}
-
-			const type = get_type(thing);
-
-			switch (type) {
-				case 'Number':
-				case 'BigInt':
-				case 'String':
-				case 'Boolean':
-				case 'Date':
-				case 'RegExp':
-				case 'URL':
-				case 'URLSearchParams':
-					return;
-
-				case 'Array':
-					/** @type {any[]} */ (thing).forEach((value, i) => {
-						keys.push(`[${i}]`);
-						walk(value);
-						keys.pop();
-					});
-					break;
-
-				case 'Set':
-					Array.from(thing).forEach(walk);
-					break;
-
-				case 'Map':
-					for (const [key, value] of thing) {
-						keys.push(
-							`.get(${is_primitive(key) ? stringify_primitive$1(key) : '...'})`
-						);
-						walk(value);
-						keys.pop();
-					}
-					break;
-
-				case 'Int8Array':
-				case 'Uint8Array':
-				case 'Uint8ClampedArray':
-				case 'Int16Array':
-				case 'Uint16Array':
-				case 'Int32Array':
-				case 'Uint32Array':
-				case 'Float32Array':
-				case 'Float64Array':
-				case 'BigInt64Array':
-				case 'BigUint64Array':
-					walk(thing.buffer);
-					return;
-
-				case 'ArrayBuffer':
-					return;
-
-				case 'Temporal.Duration':
-				case 'Temporal.Instant':
-				case 'Temporal.PlainDate':
-				case 'Temporal.PlainTime':
-				case 'Temporal.PlainDateTime':
-				case 'Temporal.PlainMonthDay':
-				case 'Temporal.PlainYearMonth':
-				case 'Temporal.ZonedDateTime':
-					return;
-
-				default:
-					if (!is_plain_object(thing)) {
-						throw new DevalueError(
-							`Cannot stringify arbitrary non-POJOs`,
-							keys,
-							thing,
-							value
-						);
-					}
-
-					if (enumerable_symbols(thing).length > 0) {
-						throw new DevalueError(
-							`Cannot stringify POJOs with symbolic keys`,
-							keys,
-							thing,
-							value
-						);
-					}
-
-					for (const key in thing) {
-						keys.push(stringify_key(key));
-						walk(thing[key]);
-						keys.pop();
-					}
-			}
-		}
-	}
-
-	walk(value);
-
-	const names = new Map();
-
-	Array.from(counts)
-		.filter((entry) => entry[1] > 1)
-		.sort((a, b) => b[1] - a[1])
-		.forEach((entry, i) => {
-			names.set(entry[0], get_name(i));
-		});
-
-	/**
-	 * @param {any} thing
-	 * @returns {string}
-	 */
-	function stringify(thing) {
-		if (names.has(thing)) {
-			return names.get(thing);
-		}
-
-		if (is_primitive(thing)) {
-			return stringify_primitive$1(thing);
-		}
-
-		if (custom.has(thing)) {
-			return custom.get(thing);
-		}
-
-		const type = get_type(thing);
-
-		switch (type) {
-			case 'Number':
-			case 'String':
-			case 'Boolean':
-				return `Object(${stringify(thing.valueOf())})`;
-
-			case 'RegExp':
-				return `new RegExp(${stringify_string(thing.source)}, "${
-					thing.flags
-				}")`;
-
-			case 'Date':
-				return `new Date(${thing.getTime()})`;
-
-			case 'URL':
-				return `new URL(${stringify_string(thing.toString())})`;
-
-			case 'URLSearchParams':
-				return `new URLSearchParams(${stringify_string(thing.toString())})`;
-
-			case 'Array':
-				const members = /** @type {any[]} */ (thing).map((v, i) =>
-					i in thing ? stringify(v) : ''
-				);
-				const tail = thing.length === 0 || thing.length - 1 in thing ? '' : ',';
-				return `[${members.join(',')}${tail}]`;
-
-			case 'Set':
-			case 'Map':
-				return `new ${type}([${Array.from(thing).map(stringify).join(',')}])`;
-
-			case 'Int8Array':
-			case 'Uint8Array':
-			case 'Uint8ClampedArray':
-			case 'Int16Array':
-			case 'Uint16Array':
-			case 'Int32Array':
-			case 'Uint32Array':
-			case 'Float32Array':
-			case 'Float64Array':
-			case 'BigInt64Array':
-			case 'BigUint64Array': {
-				let str = `new ${type}`;
-
-				if (counts.get(thing.buffer) === 1) {
-					const array = new thing.constructor(thing.buffer);
-					str += `([${array}])`;
-				} else {
-					str += `([${stringify(thing.buffer)}])`;
-				}
-
-				const a = thing.byteOffset;
-				const b = a + thing.byteLength;
-
-				// handle subarrays
-				if (a > 0 || b !== thing.buffer.byteLength) {
-					const m = +/(\d+)/.exec(type)[1] / 8;
-					str += `.subarray(${a / m},${b / m})`;
-				}
-
-				return str;
-			}
-
-			case 'ArrayBuffer': {
-				const ui8 = new Uint8Array(thing);
-				return `new Uint8Array([${ui8.toString()}]).buffer`;
-			}
-
-			case 'Temporal.Duration':
-			case 'Temporal.Instant':
-			case 'Temporal.PlainDate':
-			case 'Temporal.PlainTime':
-			case 'Temporal.PlainDateTime':
-			case 'Temporal.PlainMonthDay':
-			case 'Temporal.PlainYearMonth':
-			case 'Temporal.ZonedDateTime':
-				return `${type}.from(${stringify_string(thing.toString())})`;
-
-			default:
-				const keys = Object.keys(thing);
-				const obj = keys
-					.map((key) => `${safe_key(key)}:${stringify(thing[key])}`)
-					.join(',');
-				const proto = Object.getPrototypeOf(thing);
-				if (proto === null) {
-					return keys.length > 0
-						? `{${obj},__proto__:null}`
-						: `{__proto__:null}`;
-				}
-
-				return `{${obj}}`;
-		}
-	}
-
-	const str = stringify(value);
-
-	if (names.size) {
-		/** @type {string[]} */
-		const params = [];
-
-		/** @type {string[]} */
-		const statements = [];
-
-		/** @type {string[]} */
-		const values = [];
-
-		names.forEach((name, thing) => {
-			params.push(name);
-
-			if (custom.has(thing)) {
-				values.push(/** @type {string} */ (custom.get(thing)));
-				return;
-			}
-
-			if (is_primitive(thing)) {
-				values.push(stringify_primitive$1(thing));
-				return;
-			}
-
-			const type = get_type(thing);
-
-			switch (type) {
-				case 'Number':
-				case 'String':
-				case 'Boolean':
-					values.push(`Object(${stringify(thing.valueOf())})`);
-					break;
-
-				case 'RegExp':
-					values.push(thing.toString());
-					break;
-
-				case 'Date':
-					values.push(`new Date(${thing.getTime()})`);
-					break;
-
-				case 'Array':
-					values.push(`Array(${thing.length})`);
-					/** @type {any[]} */ (thing).forEach((v, i) => {
-						statements.push(`${name}[${i}]=${stringify(v)}`);
-					});
-					break;
-
-				case 'Set':
-					values.push(`new Set`);
-					statements.push(
-						`${name}.${Array.from(thing)
-							.map((v) => `add(${stringify(v)})`)
-							.join('.')}`
-					);
-					break;
-
-				case 'Map':
-					values.push(`new Map`);
-					statements.push(
-						`${name}.${Array.from(thing)
-							.map(([k, v]) => `set(${stringify(k)}, ${stringify(v)})`)
-							.join('.')}`
-					);
-					break;
-
-				case 'ArrayBuffer':
-					values.push(
-						`new Uint8Array([${new Uint8Array(thing).join(',')}]).buffer`
-					);
-					break;
-
-				default:
-					values.push(
-						Object.getPrototypeOf(thing) === null ? 'Object.create(null)' : '{}'
-					);
-					Object.keys(thing).forEach((key) => {
-						statements.push(
-							`${name}${safe_prop(key)}=${stringify(thing[key])}`
-						);
-					});
-			}
-		});
-
-		statements.push(`return ${str}`);
-
-		return `(function(${params.join(',')}){${statements.join(
-			';'
-		)}}(${values.join(',')}))`;
-	} else {
-		return str;
-	}
-}
-
-/** @param {number} num */
-function get_name(num) {
-	let name = '';
-
-	do {
-		name = chars[num % chars.length] + name;
-		num = ~~(num / chars.length) - 1;
-	} while (num >= 0);
-
-	return reserved.test(name) ? `${name}0` : name;
-}
-
-/** @param {string} c */
-function escape_unsafe_char(c) {
-	return escaped[c] || c;
-}
-
-/** @param {string} str */
-function escape_unsafe_chars(str) {
-	return str.replace(unsafe_chars, escape_unsafe_char);
-}
-
-/** @param {string} key */
-function safe_key(key) {
-	return /^[_$a-zA-Z][_$a-zA-Z0-9]*$/.test(key)
-		? key
-		: escape_unsafe_chars(JSON.stringify(key));
-}
-
-/** @param {string} key */
-function safe_prop(key) {
-	return /^[_$a-zA-Z][_$a-zA-Z0-9]*$/.test(key)
-		? `.${key}`
-		: `[${escape_unsafe_chars(JSON.stringify(key))}]`;
-}
-
-/** @param {any} thing */
-function stringify_primitive$1(thing) {
-	if (typeof thing === 'string') return stringify_string(thing);
-	if (thing === void 0) return 'void 0';
-	if (thing === 0 && 1 / thing < 0) return '-0';
-	const str = String(thing);
-	if (typeof thing === 'number') return str.replace(/^(-)?0\./, '$1.');
-	if (typeof thing === 'bigint') return thing + 'n';
-	return str;
-}
-
-/**
- * Base64 Encodes an arraybuffer
- * @param {ArrayBuffer} arraybuffer
- * @returns {string}
- */
 function encode64(arraybuffer) {
   const dv = new DataView(arraybuffer);
   let binaryString = "";
-
   for (let i = 0; i < arraybuffer.byteLength; i++) {
     binaryString += String.fromCharCode(dv.getUint8(i));
   }
-
   return binaryToAscii(binaryString);
 }
-
-/**
- * Decodes a base64 string into an arraybuffer
- * @param {string} string
- * @returns {ArrayBuffer}
- */
 function decode64(string) {
   const binaryString = asciiToBinary(string);
   const arraybuffer = new ArrayBuffer(binaryString.length);
   const dv = new DataView(arraybuffer);
-
   for (let i = 0; i < arraybuffer.byteLength; i++) {
     dv.setUint8(i, binaryString.charCodeAt(i));
   }
-
   return arraybuffer;
 }
-
-const KEY_STRING =
-  "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-
-/**
- * Substitute for atob since it's deprecated in node.
- * Does not do any input validation.
- *
- * @see https://github.com/jsdom/abab/blob/master/lib/atob.js
- *
- * @param {string} data
- * @returns {string}
- */
+const KEY_STRING = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 function asciiToBinary(data) {
   if (data.length % 4 === 0) {
     data = data.replace(/==?$/, "");
   }
-
   let output = "";
   let buffer = 0;
   let accumulatedBits = 0;
-
   for (let i = 0; i < data.length; i++) {
     buffer <<= 6;
     buffer |= KEY_STRING.indexOf(data[i]);
     accumulatedBits += 6;
     if (accumulatedBits === 24) {
-      output += String.fromCharCode((buffer & 0xff0000) >> 16);
-      output += String.fromCharCode((buffer & 0xff00) >> 8);
-      output += String.fromCharCode(buffer & 0xff);
+      output += String.fromCharCode((buffer & 16711680) >> 16);
+      output += String.fromCharCode((buffer & 65280) >> 8);
+      output += String.fromCharCode(buffer & 255);
       buffer = accumulatedBits = 0;
     }
   }
@@ -619,35 +162,24 @@ function asciiToBinary(data) {
     output += String.fromCharCode(buffer);
   } else if (accumulatedBits === 18) {
     buffer >>= 2;
-    output += String.fromCharCode((buffer & 0xff00) >> 8);
-    output += String.fromCharCode(buffer & 0xff);
+    output += String.fromCharCode((buffer & 65280) >> 8);
+    output += String.fromCharCode(buffer & 255);
   }
   return output;
 }
-
-/**
- * Substitute for btoa since it's deprecated in node.
- * Does not do any input validation.
- *
- * @see https://github.com/jsdom/abab/blob/master/lib/btoa.js
- *
- * @param {string} str
- * @returns {string}
- */
 function binaryToAscii(str) {
   let out = "";
   for (let i = 0; i < str.length; i += 3) {
-    /** @type {[number, number, number, number]} */
-    const groupsOfSix = [undefined, undefined, undefined, undefined];
+    const groupsOfSix = [void 0, void 0, void 0, void 0];
     groupsOfSix[0] = str.charCodeAt(i) >> 2;
-    groupsOfSix[1] = (str.charCodeAt(i) & 0x03) << 4;
+    groupsOfSix[1] = (str.charCodeAt(i) & 3) << 4;
     if (str.length > i + 1) {
       groupsOfSix[1] |= str.charCodeAt(i + 1) >> 4;
-      groupsOfSix[2] = (str.charCodeAt(i + 1) & 0x0f) << 2;
+      groupsOfSix[2] = (str.charCodeAt(i + 1) & 15) << 2;
     }
     if (str.length > i + 2) {
       groupsOfSix[2] |= str.charCodeAt(i + 2) >> 6;
-      groupsOfSix[3] = str.charCodeAt(i + 2) & 0x3f;
+      groupsOfSix[3] = str.charCodeAt(i + 2) & 63;
     }
     for (let j = 0; j < groupsOfSix.length; j++) {
       if (typeof groupsOfSix[j] === "undefined") {
@@ -659,457 +191,337 @@ function binaryToAscii(str) {
   }
   return out;
 }
-
 const UNDEFINED = -1;
 const HOLE = -2;
 const NAN = -3;
 const POSITIVE_INFINITY = -4;
 const NEGATIVE_INFINITY = -5;
 const NEGATIVE_ZERO = -6;
-
-/**
- * Revive a value serialized with `devalue.stringify`
- * @param {string} serialized
- * @param {Record<string, (value: any) => any>} [revivers]
- */
 function parse(serialized, revivers) {
-	return unflatten(JSON.parse(serialized), revivers);
+  return unflatten(JSON.parse(serialized), revivers);
 }
-
-/**
- * Revive a value flattened with `devalue.stringify`
- * @param {number | any[]} parsed
- * @param {Record<string, (value: any) => any>} [revivers]
- */
 function unflatten(parsed, revivers) {
-	if (typeof parsed === 'number') return hydrate(parsed, true);
-
-	if (!Array.isArray(parsed) || parsed.length === 0) {
-		throw new Error('Invalid input');
-	}
-
-	const values = /** @type {any[]} */ (parsed);
-
-	const hydrated = Array(values.length);
-
-	/**
-	 * @param {number} index
-	 * @returns {any}
-	 */
-	function hydrate(index, standalone = false) {
-		if (index === UNDEFINED) return undefined;
-		if (index === NAN) return NaN;
-		if (index === POSITIVE_INFINITY) return Infinity;
-		if (index === NEGATIVE_INFINITY) return -Infinity;
-		if (index === NEGATIVE_ZERO) return -0;
-
-		if (standalone || typeof index !== 'number') {
-			throw new Error(`Invalid input`);
-		}
-
-		if (index in hydrated) return hydrated[index];
-
-		const value = values[index];
-
-		if (!value || typeof value !== 'object') {
-			hydrated[index] = value;
-		} else if (Array.isArray(value)) {
-			if (typeof value[0] === 'string') {
-				const type = value[0];
-
-				const reviver =
-					revivers && Object.hasOwn(revivers, type)
-						? revivers[type]
-						: undefined;
-
-				if (reviver) {
-					let i = value[1];
-					if (typeof i !== 'number') {
-						// if it's not a number, it was serialized by a builtin reviver
-						// so we need to munge it into the format expected by a custom reviver
-						i = values.push(value[1]) - 1;
-					}
-					return (hydrated[index] = reviver(hydrate(i)));
-				}
-
-				switch (type) {
-					case 'Date':
-						hydrated[index] = new Date(value[1]);
-						break;
-
-					case 'Set':
-						const set = new Set();
-						hydrated[index] = set;
-						for (let i = 1; i < value.length; i += 1) {
-							set.add(hydrate(value[i]));
-						}
-						break;
-
-					case 'Map':
-						const map = new Map();
-						hydrated[index] = map;
-						for (let i = 1; i < value.length; i += 2) {
-							map.set(hydrate(value[i]), hydrate(value[i + 1]));
-						}
-						break;
-
-					case 'RegExp':
-						hydrated[index] = new RegExp(value[1], value[2]);
-						break;
-
-					case 'Object':
-						hydrated[index] = Object(value[1]);
-						break;
-
-					case 'BigInt':
-						hydrated[index] = BigInt(value[1]);
-						break;
-
-					case 'null':
-						const obj = Object.create(null);
-						hydrated[index] = obj;
-						for (let i = 1; i < value.length; i += 2) {
-							obj[value[i]] = hydrate(value[i + 1]);
-						}
-						break;
-
-					case 'Int8Array':
-					case 'Uint8Array':
-					case 'Uint8ClampedArray':
-					case 'Int16Array':
-					case 'Uint16Array':
-					case 'Int32Array':
-					case 'Uint32Array':
-					case 'Float32Array':
-					case 'Float64Array':
-					case 'BigInt64Array':
-					case 'BigUint64Array': {
-						const TypedArrayConstructor = globalThis[type];
-						const typedArray = new TypedArrayConstructor(hydrate(value[1]));
-
-						hydrated[index] =
-							value[2] !== undefined
-								? typedArray.subarray(value[2], value[3])
-								: typedArray;
-
-						break;
-					}
-
-					case 'ArrayBuffer': {
-						const base64 = value[1];
-						const arraybuffer = decode64(base64);
-						hydrated[index] = arraybuffer;
-						break;
-					}
-
-					case 'Temporal.Duration':
-					case 'Temporal.Instant':
-					case 'Temporal.PlainDate':
-					case 'Temporal.PlainTime':
-					case 'Temporal.PlainDateTime':
-					case 'Temporal.PlainMonthDay':
-					case 'Temporal.PlainYearMonth':
-					case 'Temporal.ZonedDateTime': {
-						const temporalName = type.slice(9);
-						// @ts-expect-error TS doesn't know about Temporal yet
-						hydrated[index] = Temporal[temporalName].from(value[1]);
-						break;
-					}
-
-					case 'URL': {
-						const url = new URL(value[1]);
-						hydrated[index] = url;
-						break;
-					}
-
-					case 'URLSearchParams': {
-						const url = new URLSearchParams(value[1]);
-						hydrated[index] = url;
-						break;
-					}
-
-					default:
-						throw new Error(`Unknown type ${type}`);
-				}
-			} else {
-				const array = new Array(value.length);
-				hydrated[index] = array;
-
-				for (let i = 0; i < value.length; i += 1) {
-					const n = value[i];
-					if (n === HOLE) continue;
-
-					array[i] = hydrate(n);
-				}
-			}
-		} else {
-			/** @type {Record<string, any>} */
-			const object = {};
-			hydrated[index] = object;
-
-			for (const key in value) {
-				if (key === '__proto__') {
-					throw new Error('Cannot parse an object with a `__proto__` property');
-				}
-
-				const n = value[key];
-				object[key] = hydrate(n);
-			}
-		}
-
-		return hydrated[index];
-	}
-
-	return hydrate(0);
+  if (typeof parsed === "number") return hydrate(parsed, true);
+  if (!Array.isArray(parsed) || parsed.length === 0) {
+    throw new Error("Invalid input");
+  }
+  const values = (
+    /** @type {any[]} */
+    parsed
+  );
+  const hydrated = Array(values.length);
+  function hydrate(index, standalone = false) {
+    if (index === UNDEFINED) return void 0;
+    if (index === NAN) return NaN;
+    if (index === POSITIVE_INFINITY) return Infinity;
+    if (index === NEGATIVE_INFINITY) return -Infinity;
+    if (index === NEGATIVE_ZERO) return -0;
+    if (standalone || typeof index !== "number") {
+      throw new Error(`Invalid input`);
+    }
+    if (index in hydrated) return hydrated[index];
+    const value = values[index];
+    if (!value || typeof value !== "object") {
+      hydrated[index] = value;
+    } else if (Array.isArray(value)) {
+      if (typeof value[0] === "string") {
+        const type = value[0];
+        const reviver = revivers && Object.hasOwn(revivers, type) ? revivers[type] : void 0;
+        if (reviver) {
+          let i = value[1];
+          if (typeof i !== "number") {
+            i = values.push(value[1]) - 1;
+          }
+          return hydrated[index] = reviver(hydrate(i));
+        }
+        switch (type) {
+          case "Date":
+            hydrated[index] = new Date(value[1]);
+            break;
+          case "Set":
+            const set = /* @__PURE__ */ new Set();
+            hydrated[index] = set;
+            for (let i = 1; i < value.length; i += 1) {
+              set.add(hydrate(value[i]));
+            }
+            break;
+          case "Map":
+            const map = /* @__PURE__ */ new Map();
+            hydrated[index] = map;
+            for (let i = 1; i < value.length; i += 2) {
+              map.set(hydrate(value[i]), hydrate(value[i + 1]));
+            }
+            break;
+          case "RegExp":
+            hydrated[index] = new RegExp(value[1], value[2]);
+            break;
+          case "Object":
+            hydrated[index] = Object(value[1]);
+            break;
+          case "BigInt":
+            hydrated[index] = BigInt(value[1]);
+            break;
+          case "null":
+            const obj = /* @__PURE__ */ Object.create(null);
+            hydrated[index] = obj;
+            for (let i = 1; i < value.length; i += 2) {
+              obj[value[i]] = hydrate(value[i + 1]);
+            }
+            break;
+          case "Int8Array":
+          case "Uint8Array":
+          case "Uint8ClampedArray":
+          case "Int16Array":
+          case "Uint16Array":
+          case "Int32Array":
+          case "Uint32Array":
+          case "Float32Array":
+          case "Float64Array":
+          case "BigInt64Array":
+          case "BigUint64Array": {
+            const TypedArrayConstructor = globalThis[type];
+            const typedArray = new TypedArrayConstructor(hydrate(value[1]));
+            hydrated[index] = value[2] !== void 0 ? typedArray.subarray(value[2], value[3]) : typedArray;
+            break;
+          }
+          case "ArrayBuffer": {
+            const base64 = value[1];
+            const arraybuffer = decode64(base64);
+            hydrated[index] = arraybuffer;
+            break;
+          }
+          case "Temporal.Duration":
+          case "Temporal.Instant":
+          case "Temporal.PlainDate":
+          case "Temporal.PlainTime":
+          case "Temporal.PlainDateTime":
+          case "Temporal.PlainMonthDay":
+          case "Temporal.PlainYearMonth":
+          case "Temporal.ZonedDateTime": {
+            const temporalName = type.slice(9);
+            hydrated[index] = Temporal[temporalName].from(value[1]);
+            break;
+          }
+          case "URL": {
+            const url = new URL(value[1]);
+            hydrated[index] = url;
+            break;
+          }
+          case "URLSearchParams": {
+            const url = new URLSearchParams(value[1]);
+            hydrated[index] = url;
+            break;
+          }
+          default:
+            throw new Error(`Unknown type ${type}`);
+        }
+      } else {
+        const array = new Array(value.length);
+        hydrated[index] = array;
+        for (let i = 0; i < value.length; i += 1) {
+          const n = value[i];
+          if (n === HOLE) continue;
+          array[i] = hydrate(n);
+        }
+      }
+    } else {
+      const object = {};
+      hydrated[index] = object;
+      for (const key in value) {
+        if (key === "__proto__") {
+          throw new Error("Cannot parse an object with a `__proto__` property");
+        }
+        const n = value[key];
+        object[key] = hydrate(n);
+      }
+    }
+    return hydrated[index];
+  }
+  return hydrate(0);
 }
-
-/**
- * Turn a value into a JSON string that can be parsed with `devalue.parse`
- * @param {any} value
- * @param {Record<string, (value: any) => any>} [reducers]
- */
 function stringify$1(value, reducers) {
-	/** @type {any[]} */
-	const stringified = [];
-
-	/** @type {Map<any, number>} */
-	const indexes = new Map();
-
-	/** @type {Array<{ key: string, fn: (value: any) => any }>} */
-	const custom = [];
-	if (reducers) {
-		for (const key of Object.getOwnPropertyNames(reducers)) {
-			custom.push({ key, fn: reducers[key] });
-		}
-	}
-
-	/** @type {string[]} */
-	const keys = [];
-
-	let p = 0;
-
-	/** @param {any} thing */
-	function flatten(thing) {
-		if (thing === undefined) return UNDEFINED;
-		if (Number.isNaN(thing)) return NAN;
-		if (thing === Infinity) return POSITIVE_INFINITY;
-		if (thing === -Infinity) return NEGATIVE_INFINITY;
-		if (thing === 0 && 1 / thing < 0) return NEGATIVE_ZERO;
-
-		if (indexes.has(thing)) return indexes.get(thing);
-
-		const index = p++;
-		indexes.set(thing, index);
-
-		for (const { key, fn } of custom) {
-			const value = fn(thing);
-			if (value) {
-				stringified[index] = `["${key}",${flatten(value)}]`;
-				return index;
-			}
-		}
-
-		if (typeof thing === 'function') {
-			throw new DevalueError(`Cannot stringify a function`, keys, thing, value);
-		}
-
-		let str = '';
-
-		if (is_primitive(thing)) {
-			str = stringify_primitive(thing);
-		} else {
-			const type = get_type(thing);
-
-			switch (type) {
-				case 'Number':
-				case 'String':
-				case 'Boolean':
-					str = `["Object",${stringify_primitive(thing)}]`;
-					break;
-
-				case 'BigInt':
-					str = `["BigInt",${thing}]`;
-					break;
-
-				case 'Date':
-					const valid = !isNaN(thing.getDate());
-					str = `["Date","${valid ? thing.toISOString() : ''}"]`;
-					break;
-
-				case 'URL':
-					str = `["URL",${stringify_string(thing.toString())}]`;
-					break;
-
-				case 'URLSearchParams':
-					str = `["URLSearchParams",${stringify_string(thing.toString())}]`;
-					break;
-
-				case 'RegExp':
-					const { source, flags } = thing;
-					str = flags
-						? `["RegExp",${stringify_string(source)},"${flags}"]`
-						: `["RegExp",${stringify_string(source)}]`;
-					break;
-
-				case 'Array':
-					str = '[';
-
-					for (let i = 0; i < thing.length; i += 1) {
-						if (i > 0) str += ',';
-
-						if (i in thing) {
-							keys.push(`[${i}]`);
-							str += flatten(thing[i]);
-							keys.pop();
-						} else {
-							str += HOLE;
-						}
-					}
-
-					str += ']';
-
-					break;
-
-				case 'Set':
-					str = '["Set"';
-
-					for (const value of thing) {
-						str += `,${flatten(value)}`;
-					}
-
-					str += ']';
-					break;
-
-				case 'Map':
-					str = '["Map"';
-
-					for (const [key, value] of thing) {
-						keys.push(
-							`.get(${is_primitive(key) ? stringify_primitive(key) : '...'})`
-						);
-						str += `,${flatten(key)},${flatten(value)}`;
-						keys.pop();
-					}
-
-					str += ']';
-					break;
-
-				case 'Int8Array':
-				case 'Uint8Array':
-				case 'Uint8ClampedArray':
-				case 'Int16Array':
-				case 'Uint16Array':
-				case 'Int32Array':
-				case 'Uint32Array':
-				case 'Float32Array':
-				case 'Float64Array':
-				case 'BigInt64Array':
-				case 'BigUint64Array': {
-					/** @type {import("./types.js").TypedArray} */
-					const typedArray = thing;
-					str = '["' + type + '",' + flatten(typedArray.buffer);
-
-					const a = thing.byteOffset;
-					const b = a + thing.byteLength;
-
-					// handle subarrays
-					if (a > 0 || b !== typedArray.buffer.byteLength) {
-						const m = +/(\d+)/.exec(type)[1] / 8;
-						str += `,${a / m},${b / m}`;
-					}
-
-					str += ']';
-					break;
-				}
-
-				case 'ArrayBuffer': {
-					/** @type {ArrayBuffer} */
-					const arraybuffer = thing;
-					const base64 = encode64(arraybuffer);
-
-					str = `["ArrayBuffer","${base64}"]`;
-					break;
-				}
-
-				case 'Temporal.Duration':
-				case 'Temporal.Instant':
-				case 'Temporal.PlainDate':
-				case 'Temporal.PlainTime':
-				case 'Temporal.PlainDateTime':
-				case 'Temporal.PlainMonthDay':
-				case 'Temporal.PlainYearMonth':
-				case 'Temporal.ZonedDateTime':
-					str = `["${type}",${stringify_string(thing.toString())}]`;
-					break;
-
-				default:
-					if (!is_plain_object(thing)) {
-						throw new DevalueError(
-							`Cannot stringify arbitrary non-POJOs`,
-							keys,
-							thing,
-							value
-						);
-					}
-
-					if (enumerable_symbols(thing).length > 0) {
-						throw new DevalueError(
-							`Cannot stringify POJOs with symbolic keys`,
-							keys,
-							thing,
-							value
-						);
-					}
-
-					if (Object.getPrototypeOf(thing) === null) {
-						str = '["null"';
-						for (const key in thing) {
-							keys.push(stringify_key(key));
-							str += `,${stringify_string(key)},${flatten(thing[key])}`;
-							keys.pop();
-						}
-						str += ']';
-					} else {
-						str = '{';
-						let started = false;
-						for (const key in thing) {
-							if (started) str += ',';
-							started = true;
-							keys.push(stringify_key(key));
-							str += `${stringify_string(key)}:${flatten(thing[key])}`;
-							keys.pop();
-						}
-						str += '}';
-					}
-			}
-		}
-
-		stringified[index] = str;
-		return index;
-	}
-
-	const index = flatten(value);
-
-	// special case — value is represented as a negative index
-	if (index < 0) return `${index}`;
-
-	return `[${stringified.join(',')}]`;
+  const stringified = [];
+  const indexes = /* @__PURE__ */ new Map();
+  const custom = [];
+  if (reducers) {
+    for (const key of Object.getOwnPropertyNames(reducers)) {
+      custom.push({ key, fn: reducers[key] });
+    }
+  }
+  const keys = [];
+  let p = 0;
+  function flatten(thing) {
+    if (thing === void 0) return UNDEFINED;
+    if (Number.isNaN(thing)) return NAN;
+    if (thing === Infinity) return POSITIVE_INFINITY;
+    if (thing === -Infinity) return NEGATIVE_INFINITY;
+    if (thing === 0 && 1 / thing < 0) return NEGATIVE_ZERO;
+    if (indexes.has(thing)) return indexes.get(thing);
+    const index2 = p++;
+    indexes.set(thing, index2);
+    for (const { key, fn } of custom) {
+      const value2 = fn(thing);
+      if (value2) {
+        stringified[index2] = `["${key}",${flatten(value2)}]`;
+        return index2;
+      }
+    }
+    if (typeof thing === "function") {
+      throw new DevalueError(`Cannot stringify a function`, keys, thing, value);
+    }
+    let str = "";
+    if (is_primitive(thing)) {
+      str = stringify_primitive$1(thing);
+    } else {
+      const type = get_type(thing);
+      switch (type) {
+        case "Number":
+        case "String":
+        case "Boolean":
+          str = `["Object",${stringify_primitive$1(thing)}]`;
+          break;
+        case "BigInt":
+          str = `["BigInt",${thing}]`;
+          break;
+        case "Date":
+          const valid = !isNaN(thing.getDate());
+          str = `["Date","${valid ? thing.toISOString() : ""}"]`;
+          break;
+        case "URL":
+          str = `["URL",${stringify_string(thing.toString())}]`;
+          break;
+        case "URLSearchParams":
+          str = `["URLSearchParams",${stringify_string(thing.toString())}]`;
+          break;
+        case "RegExp":
+          const { source, flags } = thing;
+          str = flags ? `["RegExp",${stringify_string(source)},"${flags}"]` : `["RegExp",${stringify_string(source)}]`;
+          break;
+        case "Array":
+          str = "[";
+          for (let i = 0; i < thing.length; i += 1) {
+            if (i > 0) str += ",";
+            if (i in thing) {
+              keys.push(`[${i}]`);
+              str += flatten(thing[i]);
+              keys.pop();
+            } else {
+              str += HOLE;
+            }
+          }
+          str += "]";
+          break;
+        case "Set":
+          str = '["Set"';
+          for (const value2 of thing) {
+            str += `,${flatten(value2)}`;
+          }
+          str += "]";
+          break;
+        case "Map":
+          str = '["Map"';
+          for (const [key, value2] of thing) {
+            keys.push(
+              `.get(${is_primitive(key) ? stringify_primitive$1(key) : "..."})`
+            );
+            str += `,${flatten(key)},${flatten(value2)}`;
+            keys.pop();
+          }
+          str += "]";
+          break;
+        case "Int8Array":
+        case "Uint8Array":
+        case "Uint8ClampedArray":
+        case "Int16Array":
+        case "Uint16Array":
+        case "Int32Array":
+        case "Uint32Array":
+        case "Float32Array":
+        case "Float64Array":
+        case "BigInt64Array":
+        case "BigUint64Array": {
+          const typedArray = thing;
+          str = '["' + type + '",' + flatten(typedArray.buffer);
+          const a = thing.byteOffset;
+          const b = a + thing.byteLength;
+          if (a > 0 || b !== typedArray.buffer.byteLength) {
+            const m = +/(\d+)/.exec(type)[1] / 8;
+            str += `,${a / m},${b / m}`;
+          }
+          str += "]";
+          break;
+        }
+        case "ArrayBuffer": {
+          const arraybuffer = thing;
+          const base64 = encode64(arraybuffer);
+          str = `["ArrayBuffer","${base64}"]`;
+          break;
+        }
+        case "Temporal.Duration":
+        case "Temporal.Instant":
+        case "Temporal.PlainDate":
+        case "Temporal.PlainTime":
+        case "Temporal.PlainDateTime":
+        case "Temporal.PlainMonthDay":
+        case "Temporal.PlainYearMonth":
+        case "Temporal.ZonedDateTime":
+          str = `["${type}",${stringify_string(thing.toString())}]`;
+          break;
+        default:
+          if (!is_plain_object(thing)) {
+            throw new DevalueError(
+              `Cannot stringify arbitrary non-POJOs`,
+              keys,
+              thing,
+              value
+            );
+          }
+          if (enumerable_symbols(thing).length > 0) {
+            throw new DevalueError(
+              `Cannot stringify POJOs with symbolic keys`,
+              keys,
+              thing,
+              value
+            );
+          }
+          if (Object.getPrototypeOf(thing) === null) {
+            str = '["null"';
+            for (const key in thing) {
+              keys.push(stringify_key(key));
+              str += `,${stringify_string(key)},${flatten(thing[key])}`;
+              keys.pop();
+            }
+            str += "]";
+          } else {
+            str = "{";
+            let started = false;
+            for (const key in thing) {
+              if (started) str += ",";
+              started = true;
+              keys.push(stringify_key(key));
+              str += `${stringify_string(key)}:${flatten(thing[key])}`;
+              keys.pop();
+            }
+            str += "}";
+          }
+      }
+    }
+    stringified[index2] = str;
+    return index2;
+  }
+  const index = flatten(value);
+  if (index < 0) return `${index}`;
+  return `[${stringified.join(",")}]`;
 }
-
-/**
- * @param {any} thing
- * @returns {string}
- */
-function stringify_primitive(thing) {
-	const type = typeof thing;
-	if (type === 'string') return stringify_string(thing);
-	if (thing instanceof String) return stringify_string(thing.toString());
-	if (thing === void 0) return UNDEFINED.toString();
-	if (thing === 0 && 1 / thing < 0) return NEGATIVE_ZERO.toString();
-	if (type === 'bigint') return `["BigInt","${thing}"]`;
-	return String(thing);
+function stringify_primitive$1(thing) {
+  const type = typeof thing;
+  if (type === "string") return stringify_string(thing);
+  if (thing instanceof String) return stringify_string(thing.toString());
+  if (thing === void 0) return UNDEFINED.toString();
+  if (thing === 0 && 1 / thing < 0) return NEGATIVE_ZERO.toString();
+  if (type === "bigint") return `["BigInt","${thing}"]`;
+  return String(thing);
 }
-
 function set_nested_value(object, path_string, value) {
   if (path_string.startsWith("n:")) {
     path_string = path_string.slice(2);
@@ -2835,7 +2247,7 @@ const options = {
 		<div class="error">
 			<span class="status">` + status + '</span>\n			<div class="message">\n				<h1>' + message + "</h1>\n			</div>\n		</div>\n	</body>\n</html>\n"
   },
-  version_hash: "ddxggk"
+  version_hash: "1jge4pm"
 };
 async function get_hooks() {
   let handle;
@@ -2857,544 +2269,6 @@ async function get_hooks() {
   };
 }
 
-var cookie = {};
-
-/*!
- * cookie
- * Copyright(c) 2012-2014 Roman Shtylman
- * Copyright(c) 2015 Douglas Christopher Wilson
- * MIT Licensed
- */
-
-var hasRequiredCookie;
-
-function requireCookie () {
-	if (hasRequiredCookie) return cookie;
-	hasRequiredCookie = 1;
-
-	/**
-	 * Module exports.
-	 * @public
-	 */
-
-	cookie.parse = parse;
-	cookie.serialize = serialize;
-
-	/**
-	 * Module variables.
-	 * @private
-	 */
-
-	var __toString = Object.prototype.toString;
-
-	/**
-	 * RegExp to match field-content in RFC 7230 sec 3.2
-	 *
-	 * field-content = field-vchar [ 1*( SP / HTAB ) field-vchar ]
-	 * field-vchar   = VCHAR / obs-text
-	 * obs-text      = %x80-FF
-	 */
-
-	var fieldContentRegExp = /^[\u0009\u0020-\u007e\u0080-\u00ff]+$/;
-
-	/**
-	 * Parse a cookie header.
-	 *
-	 * Parse the given cookie header string into an object
-	 * The object has the various cookies as keys(names) => values
-	 *
-	 * @param {string} str
-	 * @param {object} [options]
-	 * @return {object}
-	 * @public
-	 */
-
-	function parse(str, options) {
-	  if (typeof str !== 'string') {
-	    throw new TypeError('argument str must be a string');
-	  }
-
-	  var obj = {};
-	  var opt = options || {};
-	  var dec = opt.decode || decode;
-
-	  var index = 0;
-	  while (index < str.length) {
-	    var eqIdx = str.indexOf('=', index);
-
-	    // no more cookie pairs
-	    if (eqIdx === -1) {
-	      break
-	    }
-
-	    var endIdx = str.indexOf(';', index);
-
-	    if (endIdx === -1) {
-	      endIdx = str.length;
-	    } else if (endIdx < eqIdx) {
-	      // backtrack on prior semicolon
-	      index = str.lastIndexOf(';', eqIdx - 1) + 1;
-	      continue
-	    }
-
-	    var key = str.slice(index, eqIdx).trim();
-
-	    // only assign once
-	    if (undefined === obj[key]) {
-	      var val = str.slice(eqIdx + 1, endIdx).trim();
-
-	      // quoted values
-	      if (val.charCodeAt(0) === 0x22) {
-	        val = val.slice(1, -1);
-	      }
-
-	      obj[key] = tryDecode(val, dec);
-	    }
-
-	    index = endIdx + 1;
-	  }
-
-	  return obj;
-	}
-
-	/**
-	 * Serialize data into a cookie header.
-	 *
-	 * Serialize the a name value pair into a cookie string suitable for
-	 * http headers. An optional options object specified cookie parameters.
-	 *
-	 * serialize('foo', 'bar', { httpOnly: true })
-	 *   => "foo=bar; httpOnly"
-	 *
-	 * @param {string} name
-	 * @param {string} val
-	 * @param {object} [options]
-	 * @return {string}
-	 * @public
-	 */
-
-	function serialize(name, val, options) {
-	  var opt = options || {};
-	  var enc = opt.encode || encode;
-
-	  if (typeof enc !== 'function') {
-	    throw new TypeError('option encode is invalid');
-	  }
-
-	  if (!fieldContentRegExp.test(name)) {
-	    throw new TypeError('argument name is invalid');
-	  }
-
-	  var value = enc(val);
-
-	  if (value && !fieldContentRegExp.test(value)) {
-	    throw new TypeError('argument val is invalid');
-	  }
-
-	  var str = name + '=' + value;
-
-	  if (null != opt.maxAge) {
-	    var maxAge = opt.maxAge - 0;
-
-	    if (isNaN(maxAge) || !isFinite(maxAge)) {
-	      throw new TypeError('option maxAge is invalid')
-	    }
-
-	    str += '; Max-Age=' + Math.floor(maxAge);
-	  }
-
-	  if (opt.domain) {
-	    if (!fieldContentRegExp.test(opt.domain)) {
-	      throw new TypeError('option domain is invalid');
-	    }
-
-	    str += '; Domain=' + opt.domain;
-	  }
-
-	  if (opt.path) {
-	    if (!fieldContentRegExp.test(opt.path)) {
-	      throw new TypeError('option path is invalid');
-	    }
-
-	    str += '; Path=' + opt.path;
-	  }
-
-	  if (opt.expires) {
-	    var expires = opt.expires;
-
-	    if (!isDate(expires) || isNaN(expires.valueOf())) {
-	      throw new TypeError('option expires is invalid');
-	    }
-
-	    str += '; Expires=' + expires.toUTCString();
-	  }
-
-	  if (opt.httpOnly) {
-	    str += '; HttpOnly';
-	  }
-
-	  if (opt.secure) {
-	    str += '; Secure';
-	  }
-
-	  if (opt.partitioned) {
-	    str += '; Partitioned';
-	  }
-
-	  if (opt.priority) {
-	    var priority = typeof opt.priority === 'string'
-	      ? opt.priority.toLowerCase()
-	      : opt.priority;
-
-	    switch (priority) {
-	      case 'low':
-	        str += '; Priority=Low';
-	        break
-	      case 'medium':
-	        str += '; Priority=Medium';
-	        break
-	      case 'high':
-	        str += '; Priority=High';
-	        break
-	      default:
-	        throw new TypeError('option priority is invalid')
-	    }
-	  }
-
-	  if (opt.sameSite) {
-	    var sameSite = typeof opt.sameSite === 'string'
-	      ? opt.sameSite.toLowerCase() : opt.sameSite;
-
-	    switch (sameSite) {
-	      case true:
-	        str += '; SameSite=Strict';
-	        break;
-	      case 'lax':
-	        str += '; SameSite=Lax';
-	        break;
-	      case 'strict':
-	        str += '; SameSite=Strict';
-	        break;
-	      case 'none':
-	        str += '; SameSite=None';
-	        break;
-	      default:
-	        throw new TypeError('option sameSite is invalid');
-	    }
-	  }
-
-	  return str;
-	}
-
-	/**
-	 * URL-decode string value. Optimized to skip native call when no %.
-	 *
-	 * @param {string} str
-	 * @returns {string}
-	 */
-
-	function decode (str) {
-	  return str.indexOf('%') !== -1
-	    ? decodeURIComponent(str)
-	    : str
-	}
-
-	/**
-	 * URL-encode value.
-	 *
-	 * @param {string} val
-	 * @returns {string}
-	 */
-
-	function encode (val) {
-	  return encodeURIComponent(val)
-	}
-
-	/**
-	 * Determine if value is a Date.
-	 *
-	 * @param {*} val
-	 * @private
-	 */
-
-	function isDate (val) {
-	  return __toString.call(val) === '[object Date]' ||
-	    val instanceof Date
-	}
-
-	/**
-	 * Try decoding a string using a decoding function.
-	 *
-	 * @param {string} str
-	 * @param {function} decode
-	 * @private
-	 */
-
-	function tryDecode(str, decode) {
-	  try {
-	    return decode(str);
-	  } catch (e) {
-	    return str;
-	  }
-	}
-	return cookie;
-}
-
-var cookieExports = requireCookie();
-
-var setCookie = {exports: {}};
-
-var hasRequiredSetCookie;
-
-function requireSetCookie () {
-	if (hasRequiredSetCookie) return setCookie.exports;
-	hasRequiredSetCookie = 1;
-
-	var defaultParseOptions = {
-	  decodeValues: true,
-	  map: false,
-	  silent: false,
-	};
-
-	function isForbiddenKey(key) {
-	  return typeof key !== "string" || key in {};
-	}
-
-	function createNullObj() {
-	  return Object.create(null);
-	}
-
-	function isNonEmptyString(str) {
-	  return typeof str === "string" && !!str.trim();
-	}
-
-	function parseString(setCookieValue, options) {
-	  var parts = setCookieValue.split(";").filter(isNonEmptyString);
-
-	  var nameValuePairStr = parts.shift();
-	  var parsed = parseNameValuePair(nameValuePairStr);
-	  var name = parsed.name;
-	  var value = parsed.value;
-
-	  options = options
-	    ? Object.assign({}, defaultParseOptions, options)
-	    : defaultParseOptions;
-
-	  if (isForbiddenKey(name)) {
-	    return null;
-	  }
-
-	  try {
-	    value = options.decodeValues ? decodeURIComponent(value) : value; // decode cookie value
-	  } catch (e) {
-	    console.error(
-	      "set-cookie-parser: failed to decode cookie value. Set options.decodeValues=false to disable decoding.",
-	      e
-	    );
-	  }
-
-	  var cookie = createNullObj();
-	  cookie.name = name;
-	  cookie.value = value;
-
-	  parts.forEach(function (part) {
-	    var sides = part.split("=");
-	    var key = sides.shift().trimLeft().toLowerCase();
-	    if (isForbiddenKey(key)) {
-	      return;
-	    }
-	    var value = sides.join("=");
-	    if (key === "expires") {
-	      cookie.expires = new Date(value);
-	    } else if (key === "max-age") {
-	      var n = parseInt(value, 10);
-	      if (!Number.isNaN(n)) cookie.maxAge = n;
-	    } else if (key === "secure") {
-	      cookie.secure = true;
-	    } else if (key === "httponly") {
-	      cookie.httpOnly = true;
-	    } else if (key === "samesite") {
-	      cookie.sameSite = value;
-	    } else if (key === "partitioned") {
-	      cookie.partitioned = true;
-	    } else if (key) {
-	      cookie[key] = value;
-	    }
-	  });
-
-	  return cookie;
-	}
-
-	function parseNameValuePair(nameValuePairStr) {
-	  // Parses name-value-pair according to rfc6265bis draft
-
-	  var name = "";
-	  var value = "";
-	  var nameValueArr = nameValuePairStr.split("=");
-	  if (nameValueArr.length > 1) {
-	    name = nameValueArr.shift();
-	    value = nameValueArr.join("="); // everything after the first =, joined by a "=" if there was more than one part
-	  } else {
-	    value = nameValuePairStr;
-	  }
-
-	  return { name: name, value: value };
-	}
-
-	function parse(input, options) {
-	  options = options
-	    ? Object.assign({}, defaultParseOptions, options)
-	    : defaultParseOptions;
-
-	  if (!input) {
-	    if (!options.map) {
-	      return [];
-	    } else {
-	      return createNullObj();
-	    }
-	  }
-
-	  if (input.headers) {
-	    if (typeof input.headers.getSetCookie === "function") {
-	      // for fetch responses - they combine headers of the same type in the headers array,
-	      // but getSetCookie returns an uncombined array
-	      input = input.headers.getSetCookie();
-	    } else if (input.headers["set-cookie"]) {
-	      // fast-path for node.js (which automatically normalizes header names to lower-case)
-	      input = input.headers["set-cookie"];
-	    } else {
-	      // slow-path for other environments - see #25
-	      var sch =
-	        input.headers[
-	          Object.keys(input.headers).find(function (key) {
-	            return key.toLowerCase() === "set-cookie";
-	          })
-	        ];
-	      // warn if called on a request-like object with a cookie header rather than a set-cookie header - see #34, 36
-	      if (!sch && input.headers.cookie && !options.silent) {
-	        console.warn(
-	          "Warning: set-cookie-parser appears to have been called on a request object. It is designed to parse Set-Cookie headers from responses, not Cookie headers from requests. Set the option {silent: true} to suppress this warning."
-	        );
-	      }
-	      input = sch;
-	    }
-	  }
-	  if (!Array.isArray(input)) {
-	    input = [input];
-	  }
-
-	  if (!options.map) {
-	    return input
-	      .filter(isNonEmptyString)
-	      .map(function (str) {
-	        return parseString(str, options);
-	      })
-	      .filter(Boolean);
-	  } else {
-	    var cookies = createNullObj();
-	    return input.filter(isNonEmptyString).reduce(function (cookies, str) {
-	      var cookie = parseString(str, options);
-	      if (cookie && !isForbiddenKey(cookie.name)) {
-	        cookies[cookie.name] = cookie;
-	      }
-	      return cookies;
-	    }, cookies);
-	  }
-	}
-
-	/*
-	  Set-Cookie header field-values are sometimes comma joined in one string. This splits them without choking on commas
-	  that are within a single set-cookie field-value, such as in the Expires portion.
-
-	  This is uncommon, but explicitly allowed - see https://tools.ietf.org/html/rfc2616#section-4.2
-	  Node.js does this for every header *except* set-cookie - see https://github.com/nodejs/node/blob/d5e363b77ebaf1caf67cd7528224b651c86815c1/lib/_http_incoming.js#L128
-	  React Native's fetch does this for *every* header, including set-cookie.
-
-	  Based on: https://github.com/google/j2objc/commit/16820fdbc8f76ca0c33472810ce0cb03d20efe25
-	  Credits to: https://github.com/tomball for original and https://github.com/chrusart for JavaScript implementation
-	*/
-	function splitCookiesString(cookiesString) {
-	  if (Array.isArray(cookiesString)) {
-	    return cookiesString;
-	  }
-	  if (typeof cookiesString !== "string") {
-	    return [];
-	  }
-
-	  var cookiesStrings = [];
-	  var pos = 0;
-	  var start;
-	  var ch;
-	  var lastComma;
-	  var nextStart;
-	  var cookiesSeparatorFound;
-
-	  function skipWhitespace() {
-	    while (pos < cookiesString.length && /\s/.test(cookiesString.charAt(pos))) {
-	      pos += 1;
-	    }
-	    return pos < cookiesString.length;
-	  }
-
-	  function notSpecialChar() {
-	    ch = cookiesString.charAt(pos);
-
-	    return ch !== "=" && ch !== ";" && ch !== ",";
-	  }
-
-	  while (pos < cookiesString.length) {
-	    start = pos;
-	    cookiesSeparatorFound = false;
-
-	    while (skipWhitespace()) {
-	      ch = cookiesString.charAt(pos);
-	      if (ch === ",") {
-	        // ',' is a cookie separator if we have later first '=', not ';' or ','
-	        lastComma = pos;
-	        pos += 1;
-
-	        skipWhitespace();
-	        nextStart = pos;
-
-	        while (pos < cookiesString.length && notSpecialChar()) {
-	          pos += 1;
-	        }
-
-	        // currently special character
-	        if (pos < cookiesString.length && cookiesString.charAt(pos) === "=") {
-	          // we found cookies separator
-	          cookiesSeparatorFound = true;
-	          // pos is inside the next cookie, so back up and return it.
-	          pos = nextStart;
-	          cookiesStrings.push(cookiesString.substring(start, lastComma));
-	          start = pos;
-	        } else {
-	          // in param ',' or param separator ';',
-	          // we continue from that comma
-	          pos = lastComma + 1;
-	        }
-	      } else {
-	        pos += 1;
-	      }
-	    }
-
-	    if (!cookiesSeparatorFound || pos >= cookiesString.length) {
-	      cookiesStrings.push(cookiesString.substring(start, cookiesString.length));
-	    }
-	  }
-
-	  return cookiesStrings;
-	}
-
-	setCookie.exports = parse;
-	setCookie.exports.parse = parse;
-	setCookie.exports.parseString = parseString;
-	setCookie.exports.splitCookiesString = splitCookiesString;
-	return setCookie.exports;
-}
-
-var setCookieExports = /*@__PURE__*/ requireSetCookie();
-
 function with_resolvers() {
   let resolve2;
   let reject;
@@ -3409,6 +2283,301 @@ const IN_WEBCONTAINER = !!globalThis.process?.versions?.webcontainer;
 const SVELTE_KIT_ASSETS = "/_svelte_kit_assets";
 const ENDPOINT_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"];
 const PAGE_METHODS = ["GET", "POST", "HEAD"];
+const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_$";
+const unsafe_chars = /[<\b\f\n\r\t\0\u2028\u2029]/g;
+const reserved = /^(?:do|if|in|for|int|let|new|try|var|byte|case|char|else|enum|goto|long|this|void|with|await|break|catch|class|const|final|float|short|super|throw|while|yield|delete|double|export|import|native|return|switch|throws|typeof|boolean|default|extends|finally|package|private|abstract|continue|debugger|function|volatile|interface|protected|transient|implements|instanceof|synchronized)$/;
+function uneval(value, replacer) {
+  const counts = /* @__PURE__ */ new Map();
+  const keys = [];
+  const custom = /* @__PURE__ */ new Map();
+  function walk(thing) {
+    if (!is_primitive(thing)) {
+      if (counts.has(thing)) {
+        counts.set(thing, counts.get(thing) + 1);
+        return;
+      }
+      counts.set(thing, 1);
+      if (replacer) {
+        const str2 = replacer(thing, (value2) => uneval(value2, replacer));
+        if (typeof str2 === "string") {
+          custom.set(thing, str2);
+          return;
+        }
+      }
+      if (typeof thing === "function") {
+        throw new DevalueError(`Cannot stringify a function`, keys, thing, value);
+      }
+      const type = get_type(thing);
+      switch (type) {
+        case "Number":
+        case "BigInt":
+        case "String":
+        case "Boolean":
+        case "Date":
+        case "RegExp":
+        case "URL":
+        case "URLSearchParams":
+          return;
+        case "Array":
+          thing.forEach((value2, i) => {
+            keys.push(`[${i}]`);
+            walk(value2);
+            keys.pop();
+          });
+          break;
+        case "Set":
+          Array.from(thing).forEach(walk);
+          break;
+        case "Map":
+          for (const [key2, value2] of thing) {
+            keys.push(
+              `.get(${is_primitive(key2) ? stringify_primitive(key2) : "..."})`
+            );
+            walk(value2);
+            keys.pop();
+          }
+          break;
+        case "Int8Array":
+        case "Uint8Array":
+        case "Uint8ClampedArray":
+        case "Int16Array":
+        case "Uint16Array":
+        case "Int32Array":
+        case "Uint32Array":
+        case "Float32Array":
+        case "Float64Array":
+        case "BigInt64Array":
+        case "BigUint64Array":
+          walk(thing.buffer);
+          return;
+        case "ArrayBuffer":
+          return;
+        case "Temporal.Duration":
+        case "Temporal.Instant":
+        case "Temporal.PlainDate":
+        case "Temporal.PlainTime":
+        case "Temporal.PlainDateTime":
+        case "Temporal.PlainMonthDay":
+        case "Temporal.PlainYearMonth":
+        case "Temporal.ZonedDateTime":
+          return;
+        default:
+          if (!is_plain_object(thing)) {
+            throw new DevalueError(
+              `Cannot stringify arbitrary non-POJOs`,
+              keys,
+              thing,
+              value
+            );
+          }
+          if (enumerable_symbols(thing).length > 0) {
+            throw new DevalueError(
+              `Cannot stringify POJOs with symbolic keys`,
+              keys,
+              thing,
+              value
+            );
+          }
+          for (const key2 in thing) {
+            keys.push(stringify_key(key2));
+            walk(thing[key2]);
+            keys.pop();
+          }
+      }
+    }
+  }
+  walk(value);
+  const names = /* @__PURE__ */ new Map();
+  Array.from(counts).filter((entry) => entry[1] > 1).sort((a, b) => b[1] - a[1]).forEach((entry, i) => {
+    names.set(entry[0], get_name(i));
+  });
+  function stringify2(thing) {
+    if (names.has(thing)) {
+      return names.get(thing);
+    }
+    if (is_primitive(thing)) {
+      return stringify_primitive(thing);
+    }
+    if (custom.has(thing)) {
+      return custom.get(thing);
+    }
+    const type = get_type(thing);
+    switch (type) {
+      case "Number":
+      case "String":
+      case "Boolean":
+        return `Object(${stringify2(thing.valueOf())})`;
+      case "RegExp":
+        return `new RegExp(${stringify_string(thing.source)}, "${thing.flags}")`;
+      case "Date":
+        return `new Date(${thing.getTime()})`;
+      case "URL":
+        return `new URL(${stringify_string(thing.toString())})`;
+      case "URLSearchParams":
+        return `new URLSearchParams(${stringify_string(thing.toString())})`;
+      case "Array":
+        const members = (
+          /** @type {any[]} */
+          thing.map(
+            (v, i) => i in thing ? stringify2(v) : ""
+          )
+        );
+        const tail = thing.length === 0 || thing.length - 1 in thing ? "" : ",";
+        return `[${members.join(",")}${tail}]`;
+      case "Set":
+      case "Map":
+        return `new ${type}([${Array.from(thing).map(stringify2).join(",")}])`;
+      case "Int8Array":
+      case "Uint8Array":
+      case "Uint8ClampedArray":
+      case "Int16Array":
+      case "Uint16Array":
+      case "Int32Array":
+      case "Uint32Array":
+      case "Float32Array":
+      case "Float64Array":
+      case "BigInt64Array":
+      case "BigUint64Array": {
+        let str2 = `new ${type}`;
+        if (counts.get(thing.buffer) === 1) {
+          const array2 = new thing.constructor(thing.buffer);
+          str2 += `([${array2}])`;
+        } else {
+          str2 += `([${stringify2(thing.buffer)}])`;
+        }
+        const a = thing.byteOffset;
+        const b = a + thing.byteLength;
+        if (a > 0 || b !== thing.buffer.byteLength) {
+          const m = +/(\d+)/.exec(type)[1] / 8;
+          str2 += `.subarray(${a / m},${b / m})`;
+        }
+        return str2;
+      }
+      case "ArrayBuffer": {
+        const ui8 = new Uint8Array(thing);
+        return `new Uint8Array([${ui8.toString()}]).buffer`;
+      }
+      case "Temporal.Duration":
+      case "Temporal.Instant":
+      case "Temporal.PlainDate":
+      case "Temporal.PlainTime":
+      case "Temporal.PlainDateTime":
+      case "Temporal.PlainMonthDay":
+      case "Temporal.PlainYearMonth":
+      case "Temporal.ZonedDateTime":
+        return `${type}.from(${stringify_string(thing.toString())})`;
+      default:
+        const keys2 = Object.keys(thing);
+        const obj = keys2.map((key2) => `${safe_key(key2)}:${stringify2(thing[key2])}`).join(",");
+        const proto = Object.getPrototypeOf(thing);
+        if (proto === null) {
+          return keys2.length > 0 ? `{${obj},__proto__:null}` : `{__proto__:null}`;
+        }
+        return `{${obj}}`;
+    }
+  }
+  const str = stringify2(value);
+  if (names.size) {
+    const params = [];
+    const statements = [];
+    const values = [];
+    names.forEach((name, thing) => {
+      params.push(name);
+      if (custom.has(thing)) {
+        values.push(
+          /** @type {string} */
+          custom.get(thing)
+        );
+        return;
+      }
+      if (is_primitive(thing)) {
+        values.push(stringify_primitive(thing));
+        return;
+      }
+      const type = get_type(thing);
+      switch (type) {
+        case "Number":
+        case "String":
+        case "Boolean":
+          values.push(`Object(${stringify2(thing.valueOf())})`);
+          break;
+        case "RegExp":
+          values.push(thing.toString());
+          break;
+        case "Date":
+          values.push(`new Date(${thing.getTime()})`);
+          break;
+        case "Array":
+          values.push(`Array(${thing.length})`);
+          thing.forEach((v, i) => {
+            statements.push(`${name}[${i}]=${stringify2(v)}`);
+          });
+          break;
+        case "Set":
+          values.push(`new Set`);
+          statements.push(
+            `${name}.${Array.from(thing).map((v) => `add(${stringify2(v)})`).join(".")}`
+          );
+          break;
+        case "Map":
+          values.push(`new Map`);
+          statements.push(
+            `${name}.${Array.from(thing).map(([k, v]) => `set(${stringify2(k)}, ${stringify2(v)})`).join(".")}`
+          );
+          break;
+        case "ArrayBuffer":
+          values.push(
+            `new Uint8Array([${new Uint8Array(thing).join(",")}]).buffer`
+          );
+          break;
+        default:
+          values.push(
+            Object.getPrototypeOf(thing) === null ? "Object.create(null)" : "{}"
+          );
+          Object.keys(thing).forEach((key2) => {
+            statements.push(
+              `${name}${safe_prop(key2)}=${stringify2(thing[key2])}`
+            );
+          });
+      }
+    });
+    statements.push(`return ${str}`);
+    return `(function(${params.join(",")}){${statements.join(
+      ";"
+    )}}(${values.join(",")}))`;
+  } else {
+    return str;
+  }
+}
+function get_name(num) {
+  let name = "";
+  do {
+    name = chars[num % chars.length] + name;
+    num = ~~(num / chars.length) - 1;
+  } while (num >= 0);
+  return reserved.test(name) ? `${name}0` : name;
+}
+function escape_unsafe_char(c) {
+  return escaped[c] || c;
+}
+function escape_unsafe_chars(str) {
+  return str.replace(unsafe_chars, escape_unsafe_char);
+}
+function safe_key(key2) {
+  return /^[_$a-zA-Z][_$a-zA-Z0-9]*$/.test(key2) ? key2 : escape_unsafe_chars(JSON.stringify(key2));
+}
+function safe_prop(key2) {
+  return /^[_$a-zA-Z][_$a-zA-Z0-9]*$/.test(key2) ? `.${key2}` : `[${escape_unsafe_chars(JSON.stringify(key2))}]`;
+}
+function stringify_primitive(thing) {
+  if (typeof thing === "string") return stringify_string(thing);
+  if (thing === void 0) return "void 0";
+  if (thing === 0 && 1 / thing < 0) return "-0";
+  const str = String(thing);
+  if (typeof thing === "number") return str.replace(/^(-)?0\./, "$1.");
+  if (typeof thing === "bigint") return thing + "n";
+  return str;
+}
 function negotiate(accept, types) {
   const parts = [];
   accept.split(",").forEach((str, i) => {
@@ -6291,6 +5460,158 @@ function redirect_json_response(redirect) {
     }
   );
 }
+var cookie = {};
+/*!
+ * cookie
+ * Copyright(c) 2012-2014 Roman Shtylman
+ * Copyright(c) 2015 Douglas Christopher Wilson
+ * MIT Licensed
+ */
+var hasRequiredCookie;
+function requireCookie() {
+  if (hasRequiredCookie) return cookie;
+  hasRequiredCookie = 1;
+  cookie.parse = parse;
+  cookie.serialize = serialize;
+  var __toString = Object.prototype.toString;
+  var fieldContentRegExp = /^[\u0009\u0020-\u007e\u0080-\u00ff]+$/;
+  function parse(str, options2) {
+    if (typeof str !== "string") {
+      throw new TypeError("argument str must be a string");
+    }
+    var obj = {};
+    var opt = options2 || {};
+    var dec = opt.decode || decode;
+    var index = 0;
+    while (index < str.length) {
+      var eqIdx = str.indexOf("=", index);
+      if (eqIdx === -1) {
+        break;
+      }
+      var endIdx = str.indexOf(";", index);
+      if (endIdx === -1) {
+        endIdx = str.length;
+      } else if (endIdx < eqIdx) {
+        index = str.lastIndexOf(";", eqIdx - 1) + 1;
+        continue;
+      }
+      var key2 = str.slice(index, eqIdx).trim();
+      if (void 0 === obj[key2]) {
+        var val = str.slice(eqIdx + 1, endIdx).trim();
+        if (val.charCodeAt(0) === 34) {
+          val = val.slice(1, -1);
+        }
+        obj[key2] = tryDecode(val, dec);
+      }
+      index = endIdx + 1;
+    }
+    return obj;
+  }
+  function serialize(name, val, options2) {
+    var opt = options2 || {};
+    var enc = opt.encode || encode2;
+    if (typeof enc !== "function") {
+      throw new TypeError("option encode is invalid");
+    }
+    if (!fieldContentRegExp.test(name)) {
+      throw new TypeError("argument name is invalid");
+    }
+    var value = enc(val);
+    if (value && !fieldContentRegExp.test(value)) {
+      throw new TypeError("argument val is invalid");
+    }
+    var str = name + "=" + value;
+    if (null != opt.maxAge) {
+      var maxAge = opt.maxAge - 0;
+      if (isNaN(maxAge) || !isFinite(maxAge)) {
+        throw new TypeError("option maxAge is invalid");
+      }
+      str += "; Max-Age=" + Math.floor(maxAge);
+    }
+    if (opt.domain) {
+      if (!fieldContentRegExp.test(opt.domain)) {
+        throw new TypeError("option domain is invalid");
+      }
+      str += "; Domain=" + opt.domain;
+    }
+    if (opt.path) {
+      if (!fieldContentRegExp.test(opt.path)) {
+        throw new TypeError("option path is invalid");
+      }
+      str += "; Path=" + opt.path;
+    }
+    if (opt.expires) {
+      var expires = opt.expires;
+      if (!isDate(expires) || isNaN(expires.valueOf())) {
+        throw new TypeError("option expires is invalid");
+      }
+      str += "; Expires=" + expires.toUTCString();
+    }
+    if (opt.httpOnly) {
+      str += "; HttpOnly";
+    }
+    if (opt.secure) {
+      str += "; Secure";
+    }
+    if (opt.partitioned) {
+      str += "; Partitioned";
+    }
+    if (opt.priority) {
+      var priority = typeof opt.priority === "string" ? opt.priority.toLowerCase() : opt.priority;
+      switch (priority) {
+        case "low":
+          str += "; Priority=Low";
+          break;
+        case "medium":
+          str += "; Priority=Medium";
+          break;
+        case "high":
+          str += "; Priority=High";
+          break;
+        default:
+          throw new TypeError("option priority is invalid");
+      }
+    }
+    if (opt.sameSite) {
+      var sameSite = typeof opt.sameSite === "string" ? opt.sameSite.toLowerCase() : opt.sameSite;
+      switch (sameSite) {
+        case true:
+          str += "; SameSite=Strict";
+          break;
+        case "lax":
+          str += "; SameSite=Lax";
+          break;
+        case "strict":
+          str += "; SameSite=Strict";
+          break;
+        case "none":
+          str += "; SameSite=None";
+          break;
+        default:
+          throw new TypeError("option sameSite is invalid");
+      }
+    }
+    return str;
+  }
+  function decode(str) {
+    return str.indexOf("%") !== -1 ? decodeURIComponent(str) : str;
+  }
+  function encode2(val) {
+    return encodeURIComponent(val);
+  }
+  function isDate(val) {
+    return __toString.call(val) === "[object Date]" || val instanceof Date;
+  }
+  function tryDecode(str, decode2) {
+    try {
+      return decode2(str);
+    } catch (e) {
+      return str;
+    }
+  }
+  return cookie;
+}
+var cookieExports = requireCookie();
 const INVALID_COOKIE_CHARACTER_REGEX = /[\x00-\x1F\x7F()<>@,;:"/[\]?={} \t]/;
 function validate_options(options2) {
   if (options2?.path === void 0) {
@@ -6327,8 +5648,8 @@ function get_cookies(request, url) {
         return best_match.options.maxAge === 0 ? void 0 : best_match.value;
       }
       const req_cookies = cookieExports.parse(header, { decode: opts?.decode });
-      const cookie = req_cookies[name];
-      return cookie;
+      const cookie2 = req_cookies[name];
+      return cookie2;
     },
     /**
      * @param {import('cookie').CookieParseOptions} [opts]
@@ -6396,11 +5717,11 @@ function get_cookies(request, url) {
       // cookies sent by the user agent have lowest precedence
       ...initial_cookies
     };
-    for (const cookie of new_cookies.values()) {
-      if (!domain_matches(destination.hostname, cookie.options.domain)) continue;
-      if (!path_matches(destination.pathname, cookie.options.path)) continue;
-      const encoder = cookie.options.encode || encodeURIComponent;
-      combined_cookies[cookie.name] = encoder(cookie.value);
+    for (const cookie2 of new_cookies.values()) {
+      if (!domain_matches(destination.hostname, cookie2.options.domain)) continue;
+      if (!path_matches(destination.pathname, cookie2.options.path)) continue;
+      const encoder = cookie2.options.encode || encodeURIComponent;
+      combined_cookies[cookie2.name] = encoder(cookie2.value);
     }
     if (header2) {
       const parsed = cookieExports.parse(header2, { decode: (value) => value });
@@ -6421,8 +5742,8 @@ function get_cookies(request, url) {
       path = resolve(normalized_url, path);
     }
     const cookie_key = generate_cookie_key(options2.domain, path, name);
-    const cookie = { name, value, options: { ...options2, path } };
-    new_cookies.set(cookie_key, cookie);
+    const cookie2 = { name, value, options: { ...options2, path } };
+    new_cookies.set(cookie_key, cookie2);
   }
   function set_trailing_slash(trailing_slash) {
     normalized_url = normalize_path(url.pathname, trailing_slash);
@@ -6452,6 +5773,190 @@ function add_cookies_to_headers(headers2, cookies) {
     }
   }
 }
+var setCookie = { exports: {} };
+var hasRequiredSetCookie;
+function requireSetCookie() {
+  if (hasRequiredSetCookie) return setCookie.exports;
+  hasRequiredSetCookie = 1;
+  var defaultParseOptions = {
+    decodeValues: true,
+    map: false,
+    silent: false
+  };
+  function isForbiddenKey(key2) {
+    return typeof key2 !== "string" || key2 in {};
+  }
+  function createNullObj() {
+    return /* @__PURE__ */ Object.create(null);
+  }
+  function isNonEmptyString(str) {
+    return typeof str === "string" && !!str.trim();
+  }
+  function parseString(setCookieValue, options2) {
+    var parts = setCookieValue.split(";").filter(isNonEmptyString);
+    var nameValuePairStr = parts.shift();
+    var parsed = parseNameValuePair(nameValuePairStr);
+    var name = parsed.name;
+    var value = parsed.value;
+    options2 = options2 ? Object.assign({}, defaultParseOptions, options2) : defaultParseOptions;
+    if (isForbiddenKey(name)) {
+      return null;
+    }
+    try {
+      value = options2.decodeValues ? decodeURIComponent(value) : value;
+    } catch (e) {
+      console.error(
+        "set-cookie-parser: failed to decode cookie value. Set options.decodeValues=false to disable decoding.",
+        e
+      );
+    }
+    var cookie2 = createNullObj();
+    cookie2.name = name;
+    cookie2.value = value;
+    parts.forEach(function(part) {
+      var sides = part.split("=");
+      var key2 = sides.shift().trimLeft().toLowerCase();
+      if (isForbiddenKey(key2)) {
+        return;
+      }
+      var value2 = sides.join("=");
+      if (key2 === "expires") {
+        cookie2.expires = new Date(value2);
+      } else if (key2 === "max-age") {
+        var n = parseInt(value2, 10);
+        if (!Number.isNaN(n)) cookie2.maxAge = n;
+      } else if (key2 === "secure") {
+        cookie2.secure = true;
+      } else if (key2 === "httponly") {
+        cookie2.httpOnly = true;
+      } else if (key2 === "samesite") {
+        cookie2.sameSite = value2;
+      } else if (key2 === "partitioned") {
+        cookie2.partitioned = true;
+      } else if (key2) {
+        cookie2[key2] = value2;
+      }
+    });
+    return cookie2;
+  }
+  function parseNameValuePair(nameValuePairStr) {
+    var name = "";
+    var value = "";
+    var nameValueArr = nameValuePairStr.split("=");
+    if (nameValueArr.length > 1) {
+      name = nameValueArr.shift();
+      value = nameValueArr.join("=");
+    } else {
+      value = nameValuePairStr;
+    }
+    return { name, value };
+  }
+  function parse(input, options2) {
+    options2 = options2 ? Object.assign({}, defaultParseOptions, options2) : defaultParseOptions;
+    if (!input) {
+      if (!options2.map) {
+        return [];
+      } else {
+        return createNullObj();
+      }
+    }
+    if (input.headers) {
+      if (typeof input.headers.getSetCookie === "function") {
+        input = input.headers.getSetCookie();
+      } else if (input.headers["set-cookie"]) {
+        input = input.headers["set-cookie"];
+      } else {
+        var sch = input.headers[Object.keys(input.headers).find(function(key2) {
+          return key2.toLowerCase() === "set-cookie";
+        })];
+        if (!sch && input.headers.cookie && !options2.silent) {
+          console.warn(
+            "Warning: set-cookie-parser appears to have been called on a request object. It is designed to parse Set-Cookie headers from responses, not Cookie headers from requests. Set the option {silent: true} to suppress this warning."
+          );
+        }
+        input = sch;
+      }
+    }
+    if (!Array.isArray(input)) {
+      input = [input];
+    }
+    if (!options2.map) {
+      return input.filter(isNonEmptyString).map(function(str) {
+        return parseString(str, options2);
+      }).filter(Boolean);
+    } else {
+      var cookies = createNullObj();
+      return input.filter(isNonEmptyString).reduce(function(cookies2, str) {
+        var cookie2 = parseString(str, options2);
+        if (cookie2 && !isForbiddenKey(cookie2.name)) {
+          cookies2[cookie2.name] = cookie2;
+        }
+        return cookies2;
+      }, cookies);
+    }
+  }
+  function splitCookiesString(cookiesString) {
+    if (Array.isArray(cookiesString)) {
+      return cookiesString;
+    }
+    if (typeof cookiesString !== "string") {
+      return [];
+    }
+    var cookiesStrings = [];
+    var pos = 0;
+    var start;
+    var ch;
+    var lastComma;
+    var nextStart;
+    var cookiesSeparatorFound;
+    function skipWhitespace() {
+      while (pos < cookiesString.length && /\s/.test(cookiesString.charAt(pos))) {
+        pos += 1;
+      }
+      return pos < cookiesString.length;
+    }
+    function notSpecialChar() {
+      ch = cookiesString.charAt(pos);
+      return ch !== "=" && ch !== ";" && ch !== ",";
+    }
+    while (pos < cookiesString.length) {
+      start = pos;
+      cookiesSeparatorFound = false;
+      while (skipWhitespace()) {
+        ch = cookiesString.charAt(pos);
+        if (ch === ",") {
+          lastComma = pos;
+          pos += 1;
+          skipWhitespace();
+          nextStart = pos;
+          while (pos < cookiesString.length && notSpecialChar()) {
+            pos += 1;
+          }
+          if (pos < cookiesString.length && cookiesString.charAt(pos) === "=") {
+            cookiesSeparatorFound = true;
+            pos = nextStart;
+            cookiesStrings.push(cookiesString.substring(start, lastComma));
+            start = pos;
+          } else {
+            pos = lastComma + 1;
+          }
+        } else {
+          pos += 1;
+        }
+      }
+      if (!cookiesSeparatorFound || pos >= cookiesString.length) {
+        cookiesStrings.push(cookiesString.substring(start, cookiesString.length));
+      }
+    }
+    return cookiesStrings;
+  }
+  setCookie.exports = parse;
+  setCookie.exports.parse = parse;
+  setCookie.exports.parseString = parseString;
+  setCookie.exports.splitCookiesString = splitCookiesString;
+  return setCookie.exports;
+}
+var setCookieExports = /* @__PURE__ */ requireSetCookie();
 function create_fetch({ event, options: options2, manifest, state, get_cookie_header, set_internal }) {
   const server_fetch = async (info, init2) => {
     const original_request = normalize_fetch_input(info, init2, event.url);
@@ -6475,8 +5980,8 @@ function create_fetch({ event, options: options2, manifest, state, get_cookie_he
         }
         if (url.origin !== event.url.origin) {
           if (`.${url.hostname}`.endsWith(`.${event.url.hostname}`) && credentials !== "omit") {
-            const cookie = get_cookie_header(url, request.headers.get("cookie"));
-            if (cookie) request.headers.set("cookie", cookie);
+            const cookie2 = get_cookie_header(url, request.headers.get("cookie"));
+            if (cookie2) request.headers.set("cookie", cookie2);
           }
           return fetch(request);
         }
@@ -6509,9 +6014,9 @@ function create_fetch({ event, options: options2, manifest, state, get_cookie_he
           return await fetch(request);
         }
         if (credentials !== "omit") {
-          const cookie = get_cookie_header(url, request.headers.get("cookie"));
-          if (cookie) {
-            request.headers.set("cookie", cookie);
+          const cookie2 = get_cookie_header(url, request.headers.get("cookie"));
+          if (cookie2) {
+            request.headers.set("cookie", cookie2);
           }
           const authorization = event.request.headers.get("authorization");
           if (authorization && !request.headers.has("authorization")) {

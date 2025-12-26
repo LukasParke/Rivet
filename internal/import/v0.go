@@ -161,6 +161,53 @@ func ImportFileToDir(srcPath, destDir string) (string, error) {
 	return dest, nil
 }
 
+// ImportFileToPath attempts hardlink then copy into the exact destination path.
+// If the destination already exists, it will be uniquified.
+func ImportFileToPath(srcPath, destPath string) (string, error) {
+	srcPath = filepath.Clean(srcPath)
+	destPath = filepath.Clean(destPath)
+
+	base := filepath.Base(srcPath)
+	if base == "." || base == string(filepath.Separator) {
+		return "", errors.New("invalid_source")
+	}
+
+	if destPath == "" || destPath == "." || destPath == string(filepath.Separator) {
+		return "", errors.New("invalid_dest_path")
+	}
+	destDir := filepath.Dir(destPath)
+	if destDir == "" || destDir == "." || destDir == string(filepath.Separator) {
+		return "", errors.New("invalid_dest_dir")
+	}
+	if err := os.MkdirAll(destDir, 0o755); err != nil {
+		return "", err
+	}
+
+	destPath = uniquify(destPath)
+
+	if err := os.Link(srcPath, destPath); err == nil {
+		return destPath, nil
+	}
+
+	// Copy fallback
+	in, err := os.Open(srcPath)
+	if err != nil {
+		return "", err
+	}
+	defer in.Close()
+
+	out, err := os.OpenFile(destPath, os.O_CREATE|os.O_WRONLY|os.O_EXCL, 0o644)
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = out.Close() }()
+
+	if _, err := io.Copy(out, in); err != nil {
+		return "", err
+	}
+	return destPath, nil
+}
+
 var sanitizeRe = regexp.MustCompile(`[^a-zA-Z0-9._ -]+`)
 
 // SanitizePathComponent makes a best-effort safe directory/file name.

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/LukeHagar/Rivet/internal/adapters/downloaders/dryrun"
 	"github.com/LukeHagar/Rivet/internal/adapters/downloaders/qbittorrent"
 	"github.com/LukeHagar/Rivet/internal/jobs/queue"
 	"github.com/LukeHagar/Rivet/internal/security"
@@ -20,16 +21,26 @@ type AcquisitionDeps struct {
 	Policy    security.OutboundPolicy
 	Hub       publisher
 
+	DryRun            bool
+	DryRunFixturePath string
+
 	// For tests: override client factory.
-	NewQb func(cfg qbittorrent.Config, policy security.OutboundPolicy) (qbAdder, error)
+	NewQb func(cfg qbittorrent.Config, policy security.OutboundPolicy) (qbClient, error)
 }
 
 type publisher interface {
 	Publish(eventType string, payload any)
 }
 
-type qbAdder interface {
+type qbClient interface {
 	AddURL(ctx context.Context, torrentURL string) error
+	GetInfo(ctx context.Context, hash string) (qbittorrent.TorrentInfo, bool, error)
+	GetAllTorrents(ctx context.Context) ([]qbittorrent.TorrentInfo, error)
+	Resume(ctx context.Context, hash string) error
+	Pause(ctx context.Context, hash string) error
+	Recheck(ctx context.Context, hash string) error
+	Reannounce(ctx context.Context, hash string) error
+	Delete(ctx context.Context, hash string, deleteFiles bool) error
 }
 
 type persistedClients struct {
@@ -71,20 +82,25 @@ func EnqueueAcquisition(ctx context.Context, deps AcquisitionDeps, acquisitionID
 
 	switch a.ClientKind {
 	case "qbittorrent":
-		cfg, err := loadQBittorrentConfig(ctx, deps)
-		if err != nil {
-			return err
-		}
-
-		factory := deps.NewQb
-		if factory == nil {
-			factory = func(cfg qbittorrent.Config, policy security.OutboundPolicy) (qbAdder, error) {
-				return qbittorrent.New(cfg, policy)
+		var cli qbClient
+		if deps.DryRun {
+			cli = dryrun.Default(deps.DryRunFixturePath)
+		} else {
+			cfg, err := loadQBittorrentConfig(ctx, deps)
+			if err != nil {
+				return err
 			}
-		}
-		cli, err := factory(cfg, deps.Policy)
-		if err != nil {
-			return err
+			factory := deps.NewQb
+			if factory == nil {
+				factory = func(cfg qbittorrent.Config, policy security.OutboundPolicy) (qbClient, error) {
+					return qbittorrent.New(cfg, policy)
+				}
+			}
+			c, err := factory(cfg, deps.Policy)
+			if err != nil {
+				return err
+			}
+			cli = c
 		}
 
 		// Store source URL for diagnostics.
@@ -108,6 +124,64 @@ func EnqueueAcquisition(ctx context.Context, deps AcquisitionDeps, acquisitionID
 			// Rescout v1: attempt to find an alternative when enqueue fails.
 			_, _ = queue.Enqueue(ctx, deps.DB, "acquisition_rescout", map[string]string{"acquisitionId": a.ID}, queue.EnqueueOpts{RunAfter: time.Now().UTC().Add(1 * time.Second)})
 			return err
+		}
+
+		// If we don't have a hash from the URL (e.g., Prowlarr redirect URLs), try to find it.
+		if hash == "" {
+			if deps.DryRun {
+				// In dry run, the client generates a hash from the URL. Query it to get the hash.
+				// Wait a moment for the dry run client to process the add
+				time.Sleep(100 * time.Millisecond)
+				allTorrents, err := cli.GetAllTorrents(ctx)
+				if err == nil && len(allTorrents) > 0 {
+					// Try to match by candidate title (fuzzy match)
+					candidateTitle := strings.ToLower(strings.TrimSpace(raw.Title))
+					for _, t := range allTorrents {
+						torrentName := strings.ToLower(strings.TrimSpace(t.Name))
+						// Simple matching: if the torrent name contains significant parts of the candidate title
+						if strings.Contains(torrentName, candidateTitle) || strings.Contains(candidateTitle, torrentName) {
+							hash = t.Hash
+							break
+						}
+					}
+					// If no match found, use the most recently added torrent (first in list, sorted by startedAt)
+					if hash == "" && len(allTorrents) > 0 {
+						// In dry run, GetAllTorrents returns torrents sorted by startedAt (most recent first)
+						hash = allTorrents[0].Hash
+					}
+				}
+			} else {
+				// Real qBittorrent: wait a moment for qBittorrent to process the add
+				time.Sleep(500 * time.Millisecond)
+				// Query all torrents and find the one matching our candidate title
+				allTorrents, err := cli.GetAllTorrents(ctx)
+				if err == nil && len(allTorrents) > 0 {
+					// Try to match by candidate title (fuzzy match)
+					candidateTitle := strings.ToLower(strings.TrimSpace(raw.Title))
+					for _, t := range allTorrents {
+						torrentName := strings.ToLower(strings.TrimSpace(t.Name))
+						// Simple matching: if the torrent name contains significant parts of the candidate title
+						if strings.Contains(torrentName, candidateTitle) || strings.Contains(candidateTitle, torrentName) {
+							hash = t.Hash
+							break
+						}
+					}
+					// If no match found, use the most recently added torrent (assuming it's the one we just added)
+					if hash == "" && len(allTorrents) > 0 {
+						// Try the first torrent with low progress (likely just added)
+						for _, t := range allTorrents {
+							if t.Progress < 0.1 && t.State != "pausedup" && t.State != "uploading" {
+								hash = t.Hash
+								break
+							}
+						}
+						// Last resort: use the first torrent
+						if hash == "" {
+							hash = allTorrents[0].Hash
+						}
+					}
+				}
+			}
 		}
 
 		var extID *string

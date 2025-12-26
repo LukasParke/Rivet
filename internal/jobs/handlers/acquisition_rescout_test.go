@@ -18,6 +18,7 @@ import (
 func TestRescoutAcquisition_EnqueuesReplacementExcludingCurrentHash(t *testing.T) {
 	hash1 := "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 	hash2 := "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+	hash3 := "cccccccccccccccccccccccccccccccccccccccc"
 
 	// Fake indexer server (newznab/torznab compatible enough for our parser).
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -40,6 +41,12 @@ func TestRescoutAcquisition_EnqueuesReplacementExcludingCurrentHash(t *testing.T
       <guid>g2</guid>
       <link>magnet:?xt=urn:btih:` + hash2 + `</link>
       <enclosure url="magnet:?xt=urn:btih:` + hash2 + `" />
+    </item>
+    <item>
+      <title>Test 720p</title>
+      <guid>g3</guid>
+      <link>magnet:?xt=urn:btih:` + hash3 + `</link>
+      <enclosure url="magnet:?xt=urn:btih:` + hash3 + `" />
     </item>
   </channel>
 </rss>`
@@ -75,6 +82,14 @@ func TestRescoutAcquisition_EnqueuesReplacementExcludingCurrentHash(t *testing.T
 	_ = storage.MarkAcquisitionEnqueued(ctx, db.SQL, acqOld.ID, &hash1)
 	_ = storage.MarkAcquisitionNeedsReview(ctx, db.SQL, acqOld.ID, "stalled", nil, "stalled")
 
+	// Blacklist hash2 so rescout must pick hash3.
+	_, _ = storage.InsertBlacklistEntry(ctx, db.SQL, storage.BlacklistEntry{
+		Scope:      "target",
+		TargetID:   &tgt.ID,
+		MatchType:  "hash",
+		MatchValue: hash2,
+	})
+
 	// Run rescout.
 	if err := RescoutAcquisition(ctx, RescoutDeps{DB: db.SQL, SecretBox: sb, Policy: security.OutboundPolicy{AllowInternal: true}}, acqOld.ID); err != nil {
 		t.Fatalf("rescout: %v", err)
@@ -107,6 +122,9 @@ func TestRescoutAcquisition_EnqueuesReplacementExcludingCurrentHash(t *testing.T
 	_ = row.Scan(&rawNew)
 	if strings.Contains(rawNew, hash1) {
 		t.Fatalf("expected not to pick excluded hash")
+	}
+	if strings.Contains(rawNew, hash2) {
+		t.Fatalf("expected not to pick blacklisted hash")
 	}
 }
 

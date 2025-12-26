@@ -24,6 +24,11 @@ type WorkerDeps struct {
 	Logger    *slog.Logger
 	Hub       *ws.Hub
 	Metrics   *observability.Metrics
+
+	DryRun            bool
+	DryRunFixturePath string
+
+	FFProbePath string
 }
 
 // StartWorker starts a simple in-process worker loop.
@@ -127,7 +132,7 @@ func handleJob(ctx context.Context, deps WorkerDeps, job queue.Job) error {
 		if p.AcquisitionID == "" {
 			return errors.New("invalid_payload")
 		}
-		return handlers.EnqueueAcquisition(ctx, handlers.AcquisitionDeps{DB: deps.DB, SecretBox: deps.SecretBox, Policy: deps.Policy, Hub: deps.Hub}, p.AcquisitionID)
+		return handlers.EnqueueAcquisition(ctx, handlers.AcquisitionDeps{DB: deps.DB, SecretBox: deps.SecretBox, Policy: deps.Policy, Hub: deps.Hub, DryRun: deps.DryRun, DryRunFixturePath: deps.DryRunFixturePath}, p.AcquisitionID)
 	case "acquisition_monitor":
 		var p struct {
 			AcquisitionID string `json:"acquisitionId"`
@@ -141,7 +146,7 @@ func handleJob(ctx context.Context, deps WorkerDeps, job queue.Job) error {
 		if p.AcquisitionID == "" {
 			return errors.New("invalid_payload")
 		}
-		return handlers.MonitorAcquisition(ctx, handlers.MonitorDeps{DB: deps.DB, SecretBox: deps.SecretBox, Policy: deps.Policy, Hub: deps.Hub}, p.AcquisitionID)
+		return handlers.MonitorAcquisition(ctx, handlers.MonitorDeps{DB: deps.DB, SecretBox: deps.SecretBox, Policy: deps.Policy, Hub: deps.Hub, DryRun: deps.DryRun, DryRunFixturePath: deps.DryRunFixturePath}, p.AcquisitionID)
 	case "acquisition_recover":
 		var p struct {
 			AcquisitionID string `json:"acquisitionId"`
@@ -155,7 +160,7 @@ func handleJob(ctx context.Context, deps WorkerDeps, job queue.Job) error {
 		if p.AcquisitionID == "" {
 			return errors.New("invalid_payload")
 		}
-		return handlers.RecoverAcquisition(ctx, handlers.RecoverDeps{DB: deps.DB, SecretBox: deps.SecretBox, Policy: deps.Policy, Hub: deps.Hub}, p.AcquisitionID)
+		return handlers.RecoverAcquisition(ctx, handlers.RecoverDeps{DB: deps.DB, SecretBox: deps.SecretBox, Policy: deps.Policy, Hub: deps.Hub, DryRun: deps.DryRun, DryRunFixturePath: deps.DryRunFixturePath}, p.AcquisitionID)
 	case "acquisition_verify":
 		var p struct {
 			AcquisitionID string `json:"acquisitionId"`
@@ -169,7 +174,7 @@ func handleJob(ctx context.Context, deps WorkerDeps, job queue.Job) error {
 		if p.AcquisitionID == "" {
 			return errors.New("invalid_payload")
 		}
-		return handlers.VerifyAcquisition(ctx, handlers.VerifyDeps{DB: deps.DB, Hub: deps.Hub}, p.AcquisitionID)
+		return handlers.VerifyAcquisition(ctx, handlers.VerifyDeps{DB: deps.DB, Hub: deps.Hub, DryRun: deps.DryRun, DryRunFixturePath: deps.DryRunFixturePath, FFProbePath: deps.FFProbePath}, p.AcquisitionID)
 	case "acquisition_import":
 		var p struct {
 			AcquisitionID string `json:"acquisitionId"`
@@ -183,7 +188,7 @@ func handleJob(ctx context.Context, deps WorkerDeps, job queue.Job) error {
 		if p.AcquisitionID == "" {
 			return errors.New("invalid_payload")
 		}
-		return handlers.ImportAcquisition(ctx, handlers.ImportDeps{DB: deps.DB, Hub: deps.Hub}, p.AcquisitionID)
+		return handlers.ImportAcquisition(ctx, handlers.ImportDeps{DB: deps.DB, Hub: deps.Hub, DryRun: deps.DryRun}, p.AcquisitionID)
 	case "acquisition_rescout":
 		var p struct {
 			AcquisitionID string `json:"acquisitionId"`

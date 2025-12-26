@@ -4,19 +4,28 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
+	"net"
+	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
 
 	"github.com/LukeHagar/Rivet/internal/httpapi/middleware"
+	netutil "github.com/LukeHagar/Rivet/internal/network"
 	"github.com/LukeHagar/Rivet/internal/observability"
+	"github.com/LukeHagar/Rivet/internal/security"
 	"github.com/LukeHagar/Rivet/internal/storage"
 )
 
 type DiagnosticsDeps struct {
 	DB      *sql.DB
 	Metrics *observability.Metrics
+	DryRun            bool
+	DryRunFixturePath string
+	Policy            security.OutboundPolicy
 }
 
 type JobErrorRow struct {
@@ -39,12 +48,53 @@ type AuditRow struct {
 
 type DiagnosticsResponse struct {
 	GeneratedAt string                 `json:"generatedAt"`
+	DryRun bool                        `json:"dryRun"`
+	DryRunFixturePathSet bool          `json:"dryRunFixturePathSet"`
 	Setup       map[string]string      `json:"setup"`
 	Settings    map[string]any         `json:"settings"`
 	QueueDepth  map[string]int         `json:"queueDepth"`
 	RecentJobs  []JobErrorRow          `json:"recentJobs"`
 	RecentAudit []AuditRow             `json:"recentAudit"`
 	Metrics     map[string]int64       `json:"metrics"`
+}
+
+type TestConnectionRequest struct {
+	URL    string `json:"url"`
+	APIKey string `json:"apiKey"`
+}
+
+type TestConnectionResponse struct {
+	URL              string            `json:"url"`
+	DNSResolution    DNSInfo           `json:"dnsResolution"`
+	NetworkInterfaces []InterfaceInfo  `json:"networkInterfaces"`
+	TCPTest         TCPTestResult      `json:"tcpTest"`
+	HTTPTestDefault HTTPTestResult     `json:"httpTestDefault"`
+	HTTPTestCustom  HTTPTestResult     `json:"httpTestCustom"`
+	Summary         string             `json:"summary"`
+}
+
+type DNSInfo struct {
+	Hostname string   `json:"hostname"`
+	IPs      []string `json:"ips"`
+	Error    string   `json:"error,omitempty"`
+}
+
+type InterfaceInfo struct {
+	Name string   `json:"name"`
+	IPs  []string `json:"ips"`
+}
+
+type TCPTestResult struct {
+	Success bool   `json:"success"`
+	Error   string `json:"error,omitempty"`
+	Duration string `json:"duration,omitempty"`
+}
+
+type HTTPTestResult struct {
+	Success   bool   `json:"success"`
+	StatusCode int    `json:"statusCode,omitempty"`
+	Error     string `json:"error,omitempty"`
+	Duration  string `json:"duration,omitempty"`
 }
 
 func RegisterDiagnostics(api fiber.Router, deps DiagnosticsDeps) {
@@ -102,6 +152,8 @@ func RegisterDiagnostics(api fiber.Router, deps DiagnosticsDeps) {
 
 		return c.JSON(DiagnosticsResponse{
 			GeneratedAt: time.Now().UTC().Format(time.RFC3339Nano),
+			DryRun: deps.DryRun,
+			DryRunFixturePathSet: strings.TrimSpace(deps.DryRunFixturePath) != "",
 			Setup:       setup,
 			Settings:    settings,
 			QueueDepth:  queueDepth,
@@ -109,6 +161,19 @@ func RegisterDiagnostics(api fiber.Router, deps DiagnosticsDeps) {
 			RecentAudit: recentAudit,
 			Metrics:     m,
 		})
+	})
+
+	api.Post("/diagnostics/test-connection", middleware.RequireRole("admin"), func(c *fiber.Ctx) error {
+		var req TestConnectionRequest
+		if err := c.BodyParser(&req); err != nil {
+			return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "invalid_json"})
+		}
+
+		ctx, cancel := context.WithTimeout(c.UserContext(), 15*time.Second)
+		defer cancel()
+
+		resp := testConnection(ctx, req.URL, req.APIKey, deps.Policy)
+		return c.JSON(resp)
 	})
 }
 
@@ -213,5 +278,152 @@ LIMIT ?
 		out = append(out, r)
 	}
 	return out, rows.Err()
+}
+
+func testConnection(ctx context.Context, urlStr, apiKey string, policy security.OutboundPolicy) TestConnectionResponse {
+	resp := TestConnectionResponse{
+		URL: urlStr,
+	}
+
+	// Parse URL
+	u, err := url.Parse(urlStr)
+	if err != nil {
+		resp.Summary = fmt.Sprintf("Invalid URL: %v", err)
+		return resp
+	}
+
+	hostname := u.Hostname()
+	port := u.Port()
+	if port == "" {
+		if u.Scheme == "https" {
+			port = "443"
+		} else {
+			port = "80"
+		}
+	}
+
+	// DNS Resolution
+	dnsInfo := DNSInfo{Hostname: hostname}
+	ips, err := net.LookupIP(hostname)
+	if err != nil {
+		dnsInfo.Error = err.Error()
+	} else {
+		for _, ip := range ips {
+			dnsInfo.IPs = append(dnsInfo.IPs, ip.String())
+		}
+	}
+	resp.DNSResolution = dnsInfo
+
+	// Network Interfaces
+	interfaces, err := net.Interfaces()
+	if err == nil {
+		for _, iface := range interfaces {
+			addrs, err := iface.Addrs()
+			if err != nil {
+				continue
+			}
+			ifInfo := InterfaceInfo{Name: iface.Name}
+			for _, addr := range addrs {
+				if ipnet, ok := addr.(*net.IPNet); ok {
+					ifInfo.IPs = append(ifInfo.IPs, ipnet.IP.String())
+				}
+			}
+			if len(ifInfo.IPs) > 0 {
+				resp.NetworkInterfaces = append(resp.NetworkInterfaces, ifInfo)
+			}
+		}
+	}
+
+	// TCP Connection Test (using source IP binding)
+	tcpStart := time.Now()
+	address := net.JoinHostPort(hostname, port)
+	conn, err := netutil.DialWithSourceIP(address)
+	tcpDuration := time.Since(tcpStart)
+	if err != nil {
+		resp.TCPTest = TCPTestResult{
+			Success:  false,
+			Error:    err.Error(),
+			Duration: tcpDuration.String(),
+		}
+	} else {
+		conn.Close()
+		resp.TCPTest = TCPTestResult{
+			Success:  true,
+			Duration: tcpDuration.String(),
+		}
+	}
+
+	// HTTP Test with Default Client
+	httpDefaultStart := time.Now()
+	defaultClient := &http.Client{Timeout: 5 * time.Second}
+	testURL := fmt.Sprintf("%s/api/v1/indexer", urlStr)
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, testURL, nil)
+	if apiKey != "" {
+		req.Header.Set("X-Api-Key", apiKey)
+	}
+	res, err := defaultClient.Do(req)
+	httpDefaultDuration := time.Since(httpDefaultStart)
+	if err != nil {
+		resp.HTTPTestDefault = HTTPTestResult{
+			Success:  false,
+			Error:    err.Error(),
+			Duration: httpDefaultDuration.String(),
+		}
+	} else {
+		res.Body.Close()
+		resp.HTTPTestDefault = HTTPTestResult{
+			Success:   res.StatusCode == 200,
+			StatusCode: res.StatusCode,
+			Duration:  httpDefaultDuration.String(),
+		}
+	}
+
+	// HTTP Test with Custom Transport (using source IP binding)
+	httpCustomStart := time.Now()
+	customClient := &http.Client{
+		Timeout: 5 * time.Second,
+		Transport: &http.Transport{
+			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+				return netutil.DialWithSourceIP(addr)
+			},
+			MaxIdleConns:          10,
+			IdleConnTimeout:       90 * time.Second,
+			TLSHandshakeTimeout:   5 * time.Second,
+			ExpectContinueTimeout: 1 * time.Second,
+		},
+	}
+	req2, _ := http.NewRequestWithContext(ctx, http.MethodGet, testURL, nil)
+	if apiKey != "" {
+		req2.Header.Set("X-Api-Key", apiKey)
+	}
+	res2, err := customClient.Do(req2)
+	httpCustomDuration := time.Since(httpCustomStart)
+	if err != nil {
+		resp.HTTPTestCustom = HTTPTestResult{
+			Success:  false,
+			Error:    err.Error(),
+			Duration: httpCustomDuration.String(),
+		}
+	} else {
+		res2.Body.Close()
+		resp.HTTPTestCustom = HTTPTestResult{
+			Success:   res2.StatusCode == 200,
+			StatusCode: res2.StatusCode,
+			Duration:  httpCustomDuration.String(),
+		}
+	}
+
+	// Generate summary
+	if resp.TCPTest.Success && resp.HTTPTestCustom.Success {
+		resp.Summary = "All tests passed - connection is working"
+	} else if resp.TCPTest.Success && !resp.HTTPTestCustom.Success {
+		resp.Summary = fmt.Sprintf("TCP connection works but HTTP failed: %s", resp.HTTPTestCustom.Error)
+	} else if !resp.TCPTest.Success {
+		resp.Summary = fmt.Sprintf("TCP connection failed: %s", resp.TCPTest.Error)
+	} else {
+		resp.Summary = "Connection test completed with mixed results"
+	}
+
+	return resp
 }
 

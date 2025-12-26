@@ -9,6 +9,10 @@
 	let overridePaths = {};
 	/** @type {Record<string, boolean>} */
 	let deleteFiles = {};
+	/** @type {Record<string, string>} */
+	let blacklistReasons = {};
+	/** @type {Record<string, boolean>} */
+	let blacklistGlobal = {};
 
 	function csrfHeader() {
 		const t = sessionStorage.getItem('csrf');
@@ -126,6 +130,7 @@
 						<div class="row" style="gap: 8px;">
 							<button class="secondary" disabled={busy} on:click={() => act(a.id, 'reverify')}>Re-verify</button>
 							<button class="secondary" disabled={busy} on:click={() => act(a.id, 'reimport')}>Re-import</button>
+							<button class="secondary" disabled={busy} on:click={() => act(a.id, 'accept_verified')}>Accept + import</button>
 						</div>
 					</div>
 
@@ -173,6 +178,34 @@
 							on:click={() => act(a.id, 'remove', null, `?deleteFiles=${deleteFiles[a.id] ? 'true' : 'false'}`)}
 						>
 							Remove from client
+						</button>
+					</div>
+
+					<div class="row" style="margin-top: 10px;">
+						<input
+							placeholder="blacklist reason (optional)"
+							value={blacklistReasons[a.id] ?? ''}
+							on:input={(e) => (blacklistReasons[a.id] = e.currentTarget.value)}
+						/>
+						<label class="muted" style="display: flex; gap: 8px; align-items: center;">
+							<input
+								style="min-width: 0; width: 18px;"
+								type="checkbox"
+								checked={blacklistGlobal[a.id] ?? false}
+								on:change={(e) => (blacklistGlobal[a.id] = e.currentTarget.checked)}
+							/>
+							global
+						</label>
+						<button
+							class="secondary"
+							disabled={busy}
+							on:click={() =>
+								act(a.id, 'blacklist_and_rescout', {
+									scope: blacklistGlobal[a.id] ? 'global' : 'target',
+									reason: (blacklistReasons[a.id] ?? '').trim()
+								})}
+						>
+							Blacklist + rescout
 						</button>
 					</div>
 				</div>
