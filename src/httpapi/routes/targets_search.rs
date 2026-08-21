@@ -34,10 +34,10 @@ const MAX_CANDIDATES: usize = 500;
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/targets", get(list_targets).post(create_target))
-        .route("/targets/:id/search", post(start_search))
-        .route("/search/runs/:id", get(get_search_run))
+        .route("/targets/{id}/search", post(start_search))
+        .route("/search/runs/{id}", get(get_search_run))
         .route(
-            "/candidates/:id/acquisition",
+            "/candidates/{id}/acquisition",
             post(create_candidate_acquisition),
         )
 }

@@ -24,7 +24,8 @@ async fn test_state() -> (tempfile::TempDir, AppState) {
         http_addr: ":0".into(),
         database_url: dsn,
         dry_run: true,
-        secret_key_base64: Some("BwYFBAMCAQAPDg0MCwoJCBcWFRQTEhEqKCYmJiYmJiY="), // base64([7u8;32])
+        dry_run_fixture_path: None,
+        secret_key_base64: Some("BwYFBAMCAQAPDg0MCwoJCBcWFRQTEhEqKCYmJiYmJiY=".to_string()),
         ffprobe_path: None,
         session_cookie_name: "rivet_session".into(),
         session_ttl: chrono::Duration::hours(1).to_std().unwrap(),
@@ -41,12 +42,14 @@ async fn test_state() -> (tempfile::TempDir, AppState) {
     (dir, state)
 }
 
-fn app(state: AppState) -> axum::Router {
-    let gate = rivet::httpapi::middleware::setup_gate::SetupGate::new(
+async fn app(state: AppState) -> axum::Router {
+    // Routes read the process-shared gate registry; register it like main does.
+    let gate = rivet::httpapi::middleware::setup_gate::init_shared(
         state.db.clone(),
-        std::time::Duration::from_secs(3600), // long refresh: proves synchronous flip
-    );
-    httpapi::build_router(state, Arc::new(gate))
+        std::time::Duration::from_secs(3600),
+    )
+    .await;
+    httpapi::build_router(state, Arc::clone(&gate))
 }
 
 async fn body_json(res: axum::response::Response) -> Value {
@@ -69,7 +72,7 @@ fn cookie_of(res: &axum::response::Response) -> Option<String> {
 #[tokio::test]
 async fn first_run_full_wizard_flow() {
     let (_d, state) = test_state().await;
-    let app = app(state);
+    let app = app(state).await;
 
     // 1. Setup status is public and reports setup mode.
     let res = app
@@ -246,9 +249,11 @@ async fn first_run_full_wizard_flow() {
 
     // 11. Logout revokes the session.
     let res = app
+        .clone()
         .oneshot(
             Request::post("/api/v1/auth/logout")
                 .header("cookie", &format!("rivet_session={session_cookie}"))
+                .header("x-csrf-token", &csrf)
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -270,7 +275,7 @@ async fn first_run_full_wizard_flow() {
 #[tokio::test]
 async fn weak_admin_password_rejected() {
     let (_d, state) = test_state().await;
-    let app = app(state);
+    let app = app(state).await;
     let res = app
         .oneshot(
             Request::post("/api/v1/setup/admin")
@@ -288,7 +293,7 @@ async fn weak_admin_password_rejected() {
 #[tokio::test]
 async fn viewer_role_cannot_create_targets() {
     let (_d, state) = test_state().await;
-    let app = app(state);
+    let app = app(state.clone()).await;
 
     // Create admin + login.
     let res = app

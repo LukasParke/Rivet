@@ -16,18 +16,18 @@ pub mod routes;
 /// synchronously (the reviewed first-run race).
 pub fn build_router(state: AppState, gate: std::sync::Arc<setup_gate::SetupGate>) -> Router {
     let api = Router::new()
-        .nest("/", routes::auth::router())
-        .nest("/", routes::setup::router())
-        .nest("/", routes::setup_paths::router())
-        .nest("/", routes::setup_clients::router())
-        .nest("/", routes::setup_indexers::router())
-        .nest("/", routes::setup_metadata::router())
-        .nest("/", routes::setup_policies::router())
-        .nest("/", routes::setup_finish::router())
-        .nest("/", routes::setup_config::router())
-        .nest("/", routes::targets_search::router())
-        .nest("/", routes::acquisitions::router())
-        .nest("/", routes::diagnostics::router());
+        .merge(routes::auth::router())
+        .merge(routes::setup::router())
+        .merge(routes::setup_paths::router())
+        .merge(routes::setup_clients::router())
+        .merge(routes::setup_indexers::router())
+        .merge(routes::setup_metadata::router())
+        .merge(routes::setup_policies::router())
+        .merge(routes::setup_finish::router())
+        .merge(routes::setup_config::router())
+        .merge(routes::targets_search::router())
+        .merge(routes::acquisitions::router())
+        .merge(routes::diagnostics::router());
 
     Router::new()
         // Health/metrics live outside /api/v1 like the original.

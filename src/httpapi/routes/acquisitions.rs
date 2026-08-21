@@ -42,24 +42,24 @@ pub fn router() -> Router<AppState> {
             "/acquisitions",
             get(list_acquisitions_handler),
         )
-        .route("/acquisitions/:id", get(get_acquisition))
-        .route("/acquisitions/:id/actions/pause", post(pause_acquisition))
-        .route("/acquisitions/:id/actions/resume", post(resume_acquisition))
-        .route("/acquisitions/:id/actions/retry", post(retry_acquisition))
-        .route("/acquisitions/:id/actions/remove", post(remove_acquisition))
-        .route("/acquisitions/:id/actions/reverify", post(reverify_acquisition))
-        .route("/acquisitions/:id/actions/reimport", post(reimport_acquisition))
+        .route("/acquisitions/{id}", get(get_acquisition))
+        .route("/acquisitions/{id}/actions/pause", post(pause_acquisition))
+        .route("/acquisitions/{id}/actions/resume", post(resume_acquisition))
+        .route("/acquisitions/{id}/actions/retry", post(retry_acquisition))
+        .route("/acquisitions/{id}/actions/remove", post(remove_acquisition))
+        .route("/acquisitions/{id}/actions/reverify", post(reverify_acquisition))
+        .route("/acquisitions/{id}/actions/reimport", post(reimport_acquisition))
         .route(
-            "/acquisitions/:id/actions/accept_verified",
+            "/acquisitions/{id}/actions/accept_verified",
             post(accept_verified),
         )
         .route(
-            "/acquisitions/:id/actions/override_imported",
+            "/acquisitions/{id}/actions/override_imported",
             post(override_imported),
         )
-        .route("/acquisitions/:id/actions/blacklist", post(blacklist))
+        .route("/acquisitions/{id}/actions/blacklist", post(blacklist))
         .route(
-            "/acquisitions/:id/actions/blacklist_and_rescout",
+            "/acquisitions/{id}/actions/blacklist_and_rescout",
             post(blacklist_and_rescout),
         )
 }
