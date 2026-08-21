@@ -20,9 +20,19 @@ echo "Starting rivet-web on ${HOST}:${PORT}"
 node /app/web/build/index.js &
 web_pid="$!"
 
-trap 'kill -TERM "$web_pid" "$api_pid" 2>/dev/null || true; wait' INT TERM
+shutdown() {
+	kill -TERM "$api_pid" "$web_pid" 2>/dev/null || true
+	wait "$api_pid" "$web_pid" 2>/dev/null || true
+	exit 0
+}
+trap shutdown INT TERM
 
 echo "Starting nginx on :8080"
-exec nginx -g "daemon off;"
+nginx -g "daemon off;" &
+nginx_pid="$!"
+
+# Wait on children; if any dies, tear down the rest so tini restarts the container.
+wait -n "$api_pid" "$web_pid" "$nginx_pid" 2>/dev/null || wait
+shutdown
 
 
