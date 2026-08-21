@@ -92,3 +92,9 @@ install-web-deps: ## Install web dependencies
 
 build-web: ## Build the web app for production
 	cd apps/web && npm run build
+
+goldens: ## Regenerate committed golden artifacts (charte OpenAPI, parser, api routes)
+	./scripts/update-goldens.sh
+
+golden-check: ## Assert committed goldens match source of truth
+	cargo test --test parser_golden --test api_golden

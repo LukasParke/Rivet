@@ -1,0 +1,265 @@
+{
+  "_comment": "Committed API route inventory. Regenerate with scripts/update-goldens.sh",
+  "routes": [
+    {
+      "method": "GET",
+      "path": "/api/v1/acquisitions"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/acquisitions/{id}"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/acquisitions/{id}/actions/accept_verified"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/acquisitions/{id}/actions/blacklist"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/acquisitions/{id}/actions/blacklist_and_rescout"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/acquisitions/{id}/actions/override_imported"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/acquisitions/{id}/actions/pause"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/acquisitions/{id}/actions/reimport"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/acquisitions/{id}/actions/remove"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/acquisitions/{id}/actions/resume"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/acquisitions/{id}/actions/retry"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/acquisitions/{id}/actions/reverify"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/auth/csrf"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/auth/login"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/auth/logout"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/auth/me"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/auth/totp/disable"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/auth/totp/enable"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/auth/totp/setup"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/calendar"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/calendar/missing"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/candidates/{id}/acquisition"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/diagnostics/bundle"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/diagnostics/test-connection"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/notifications"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/notifications"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/notifications/{id}"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/notifications/{id}"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/notifications/{id}/test"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/remotepathmappings"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/remotepathmappings"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/remotepathmappings/{id}"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/remotepathmappings/{id}"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/search/interactive"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/search/interactive/grab"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/search/runs/{id}"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/setup/admin"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/setup/clients/save"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/setup/clients/validate"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/setup/config"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/setup/finish"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/setup/indexers/save"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/setup/indexers/validate"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/setup/metadata/save"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/setup/metadata/validate"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/setup/paths/save"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/setup/paths/validate"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/setup/policies/save"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/setup/policies/validate"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/setup/status"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/system/backup"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/system/backup"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/system/backups"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/system/health"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/system/status"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/targets"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/targets"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/targets/{id}/search"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/wanted/cutoff_unmet"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/wanted/missing"
+    },
+    {
+      "method": "GET",
+      "path": "/healthz"
+    },
+    {
+      "method": "GET",
+      "path": "/metrics"
+    },
+    {
+      "method": "GET",
+      "path": "/readyz"
+    },
+    {
+      "method": "GET",
+      "path": "/ws"
+    },
+    {
+      "method": "GET",
+      "path": "/ws/info"
+    }
+  ]
+}

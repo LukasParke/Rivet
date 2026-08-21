@@ -78,7 +78,12 @@ export const handle: Handle = async ({ event, resolve }) => {
 		return resolve(event);
 	}
 
-	if (path.startsWith('/app')) {
+	if (
+		path.startsWith('/app') ||
+		path.startsWith('/series') ||
+		path.startsWith('/calendar') ||
+		path.startsWith('/history')
+	) {
 		if (setupMode || !setupComplete) throw redirect(302, '/setup');
 		if (!(await isAuthenticated(event.fetch))) throw redirect(302, '/login');
 		return resolve(event);
