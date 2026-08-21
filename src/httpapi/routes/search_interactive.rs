@@ -240,8 +240,11 @@ async fn interactive_grab(
         }
     };
     let run = domain::create_search_run(&state.db, &target_id).await?;
+    // `download_url` is the field acquisition_enqueue reads; `downloadUrl`
+    // kept for wire/UI compatibility.
     let raw = json!({
         "title": title,
+        "download_url": url,
         "downloadUrl": url,
         "kind": kind,
         "source": "interactive_search",
@@ -254,9 +257,7 @@ async fn interactive_grab(
         &cand.id,
         &target_id,
         &kind,
-        &kind,
-        // No client is chosen interactively; the enqueue handler resolves the
-        // configured client at run time.
+        "qbittorrent", // pipeline-supported client; enqueue applies dry-run/config
         "manual",
     )
     .await

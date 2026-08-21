@@ -46,6 +46,9 @@ pub fn router() -> Router<AppState> {
 fn database_path(config: &AppState) -> Option<PathBuf> {
     let url = &config.config.database_url;
     let raw = url.strip_prefix("file://").unwrap_or(url);
+    let raw = raw.strip_prefix("file:").unwrap_or(raw);
+    // Strip DSN query parameters (_pragma=...) before resolving the file.
+    let raw = raw.split('?').next().unwrap_or(raw);
     if raw.is_empty() || raw == ":memory:" {
         return None;
     }
