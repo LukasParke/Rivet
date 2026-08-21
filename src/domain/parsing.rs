@@ -249,8 +249,6 @@ static RE_EPISODE_ONLY: LazyLock<regex::Regex> =
     LazyLock::new(|| regex::Regex::new(r"(?i)\b(?:Episode[.\s_-]*|EP?)(\d{1,4})\b").unwrap());
 static RE_SEASON_ONLY: LazyLock<regex::Regex> =
     LazyLock::new(|| regex::Regex::new(r"(?i)\b(?:S|Season[.\s_-]*)(\d{1,2})\b").unwrap());
-static RE_SEASON_COMPLETE: LazyLock<regex::Regex> =
-    LazyLock::new(|| regex::Regex::new(r"(?i)\b(complete|pack)\b").unwrap());
 static RE_ABSOLUTE_BRACKET: LazyLock<regex::Regex> =
     LazyLock::new(|| regex::Regex::new(r"\[\s*(\d{1,5})\s*\]").unwrap());
 static RE_ABSOLUTE_PADDED: LazyLock<regex::Regex> =
@@ -462,7 +460,7 @@ pub fn parse(input: &str) -> ParsedRelease {
     }
 
     // Absolute numbering (anime): [1234] or (1234) bracket numbers.
-    let mut abs_push = |n: i64, out: &mut ParsedRelease, series_matched: &mut bool| {
+    let abs_push = |n: i64, out: &mut ParsedRelease, series_matched: &mut bool| {
         if (1..=999999).contains(&n) && !out.absolute_episodes.contains(&n) {
             out.absolute_episodes.push(n);
             if out.kind == ReleaseKind::Unknown {

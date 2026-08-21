@@ -8,25 +8,26 @@ use sqlx::SqlitePool;
 use crate::timeutil;
 
 #[derive(Debug, Clone, serde::Serialize, sqlx::FromRow)]
+#[serde(rename_all = "camelCase")]
 pub struct Movie {
     pub id: String,
-    pub tmdbId: Option<i64>,
-    pub imdbId: Option<String>,
+    pub tmdb_id: Option<i64>,
+    pub imdb_id: Option<String>,
     pub title: String,
-    pub sortTitle: Option<String>,
+    pub sort_title: Option<String>,
     pub year: Option<i64>,
     pub status: String,
     pub overview: Option<String>,
     pub studio: Option<String>,
     pub collection: Option<String>,
-    pub genresJson: Option<String>,
+    pub genres_json: Option<String>,
     pub path: String,
-    pub qualityProfile: String,
-    pub minimumAvailability: String,
+    pub quality_profile: String,
+    pub minimum_availability: String,
     pub monitored: bool,
-    pub tagsJson: Option<String>,
-    pub addedAt: String,
-    pub updatedAt: String,
+    pub tags_json: Option<String>,
+    pub added_at: String,
+    pub updated_at: String,
 }
 
 /// Input for [`upsert_movie`]. `id`, when given, is reused on insert;
@@ -235,7 +236,7 @@ mod tests {
         first.tmdb_id = Some(42);
         let (m1, created) = upsert_movie(&p, &first).await.unwrap();
         assert!(created);
-        assert_eq!(m1.genresJson.as_deref(), Some("[\"sci-fi\"]"));
+        assert_eq!(m1.genres_json.as_deref(), Some("[\"sci-fi\"]"));
 
         // Same tmdb id -> update in place (id + added_at kept).
         let mut by_tmdb = movie_input("Movie II", "/movies/moved");
@@ -245,7 +246,7 @@ mod tests {
         assert_eq!(m2.id, m1.id);
         assert_eq!(m2.title, "Movie II");
         assert_eq!(m2.path, "/movies/moved");
-        assert_eq!(m2.addedAt, m1.addedAt);
+        assert_eq!(m2.added_at, m1.added_at);
 
         // Path alone matches when no tmdb id is given.
         let by_path = movie_input("Movie III", "/movies/moved");

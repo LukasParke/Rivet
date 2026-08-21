@@ -14,64 +14,68 @@ use sqlx::SqlitePool;
 use crate::timeutil;
 
 #[derive(Debug, Clone, serde::Serialize, sqlx::FromRow)]
+#[serde(rename_all = "camelCase")]
 pub struct Series {
     pub id: String,
-    pub tvdbId: Option<i64>,
-    pub tmdbId: Option<i64>,
-    pub imdbId: Option<String>,
+    pub tvdb_id: Option<i64>,
+    pub tmdb_id: Option<i64>,
+    pub imdb_id: Option<String>,
     pub title: String,
-    pub sortTitle: Option<String>,
+    pub sort_title: Option<String>,
     pub status: String,
     pub overview: Option<String>,
     pub network: Option<String>,
-    pub firstAired: Option<String>,
-    pub genresJson: Option<String>,
+    pub first_aired: Option<String>,
+    pub genres_json: Option<String>,
     pub path: String,
-    pub qualityProfile: String,
+    pub quality_profile: String,
     pub monitored: bool,
-    pub seasonFolder: bool,
-    pub tagsJson: Option<String>,
-    pub addedAt: String,
-    pub updatedAt: String,
+    pub season_folder: bool,
+    pub tags_json: Option<String>,
+    pub added_at: String,
+    pub updated_at: String,
 }
 
 #[derive(Debug, Clone, serde::Serialize, sqlx::FromRow)]
+#[serde(rename_all = "camelCase")]
 pub struct Season {
     pub id: String,
-    pub seriesId: String,
+    pub series_id: String,
     pub number: i64,
     pub monitored: bool,
 }
 
 #[derive(Debug, Clone, serde::Serialize, sqlx::FromRow)]
+#[serde(rename_all = "camelCase")]
 pub struct Episode {
     pub id: String,
-    pub seriesId: String,
-    pub seasonNumber: i64,
-    pub episodeNumber: i64,
-    pub absoluteEpisodeNumber: Option<i64>,
+    pub series_id: String,
+    pub season_number: i64,
+    pub episode_number: i64,
+    pub absolute_episode_number: Option<i64>,
     pub title: Option<String>,
-    pub airDateUtc: Option<String>,
+    pub air_date_utc: Option<String>,
     pub runtime: Option<i64>,
     pub overview: Option<String>,
     pub monitored: bool,
-    pub hasFile: bool,
-    pub episodeFileId: Option<String>,
+    pub has_file: bool,
+    pub episode_file_id: Option<String>,
 }
 
 #[derive(Debug, Clone, serde::Serialize, sqlx::FromRow)]
+#[serde(rename_all = "camelCase")]
 pub struct EpisodeFile {
     pub id: String,
-    pub seriesId: String,
-    pub seasonNumber: i64,
-    pub episodeNumbersJson: String,
-    pub relativePath: String,
-    pub sizeBytes: i64,
+    pub series_id: String,
+    pub season_number: i64,
+    pub episode_numbers_json: String,
+    pub relative_path: String,
+    pub size_bytes: i64,
     pub quality: String,
-    pub qualityScore: i64,
-    pub languagesJson: Option<String>,
-    pub dateAdded: String,
-    pub originalPath: Option<String>,
+    pub quality_score: i64,
+    pub languages_json: Option<String>,
+    pub date_added: String,
+    pub original_path: Option<String>,
 }
 
 /// Input for [`upsert_series`]. `id`, when given, is reused on insert;
@@ -290,7 +294,7 @@ pub async fn upsert_season(
             .await?;
         Ok(Season {
             id,
-            seriesId: series_id.to_string(),
+            series_id: series_id.to_string(),
             number,
             monitored,
         })
@@ -523,16 +527,16 @@ pub async fn insert_episode_file(
     tx.commit().await?;
     Ok(EpisodeFile {
         id,
-        seriesId: input.series_id.clone(),
-        seasonNumber: input.season_number,
-        episodeNumbersJson: episode_numbers_json,
-        relativePath: input.relative_path.clone(),
-        sizeBytes: input.size_bytes,
+        series_id: input.series_id.clone(),
+        season_number: input.season_number,
+        episode_numbers_json,
+        relative_path: input.relative_path.clone(),
+        size_bytes: input.size_bytes,
         quality: input.quality.clone(),
-        qualityScore: input.quality_score,
-        languagesJson: languages_json,
-        dateAdded: date_added,
-        originalPath: input.original_path.clone(),
+        quality_score: input.quality_score,
+        languages_json,
+        date_added,
+        original_path: input.original_path.clone(),
     })
 }
 
@@ -792,8 +796,8 @@ mod tests {
         let eps2 = list_episodes_by_series(&p, &s.id).await.unwrap();
         assert_eq!(eps2.len(), 2, "no duplicates from re-run");
         assert_eq!(eps2[0].id, eps[0].id, "conflict updates in place");
-        assert!(eps2[0].hasFile && eps2[0].episodeFileId.as_deref() == Some(&file.id));
-        assert!(!eps2[1].hasFile);
+        assert!(eps2[0].has_file && eps2[0].episode_file_id.as_deref() == Some(&file.id));
+        assert!(!eps2[1].has_file);
 
         // Metadata update flows through on conflict without adding rows.
         let mut renamed = episode_input(1, 2, Some("2026-01-09T00:00:00Z"));
@@ -802,7 +806,7 @@ mod tests {
         let eps3 = list_episodes_by_series(&p, &s.id).await.unwrap();
         assert_eq!(eps3.len(), 2);
         assert_eq!(eps3[1].title.as_deref(), Some("Renamed"));
-        assert_eq!(eps3[1].airDateUtc.as_deref(), Some("2026-01-09T00:00:00Z"));
+        assert_eq!(eps3[1].air_date_utc.as_deref(), Some("2026-01-09T00:00:00Z"));
     }
 
     #[tokio::test]
@@ -862,25 +866,32 @@ mod tests {
         .await
         .unwrap();
 
-        // Air-date range: inclusive bounds, only aired episodes in window.
+        // Air-date range: inclusive bounds, all aired episodes in window —
+        // calendar parity shows unmonitored series too (greyed client-side).
         let in_range =
             list_episodes_by_air_date_range(&p, &past("01"), &past("05")).await.unwrap();
-        assert_eq!(in_range.len(), 2);
-        assert_eq!(in_range[0].episodeNumber, 1);
+        assert_eq!(in_range.len(), 3);
+        assert_eq!(in_range[0].episode_number, 1);
         let narrow = list_episodes_by_air_date_range(&p, &past("02"), &past("04")).await.unwrap();
-        assert!(narrow.is_empty());
+        assert_eq!(narrow.len(), 1);
 
         // Missing: aired, monitored (episode + series), no file.
         let missing = list_missing_episodes(&p, &timeutil::now()).await.unwrap();
         assert_eq!(missing.len(), 1);
-        assert_eq!(missing[0].seriesId, ms.id);
-        assert_eq!(missing[0].episodeNumber, 1);
+        assert_eq!(missing[0].series_id, ms.id);
+        assert_eq!(missing[0].episode_number, 1);
 
-        // Cutoffs before/after the aired dates flip membership.
-        assert!(list_missing_episodes(&p, "2026-01-01T00:00:00Z").await.unwrap().is_empty());
-        let both = list_missing_episodes(&p, "2099-01-01T00:00:00Z").await.unwrap();
-        assert_eq!(both.len(), 2, "unmonitored-series copy excluded");
-        assert!(both.iter().all(|e| e.seriesId == ms.id));
+        // Cutoffs before/after the aired dates flip membership. Boundary is
+        // inclusive: ep1 aired exactly at the 2026-01-01 cutoff counts.
+        assert_eq!(
+            list_missing_episodes(&p, "2026-01-01T00:00:00Z").await.unwrap().len(),
+            1,
+            "ep1 aired at the cutoff is missing"
+        );
+        assert!(list_missing_episodes(&p, "2025-12-31T23:59:59Z").await.unwrap().is_empty());
+        let after = list_missing_episodes(&p, "2099-01-01T00:00:00Z").await.unwrap();
+        assert_eq!(after.len(), 1, "unmonitored-series copy excluded");
+        assert_eq!(after[0].series_id, ms.id);
     }
 
     #[tokio::test]
@@ -959,31 +970,31 @@ mod tests {
         .await
         .unwrap();
         assert_eq!(file.id, "file-1");
-        assert_eq!(file.episodeNumbersJson, "[1,2]");
-        assert_eq!(file.languagesJson.as_deref(), Some("[\"eng\",\"deu\"]"));
+        assert_eq!(file.episode_numbers_json, "[1,2]");
+        assert_eq!(file.languages_json.as_deref(), Some("[\"eng\",\"deu\"]"));
 
         let eps = list_episodes_by_series(&p, &s.id).await.unwrap();
         assert!(
             eps.iter()
-                .all(|e| e.hasFile && e.episodeFileId.as_deref() == Some("file-1"))
+                .all(|e| e.has_file && e.episode_file_id.as_deref() == Some("file-1"))
         );
         for e in &eps {
             let got = get_episode_file_by_episode(&p, &e.id).await.unwrap().unwrap();
             assert_eq!(got.id, "file-1");
-            assert_eq!(got.relativePath, "S01E01-E02.mkv");
+            assert_eq!(got.relative_path, "S01E01-E02.mkv");
         }
 
         // An episode not covered by the file resolves to no file.
         bulk_upsert_episodes(&p, &s.id, &[episode_input(2, 1, None)]).await.unwrap();
         let eps = list_episodes_by_series(&p, &s.id).await.unwrap();
-        let s2e1 = eps.iter().find(|e| e.seasonNumber == 2).unwrap();
+        let s2e1 = eps.iter().find(|e| e.season_number == 2).unwrap();
         assert!(get_episode_file_by_episode(&p, &s2e1.id).await.unwrap().is_none());
 
         // Delete clears flags on every covered episode.
         assert!(delete_episode_file(&p, "file-1").await.unwrap());
         assert!(!delete_episode_file(&p, "file-1").await.unwrap(), "second delete false");
         let eps = list_episodes_by_series(&p, &s.id).await.unwrap();
-        assert!(eps.iter().all(|e| !e.hasFile && e.episodeFileId.is_none()));
+        assert!(eps.iter().all(|e| !e.has_file && e.episode_file_id.is_none()));
         assert!(get_episode_file_by_episode(&p, &eps[0].id).await.unwrap().is_none());
     }
 }

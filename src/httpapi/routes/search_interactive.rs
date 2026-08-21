@@ -122,7 +122,7 @@ async fn interactive_search(
     }
 
     // Stable sort preserves indexer order among equal scores.
-    releases.sort_by(|a, b| b.0.cmp(&a.0));
+    releases.sort_by_key(|(score, _)| std::cmp::Reverse(*score));
 
     let mut items: Vec<Value> = releases.into_iter().map(|(_, v)| v).collect();
     items.append(&mut errors);
@@ -388,10 +388,11 @@ mod tests {
         (state, dir)
     }
 
-    fn operator_user(user_id: &str) -> Operator {
+    fn operator_user() -> Operator {
         Operator(AuthenticatedUser {
             user: crate::storage::users::User {
-                id: user_id.to_string(),
+                id: "u1".into(),
+                email: "op@rivet.test".into(),
                 password_hash: "x".into(),
                 role: "operator".into(),
                 totp_secret_enc: None,
@@ -411,6 +412,18 @@ mod tests {
                 user_agent: None,
             },
         })
+    }
+
+    /// The grab handler writes an audit row keyed on the acting user; seed a
+    /// matching users row so the FK holds.
+    async fn seed_operator_user(state: &AppState) {
+        sqlx::query(
+            "INSERT INTO users (id, email, password_hash, role, created_at, updated_at)
+             VALUES ('u1', 'op@rivet.test', 'x', 'operator', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')",
+        )
+        .execute(&state.db)
+        .await
+        .unwrap();
     }
 
     async fn body_json(res: axum::http::Response<axum::body::Body>) -> Value {
@@ -494,7 +507,7 @@ mod tests {
         assert_eq!(items[0]["kind"], "torrent");
         assert_eq!(items[0]["downloadUrl"], "https://example.com/download/high");
         // Parsed facts travel with the item.
-        assert_eq!(items[0]["parsed"]["quality"]["resolution"], json!("R1080"));
+        assert_eq!(items[0]["parsed"]["quality"]["resolution"], json!("1080p"));
         assert_eq!(items[1]["title"], "Show.Name.S01E05.720p.HDTV.x264");
         assert_eq!(items[1]["totalScore"], 0);
     }
@@ -540,6 +553,7 @@ mod tests {
     #[tokio::test]
     async fn grab_creates_acquisition_and_queues_job() {
         let (state, _dir) = test_state().await;
+        seed_operator_user(&state).await;
         let t = domain::create_wanted_target(&state.db, "series", "tvdb", "42", None)
             .await
             .unwrap();
@@ -584,7 +598,7 @@ mod tests {
 
         // Exactly one queued job wired to the acquisition.
         let queued =
-            sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM jobs WHERE kind = 'acquisition_enqueue' AND status = 'queued'")
+            sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM jobs WHERE kind = 'acquisition_enqueue' AND state = 'queued'")
                 .fetch_one(&state.db)
                 .await
                 .unwrap();
@@ -610,7 +624,7 @@ mod tests {
     #[tokio::test]
     async fn grab_without_target_creates_standalone_wanted_target() {
         let (state, _dir) = test_state().await;
-
+        seed_operator_user(&state).await;
         let res = interactive_grab(
             operator_user(),
             State(state.clone()),

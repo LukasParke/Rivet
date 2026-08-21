@@ -124,7 +124,12 @@ pub async fn load_indexers(
     ] {
         for ix in entries {
             let mut cfg = serde_json::Map::new();
-            cfg.insert("kind".into(), serde_json::Value::String(kind.to_string()));
+            // IndexerConfig has no `kind` field: serde would silently drop
+            // it and every indexer would load as newznab/usenet. Pass the
+            // flag the adapter actually reads.
+            if kind == "torznab" {
+                cfg.insert("torznab".into(), serde_json::Value::Bool(true));
+            }
             cfg.insert("name".into(), serde_json::Value::String(ix.name.clone()));
             cfg.insert("url".into(), serde_json::Value::String(ix.url.clone()));
             match state.secret_box.decrypt_string(&ix.api_key_enc) {
