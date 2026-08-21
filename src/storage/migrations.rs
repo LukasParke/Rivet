@@ -23,6 +23,7 @@ const MIGRATIONS: &[( &str, &str )] = &[
     ("0008_verify_evidence.sql", include_str!("migrations/0008_verify_evidence.sql")),
     ("0009_hardening.sql", include_str!("migrations/0009_hardening.sql")),
     ("0010_totp.sql", include_str!("migrations/0010_totp.sql")),
+    ("0011_arr_domain.sql", include_str!("migrations/0011_arr_domain.sql")),
 ];
 
 #[derive(Debug, thiserror::Error)]

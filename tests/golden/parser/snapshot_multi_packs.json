@@ -1,0 +1,165 @@
+[
+  {
+    "kind": "series",
+    "title": "Show",
+    "year": null,
+    "seasons": [
+      1
+    ],
+    "episodes": [
+      1,
+      2,
+      3,
+      4,
+      5
+    ],
+    "absoluteEpisodes": [],
+    "fullSeason": false,
+    "episodeRange": [
+      1,
+      5
+    ],
+    "daily": false,
+    "airDate": null,
+    "quality": {
+      "resolution": "1080p",
+      "source": "web-dl",
+      "modifier": "none"
+    },
+    "languages": [],
+    "edition": null,
+    "audio": [],
+    "releaseGroup": "DL",
+    "proper": false,
+    "repack": false,
+    "real": false,
+    "hardcodedSubs": false,
+    "extended": false,
+    "remastered": false
+  },
+  {
+    "kind": "series",
+    "title": "Show",
+    "year": null,
+    "seasons": [
+      2
+    ],
+    "episodes": [
+      4,
+      5,
+      6
+    ],
+    "absoluteEpisodes": [],
+    "fullSeason": false,
+    "episodeRange": [
+      4,
+      6
+    ],
+    "daily": false,
+    "airDate": null,
+    "quality": {
+      "resolution": "1080p",
+      "source": "unknown",
+      "modifier": "none"
+    },
+    "languages": [],
+    "edition": null,
+    "audio": [],
+    "releaseGroup": null,
+    "proper": false,
+    "repack": false,
+    "real": false,
+    "hardcodedSubs": false,
+    "extended": false,
+    "remastered": false
+  },
+  {
+    "kind": "series",
+    "title": "Show",
+    "year": null,
+    "seasons": [
+      1
+    ],
+    "episodes": [],
+    "absoluteEpisodes": [],
+    "fullSeason": true,
+    "episodeRange": null,
+    "daily": false,
+    "airDate": null,
+    "quality": {
+      "resolution": "1080p",
+      "source": "bluray",
+      "modifier": "none"
+    },
+    "languages": [],
+    "edition": null,
+    "audio": [],
+    "releaseGroup": null,
+    "proper": false,
+    "repack": false,
+    "real": false,
+    "hardcodedSubs": false,
+    "extended": false,
+    "remastered": false
+  },
+  {
+    "kind": "series",
+    "title": "Pack",
+    "year": null,
+    "seasons": [
+      3
+    ],
+    "episodes": [],
+    "absoluteEpisodes": [],
+    "fullSeason": true,
+    "episodeRange": null,
+    "daily": false,
+    "airDate": null,
+    "quality": {
+      "resolution": "720p",
+      "source": "web-dl",
+      "modifier": "none"
+    },
+    "languages": [],
+    "edition": null,
+    "audio": [],
+    "releaseGroup": "DL",
+    "proper": false,
+    "repack": false,
+    "real": false,
+    "hardcodedSubs": false,
+    "extended": false,
+    "remastered": false
+  },
+  {
+    "kind": "series",
+    "title": "Show",
+    "year": null,
+    "seasons": [
+      1
+    ],
+    "episodes": [
+      1
+    ],
+    "absoluteEpisodes": [],
+    "fullSeason": false,
+    "episodeRange": null,
+    "daily": false,
+    "airDate": null,
+    "quality": {
+      "resolution": "1080p",
+      "source": "unknown",
+      "modifier": "none"
+    },
+    "languages": [],
+    "edition": null,
+    "audio": [],
+    "releaseGroup": null,
+    "proper": false,
+    "repack": false,
+    "real": false,
+    "hardcodedSubs": false,
+    "extended": false,
+    "remastered": false
+  }
+]

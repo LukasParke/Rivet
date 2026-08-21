@@ -1,0 +1,89 @@
+[
+  {
+    "kind": "series",
+    "title": "[Group] Anime Title [1234] [1080p] [HEVC]",
+    "year": null,
+    "seasons": [],
+    "episodes": [],
+    "absoluteEpisodes": [
+      1234
+    ],
+    "fullSeason": false,
+    "episodeRange": null,
+    "daily": false,
+    "airDate": null,
+    "quality": {
+      "resolution": "1080p",
+      "source": "unknown",
+      "modifier": "none"
+    },
+    "languages": [],
+    "edition": null,
+    "audio": [],
+    "releaseGroup": "Group",
+    "proper": false,
+    "repack": false,
+    "real": false,
+    "hardcodedSubs": false,
+    "extended": false,
+    "remastered": false
+  },
+  {
+    "kind": "series",
+    "title": "[SubsHere] Show Name 0048 [1080p][x265]",
+    "year": null,
+    "seasons": [],
+    "episodes": [],
+    "absoluteEpisodes": [
+      48
+    ],
+    "fullSeason": false,
+    "episodeRange": null,
+    "daily": false,
+    "airDate": null,
+    "quality": {
+      "resolution": "1080p",
+      "source": "unknown",
+      "modifier": "none"
+    },
+    "languages": [],
+    "edition": null,
+    "audio": [],
+    "releaseGroup": "SubsHere",
+    "proper": false,
+    "repack": false,
+    "real": false,
+    "hardcodedSubs": false,
+    "extended": false,
+    "remastered": false
+  },
+  {
+    "kind": "series",
+    "title": "One Piece [1100]",
+    "year": null,
+    "seasons": [],
+    "episodes": [],
+    "absoluteEpisodes": [
+      1100
+    ],
+    "fullSeason": false,
+    "episodeRange": null,
+    "daily": false,
+    "airDate": null,
+    "quality": {
+      "resolution": "1080p",
+      "source": "unknown",
+      "modifier": "none"
+    },
+    "languages": [],
+    "edition": null,
+    "audio": [],
+    "releaseGroup": null,
+    "proper": false,
+    "repack": false,
+    "real": false,
+    "hardcodedSubs": false,
+    "extended": false,
+    "remastered": false
+  }
+]

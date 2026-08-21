@@ -1,0 +1,124 @@
+[
+  {
+    "kind": "movie",
+    "title": "Movie Name",
+    "year": 2019,
+    "seasons": [],
+    "episodes": [],
+    "absoluteEpisodes": [],
+    "fullSeason": false,
+    "episodeRange": null,
+    "daily": false,
+    "airDate": null,
+    "quality": {
+      "resolution": "2160p",
+      "source": "bluray-remux",
+      "modifier": "remux"
+    },
+    "languages": [],
+    "edition": null,
+    "audio": [
+      {
+        "codec": "TrueHD 7",
+        "channels": null
+      },
+      {
+        "codec": "Atmos",
+        "channels": null
+      }
+    ],
+    "releaseGroup": "GROUP",
+    "proper": false,
+    "repack": false,
+    "real": false,
+    "hardcodedSubs": false,
+    "extended": false,
+    "remastered": false
+  },
+  {
+    "kind": "movie",
+    "title": "Film",
+    "year": 2020,
+    "seasons": [],
+    "episodes": [],
+    "absoluteEpisodes": [],
+    "fullSeason": false,
+    "episodeRange": null,
+    "daily": false,
+    "airDate": null,
+    "quality": {
+      "resolution": "1080p",
+      "source": "bluray",
+      "modifier": "none"
+    },
+    "languages": [],
+    "edition": "Extended Cut",
+    "audio": [],
+    "releaseGroup": "GROUP",
+    "proper": false,
+    "repack": false,
+    "real": false,
+    "hardcodedSubs": false,
+    "extended": true,
+    "remastered": false
+  },
+  {
+    "kind": "movie",
+    "title": "Another Movie",
+    "year": 2018,
+    "seasons": [],
+    "episodes": [],
+    "absoluteEpisodes": [],
+    "fullSeason": false,
+    "episodeRange": null,
+    "daily": false,
+    "airDate": null,
+    "quality": {
+      "resolution": "1080p",
+      "source": "web-dl",
+      "modifier": "none"
+    },
+    "languages": [],
+    "edition": null,
+    "audio": [
+      {
+        "codec": "DDP5 1",
+        "channels": null
+      }
+    ],
+    "releaseGroup": "GRP",
+    "proper": false,
+    "repack": false,
+    "real": false,
+    "hardcodedSubs": false,
+    "extended": false,
+    "remastered": false
+  },
+  {
+    "kind": "movie",
+    "title": "Director Cut Test",
+    "year": 1971,
+    "seasons": [],
+    "episodes": [],
+    "absoluteEpisodes": [],
+    "fullSeason": false,
+    "episodeRange": null,
+    "daily": false,
+    "airDate": null,
+    "quality": {
+      "resolution": "720p",
+      "source": "bluray",
+      "modifier": "none"
+    },
+    "languages": [],
+    "edition": "Director Cut",
+    "audio": [],
+    "releaseGroup": null,
+    "proper": false,
+    "repack": false,
+    "real": false,
+    "hardcodedSubs": false,
+    "extended": false,
+    "remastered": false
+  }
+]

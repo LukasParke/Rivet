@@ -1,0 +1,145 @@
+[
+  {
+    "kind": "series",
+    "title": "Show Name",
+    "year": 2026,
+    "seasons": [],
+    "episodes": [],
+    "absoluteEpisodes": [],
+    "fullSeason": false,
+    "episodeRange": null,
+    "daily": true,
+    "airDate": "2026-08-21",
+    "quality": {
+      "resolution": "1080p",
+      "source": "web-dl",
+      "modifier": "none"
+    },
+    "languages": [],
+    "edition": null,
+    "audio": [],
+    "releaseGroup": "GROUP",
+    "proper": false,
+    "repack": false,
+    "real": false,
+    "hardcodedSubs": false,
+    "extended": false,
+    "remastered": false
+  },
+  {
+    "kind": "series",
+    "title": "Talk Show",
+    "year": 2026,
+    "seasons": [],
+    "episodes": [],
+    "absoluteEpisodes": [],
+    "fullSeason": false,
+    "episodeRange": null,
+    "daily": true,
+    "airDate": "2026-08-19",
+    "quality": {
+      "resolution": "720p",
+      "source": "web-dl",
+      "modifier": "none"
+    },
+    "languages": [],
+    "edition": null,
+    "audio": [],
+    "releaseGroup": "DL",
+    "proper": false,
+    "repack": false,
+    "real": false,
+    "hardcodedSubs": false,
+    "extended": false,
+    "remastered": false
+  },
+  {
+    "kind": "series",
+    "title": "Show",
+    "year": null,
+    "seasons": [
+      1
+    ],
+    "episodes": [
+      3
+    ],
+    "absoluteEpisodes": [],
+    "fullSeason": false,
+    "episodeRange": null,
+    "daily": false,
+    "airDate": null,
+    "quality": {
+      "resolution": "1080p",
+      "source": "web-dl",
+      "modifier": "repack"
+    },
+    "languages": [],
+    "edition": null,
+    "audio": [],
+    "releaseGroup": "DL",
+    "proper": false,
+    "repack": true,
+    "real": false,
+    "hardcodedSubs": false,
+    "extended": false,
+    "remastered": false
+  },
+  {
+    "kind": "movie",
+    "title": "Movie",
+    "year": 2010,
+    "seasons": [],
+    "episodes": [],
+    "absoluteEpisodes": [],
+    "fullSeason": false,
+    "episodeRange": null,
+    "daily": false,
+    "airDate": null,
+    "quality": {
+      "resolution": "1080p",
+      "source": "bluray",
+      "modifier": "proper"
+    },
+    "languages": [],
+    "edition": null,
+    "audio": [],
+    "releaseGroup": "GROUP",
+    "proper": true,
+    "repack": false,
+    "real": false,
+    "hardcodedSubs": false,
+    "extended": false,
+    "remastered": false
+  },
+  {
+    "kind": "series",
+    "title": "Other Show",
+    "year": null,
+    "seasons": [
+      2
+    ],
+    "episodes": [
+      1
+    ],
+    "absoluteEpisodes": [],
+    "fullSeason": false,
+    "episodeRange": null,
+    "daily": false,
+    "airDate": null,
+    "quality": {
+      "resolution": "720p",
+      "source": "unknown",
+      "modifier": "proper"
+    },
+    "languages": [],
+    "edition": null,
+    "audio": [],
+    "releaseGroup": null,
+    "proper": true,
+    "repack": false,
+    "real": true,
+    "hardcodedSubs": false,
+    "extended": false,
+    "remastered": false
+  }
+]

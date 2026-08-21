@@ -24,6 +24,7 @@
 
 pub mod adapters;
 pub mod config;
+pub mod domain;
 pub mod error;
 pub mod httpapi;
 pub mod jobs;
@@ -31,6 +32,7 @@ pub mod logging;
 pub mod metrics;
 pub mod pipeline;
 pub mod security;
+pub mod notify;
 pub mod state;
 pub mod storage;
 pub mod timeutil;

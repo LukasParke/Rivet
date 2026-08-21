@@ -1,0 +1,131 @@
+[
+  {
+    "kind": "series",
+    "title": "The Last of Us",
+    "year": null,
+    "seasons": [
+      1
+    ],
+    "episodes": [
+      4
+    ],
+    "absoluteEpisodes": [],
+    "fullSeason": false,
+    "episodeRange": null,
+    "daily": false,
+    "airDate": null,
+    "quality": {
+      "resolution": "1080p",
+      "source": "web-dl",
+      "modifier": "none"
+    },
+    "languages": [],
+    "edition": null,
+    "audio": [
+      {
+        "codec": "DDP5 1",
+        "channels": null
+      }
+    ],
+    "releaseGroup": "GROUP",
+    "proper": false,
+    "repack": false,
+    "real": false,
+    "hardcodedSubs": false,
+    "extended": false,
+    "remastered": false
+  },
+  {
+    "kind": "series",
+    "title": "Show Name",
+    "year": null,
+    "seasons": [
+      2
+    ],
+    "episodes": [
+      17
+    ],
+    "absoluteEpisodes": [],
+    "fullSeason": false,
+    "episodeRange": null,
+    "daily": false,
+    "airDate": null,
+    "quality": {
+      "resolution": "720p",
+      "source": "hdtv",
+      "modifier": "none"
+    },
+    "languages": [],
+    "edition": null,
+    "audio": [],
+    "releaseGroup": "GRP",
+    "proper": false,
+    "repack": false,
+    "real": false,
+    "hardcodedSubs": false,
+    "extended": false,
+    "remastered": false
+  },
+  {
+    "kind": "series",
+    "title": "Series",
+    "year": null,
+    "seasons": [
+      1
+    ],
+    "episodes": [
+      3
+    ],
+    "absoluteEpisodes": [],
+    "fullSeason": false,
+    "episodeRange": null,
+    "daily": false,
+    "airDate": null,
+    "quality": {
+      "resolution": "1080p",
+      "source": "web-dl",
+      "modifier": "none"
+    },
+    "languages": [],
+    "edition": null,
+    "audio": [],
+    "releaseGroup": "DL",
+    "proper": false,
+    "repack": false,
+    "real": false,
+    "hardcodedSubs": false,
+    "extended": false,
+    "remastered": false
+  },
+  {
+    "kind": "series",
+    "title": "Breaking Bad",
+    "year": null,
+    "seasons": [
+      5
+    ],
+    "episodes": [
+      14
+    ],
+    "absoluteEpisodes": [],
+    "fullSeason": false,
+    "episodeRange": null,
+    "daily": false,
+    "airDate": null,
+    "quality": {
+      "resolution": "1080p",
+      "source": "bluray",
+      "modifier": "none"
+    },
+    "languages": [],
+    "edition": null,
+    "audio": [],
+    "releaseGroup": "DEMAND",
+    "proper": false,
+    "repack": false,
+    "real": false,
+    "hardcodedSubs": false,
+    "extended": false,
+    "remastered": false
+  }
+]

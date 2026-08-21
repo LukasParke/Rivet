@@ -1,0 +1,779 @@
+[
+ {
+  "title": "The.Last.of.Us.S01E04.1080p.WEB-DL.DDP5.1.H.264-GROUP",
+  "expect": {
+   "kind": "series",
+   "title": "The Last of Us",
+   "seasons": [
+    1
+   ],
+   "episodes": [
+    4
+   ],
+   "quality": {
+    "resolution": "1080p",
+    "source": "web-dl",
+    "modifier": "none"
+   },
+   "releaseGroup": "GROUP"
+  }
+ },
+ {
+  "title": "Show.Name.S02E17.720p.HDTV.x264-GRP",
+  "expect": {
+   "kind": "series",
+   "seasons": [
+    2
+   ],
+   "episodes": [
+    17
+   ]
+  }
+ },
+ {
+  "title": "breaking.bad.s05e14.1080p.bluray.x264",
+  "expect": {
+   "kind": "series",
+   "seasons": [
+    5
+   ],
+   "episodes": [
+    14
+   ]
+  }
+ },
+ {
+  "title": "Show.S01E02E03.1080p",
+  "expect": {
+   "kind": "series",
+   "seasons": [
+    1
+   ],
+   "episodes": [
+    2,
+    3
+   ]
+  }
+ },
+ {
+  "title": "Show.S01E01-E05.1080p.WEB-DL",
+  "expect": {
+   "kind": "series",
+   "seasons": [
+    1
+   ],
+   "episodes": [
+    1,
+    2,
+    3,
+    4,
+    5
+   ],
+   "episodeRange": [
+    1,
+    5
+   ]
+  }
+ },
+ {
+  "title": "Series.Title.S10E09.1080p.AMZN.WEB-DL.DDP5.1.H.264-GRP",
+  "expect": {
+   "kind": "series",
+   "seasons": [
+    10
+   ],
+   "episodes": [
+    9
+   ]
+  }
+ },
+ {
+  "title": "Series.1x03.Title.1080p",
+  "expect": {
+   "kind": "series",
+   "seasons": [
+    1
+   ],
+   "episodes": [
+    3
+   ]
+  }
+ },
+ {
+  "title": "show.2x12.720p.hdtv",
+  "expect": {
+   "kind": "series",
+   "seasons": [
+    2
+   ],
+   "episodes": [
+    12
+   ]
+  }
+ },
+ {
+  "title": "Show.Name.S01.1080p.BluRay.x264",
+  "expect": {
+   "kind": "series",
+   "fullSeason": true,
+   "seasons": [
+    1
+   ],
+   "episodes": []
+  }
+ },
+ {
+  "title": "Show.Season.2.Complete.720p.HDTV",
+  "expect": {
+   "kind": "series",
+   "fullSeason": true,
+   "seasons": [
+    2
+   ]
+  }
+ },
+ {
+  "title": "Show.S03.Pack.1080p.WEB-DL",
+  "expect": {
+   "kind": "series",
+   "fullSeason": true,
+   "seasons": [
+    3
+   ]
+  }
+ },
+ {
+  "title": "[Group] Anime.Title.[1234].[1080p].[HEVC]",
+  "expect": {
+   "kind": "series",
+   "absoluteEpisodes": [
+    1234
+   ]
+  }
+ },
+ {
+  "title": "[Subs] Show.Name.-.0048.[1080p][x265]",
+  "expect": {
+   "kind": "series"
+  }
+ },
+ {
+  "title": "Talk.Show.2026.08.19.720p.WEB-DL.GROUP",
+  "expect": {
+   "kind": "series",
+   "daily": true,
+   "airDate": "2026-08-19"
+  }
+ },
+ {
+  "title": "Show.Name.2026.08.21.1080p.WEB.h264-GROUP",
+  "expect": {
+   "daily": true,
+   "airDate": "2026-08-21"
+  }
+ },
+ {
+  "title": "Movie.Name.2019.2160p.UHD.BluRay.Remux.HDR.HEVC.TrueHD.7.1.Atmos-GROUP",
+  "expect": {
+   "kind": "movie",
+   "year": 2019
+  }
+ },
+ {
+  "title": "Film.2020.Extended.Cut.1080p.BluRay.x264-GROUP",
+  "expect": {
+   "kind": "movie",
+   "year": 2020,
+   "edition": "Extended Cut",
+   "extended": true
+  }
+ },
+ {
+  "title": "Some.Movie.2018.1080p.AMZN.WEB-DL.DDP5.1.H.264-GRP",
+  "expect": {
+   "kind": "movie",
+   "year": 2018
+  }
+ },
+ {
+  "title": "Director.Cut.Test.1971.720p.BluRay.x264",
+  "expect": {
+   "kind": "movie",
+   "year": 1971,
+   "edition": "Director Cut"
+  }
+ },
+ {
+  "title": "Show.S01E03.REPACK.1080p.WEB-DL",
+  "expect": {
+   "repack": true
+  }
+ },
+ {
+  "title": "Show.S01E04.Proper.1080p.WEB.x264",
+  "expect": {
+   "proper": true
+  }
+ },
+ {
+  "title": "Other.Show.S02E01.REAL.PROPER.720p.HDTV",
+  "expect": {
+   "proper": true,
+   "real": true
+  }
+ },
+ {
+  "title": "Movie.2019.2160p.BluRay.Remux.DTS-HD.MA.5.1-GROUP",
+  "expect": {
+   "kind": "movie",
+   "year": 2019
+  }
+ },
+ {
+  "title": "Flick.2020.1080p.WEB-DL.DDP5.1.Atmos.H.264",
+  "expect": {
+   "kind": "movie",
+   "year": 2020
+  }
+ },
+ {
+  "title": "Show.S01E01.1080p.WEB-DL.DDP5.1.H.264-NTb",
+  "expect": {
+   "releaseGroup": "NTb"
+  }
+ },
+ {
+  "title": "Title.2023.1080p.IQiyi.WEB-DL.AAC.H.264-HaiDuongDiDon",
+  "expect": {
+   "kind": "movie",
+   "year": 2023,
+   "releaseGroup": "HaiDuongDiDon"
+  }
+ },
+ {
+  "title": "Movie.2021.MULTI.1080p.BluRay.x264",
+  "expect": {
+   "kind": "movie",
+   "year": 2021,
+   "languages": [
+    "multi"
+   ]
+  }
+ },
+ {
+  "title": "Film.2020.German.DL.1080p.BluRay.x264-GROUP",
+  "expect": {
+   "kind": "movie",
+   "year": 2020,
+   "languages": [
+    "german"
+   ]
+  }
+ },
+ {
+  "title": "Serie.VOSTFR.S01E05.720p",
+  "expect": {
+   "kind": "series",
+   "languages": [
+    "vostfr"
+   ]
+  }
+ },
+ {
+  "title": "Show.S01E07.HC.1080p.WEB-DL",
+  "expect": {
+   "hardcodedSubs": true
+  }
+ },
+ {
+  "title": "Title.2019.2160p.WEB-DL.DV.HDR.HEVC-GROUP",
+  "expect": {
+   "kind": "movie",
+   "year": 2019
+  }
+ },
+ {
+  "title": "Show.S01E10.WEBRip.1080p",
+  "expect": {
+   "kind": "series",
+   "seasons": [
+    1
+   ],
+   "episodes": [
+    10
+   ]
+  }
+ },
+ {
+  "title": "Show.S01E11.HDRip.720p",
+  "expect": {
+   "kind": "series",
+   "seasons": [
+    1
+   ],
+   "episodes": [
+    11
+   ]
+  }
+ },
+ {
+  "title": "Show.S01E12.PDTV.x264",
+  "expect": {
+   "kind": "series",
+   "seasons": [
+    1
+   ],
+   "episodes": [
+    12
+   ]
+  }
+ },
+ {
+  "title": "Movie.2001.DVD.480p.xvid",
+  "expect": {
+   "kind": "movie",
+   "year": 2001
+  }
+ },
+ {
+  "title": "Movie.2002.R5.XviD.CAM.Audio",
+  "expect": {
+   "kind": "movie",
+   "year": 2002
+  }
+ },
+ {
+  "title": "Flick.2018.1080p.BluRay.REMUX.AVC.DTS-HD.MA.7.1",
+  "expect": {
+   "kind": "movie",
+   "year": 2018
+  }
+ },
+ {
+  "title": "Flick.2018.BDMux.1080p",
+  "expect": {
+   "kind": "movie",
+   "year": 2018
+  }
+ },
+ {
+  "title": "Show.S01E13.x265.HEVC.1080p.WEB",
+  "expect": {
+   "kind": "series",
+   "seasons": [
+    1
+   ],
+   "episodes": [
+    13
+   ]
+  }
+ },
+ {
+  "title": "Movie.2005.XviD.DVDRip",
+  "expect": {
+   "kind": "movie",
+   "year": 2005
+  }
+ },
+ {
+  "title": "Show.S01E14.DD.5.1.1080p.WEB-DL",
+  "expect": {
+   "kind": "series",
+   "seasons": [
+    1
+   ],
+   "episodes": [
+    14
+   ]
+  }
+ },
+ {
+  "title": "Movie.2016.1080p.BluRay.FLAC.2.0",
+  "expect": {
+   "kind": "movie",
+   "year": 2016
+  }
+ },
+ {
+  "title": "Show.S01E15.DUAL.1080p.BluRay",
+  "expect": {
+   "kind": "series",
+   "seasons": [
+    1
+   ],
+   "episodes": [
+    15
+   ]
+  }
+ },
+ {
+  "title": "Movie.2014.MULTISUBS.720p.WEB-DL",
+  "expect": {
+   "kind": "movie",
+   "year": 2014
+  }
+ },
+ {
+  "title": "Film.2013.DUBBED.1080p.WEB-DL",
+  "expect": {
+   "kind": "movie",
+   "year": 2013
+  }
+ },
+ {
+  "title": "Show.S02E09.JPN.1080p",
+  "expect": {
+   "kind": "series",
+   "seasons": [
+    2
+   ],
+   "episodes": [
+    9
+   ]
+  }
+ },
+ {
+  "title": "Movie.2019.Uncut.1080p.BluRay",
+  "expect": {
+   "kind": "movie",
+   "year": 2019
+  }
+ },
+ {
+  "title": "Movie.2017.Theatrical.Cut.720p.BluRay",
+  "expect": {
+   "kind": "movie",
+   "year": 2017
+  }
+ },
+ {
+  "title": "Movie.2015.Remastered.1080p.BluRay",
+  "expect": {
+   "kind": "movie",
+   "year": 2015,
+   "remastered": true
+  }
+ },
+ {
+  "title": "Show.2011.S03E05.720p.HDTV",
+  "expect": {
+   "kind": "series",
+   "seasons": [
+    3
+   ],
+   "episodes": [
+    5
+   ]
+  }
+ },
+ {
+  "title": "WWE.Monday.Night.Raw.2026.08.17.1080p.WEB-DL",
+  "expect": {
+   "kind": "series",
+   "daily": true,
+   "airDate": "2026-08-17"
+  }
+ },
+ {
+  "title": "Show.S1E1.480p.WEB",
+  "expect": {
+   "kind": "series",
+   "seasons": [
+    1
+   ],
+   "episodes": [
+    1
+   ]
+  }
+ },
+ {
+  "title": "Show.S01.E10.1080p",
+  "expect": {
+   "kind": "series",
+   "seasons": [
+    1
+   ],
+   "episodes": [
+    10
+   ]
+  }
+ },
+ {
+  "title": "Show.S01 - E11.1080p.WEB-DL",
+  "expect": {
+   "kind": "series",
+   "seasons": [
+    1
+   ],
+   "episodes": [
+    11
+   ]
+  }
+ },
+ {
+  "title": "Show.S01E16.E17.1080p.WEB-DL",
+  "expect": {
+   "kind": "series",
+   "seasons": [
+    1
+   ],
+   "episodes": [
+    16,
+    17
+   ]
+  }
+ },
+ {
+  "title": "Show.S05.Complete.1080p.BluRay-GROUP",
+  "expect": {
+   "kind": "series",
+   "fullSeason": true,
+   "seasons": [
+    5
+   ]
+  }
+ },
+ {
+  "title": "Show.Season.04.720p.HDTV.DD5.1",
+  "expect": {
+   "kind": "series",
+   "fullSeason": true,
+   "seasons": [
+    4
+   ]
+  }
+ },
+ {
+  "title": "Show.Episode.07.1080p.WEB-DL",
+  "expect": {
+   "kind": "series",
+   "episodes": [
+    7
+   ]
+  }
+ },
+ {
+  "title": "Anime.Title.[1080p][B-COMP]",
+  "expect": {
+   "releaseGroup": "B-COMP"
+  }
+ },
+ {
+  "title": "Show.S01E18.1080p.WEB-DL.DDP2.0.H.264-DRACULA",
+  "expect": {
+   "kind": "series",
+   "seasons": [
+    1
+   ],
+   "episodes": [
+    18
+   ],
+   "releaseGroup": "DRACULA"
+  }
+ },
+ {
+  "title": "the_show_name_s01e19_1080p_web-dl_x264",
+  "expect": {
+   "kind": "series",
+   "seasons": [
+    1
+   ],
+   "episodes": [
+    19
+   ]
+  }
+ },
+ {
+  "title": "Show.S01E20.1080p.NF.WEB-DL.DDP5.1.x264-NPMS",
+  "expect": {
+   "kind": "series",
+   "seasons": [
+    1
+   ],
+   "episodes": [
+    20
+   ]
+  }
+ },
+ {
+  "title": "Movie.2012.1080p.BluRay.H264.AAC-RARBG",
+  "expect": {
+   "kind": "movie",
+   "year": 2012
+  }
+ },
+ {
+  "title": "Show.S03E01.Its.Only.the.End.of.the.World.1080p.AMZN.WEB-DL.DDP5.1.H.264-NTb",
+  "expect": {
+   "kind": "series",
+   "seasons": [
+    3
+   ],
+   "episodes": [
+    1
+   ]
+  }
+ },
+ {
+  "title": "Show.S04E22.720p.HDTV.X264-DIMENSION",
+  "expect": {
+   "kind": "series",
+   "seasons": [
+    4
+   ],
+   "episodes": [
+    22
+   ]
+  }
+ },
+ {
+  "title": "Film.1999.480p.WEB-DL.XviD",
+  "expect": {
+   "kind": "movie",
+   "year": 1999
+  }
+ },
+ {
+  "title": "Series.S06E07.1080p.HEVC.x265-GROUP",
+  "expect": {
+   "kind": "series",
+   "seasons": [
+    6
+   ],
+   "episodes": [
+    7
+   ]
+  }
+ },
+ {
+  "title": "Show.Name.S07E01.2160p.WEB-DL.DDP5.1.DoVi.HDR.H.265",
+  "expect": {
+   "kind": "series",
+   "seasons": [
+    7
+   ],
+   "episodes": [
+    1
+   ]
+  }
+ },
+ {
+  "title": "Movie.2020.1080p.WEBRip.x264-RBG",
+  "expect": {
+   "kind": "movie",
+   "year": 2020
+  }
+ },
+ {
+  "title": "Show.S08E05.PROPER.1080p.HDTV.x264",
+  "expect": {
+   "kind": "series",
+   "seasons": [
+    8
+   ],
+   "episodes": [
+    5
+   ],
+   "proper": true
+  }
+ },
+ {
+  "title": "Anime.Name.[0001][1080p][HEVC].mkv",
+  "expect": {
+   "kind": "series"
+  }
+ },
+ {
+  "title": "Show.S02E02.German.DL.1080p.BluRay.x264",
+  "expect": {
+   "kind": "series",
+   "seasons": [
+    2
+   ],
+   "episodes": [
+    2
+   ],
+   "languages": [
+    "german"
+   ]
+  }
+ },
+ {
+  "title": "Movie.2010.MULTi.1080p.FRENCH.BluRay.x264",
+  "expect": {
+   "kind": "movie",
+   "year": 2010
+  }
+ },
+ {
+  "title": "Show.S09E10.720p.WEB.h264-KOGi",
+  "expect": {
+   "kind": "series",
+   "seasons": [
+    9
+   ],
+   "episodes": [
+    10
+   ],
+   "releaseGroup": "KOGi"
+  }
+ },
+ {
+  "title": "Title.2022.2160p.WEB-DL.DTS-HD.MA.5.1.HDR.H.265-GROUP",
+  "expect": {
+   "kind": "movie",
+   "year": 2022
+  }
+ },
+ {
+  "title": "Show.S05E15.1080p.WEB-DL.AAC2.0.H.264-GroupName",
+  "expect": {
+   "kind": "series",
+   "seasons": [
+    5
+   ],
+   "episodes": [
+    15
+   ]
+  }
+ },
+ {
+  "title": "Movie.2007.720p.BluRay.x264.AC3-FxM",
+  "expect": {
+   "kind": "movie",
+   "year": 2007
+  }
+ },
+ {
+  "title": "Show.S11E00.Christmas.Special.1080p.WEB-DL",
+  "expect": {
+   "kind": "series",
+   "seasons": [
+    11
+   ],
+   "episodes": [
+    0
+   ]
+  }
+ },
+ {
+  "title": "Film.1985.REMUX.1080p.Bluray.AVC.DTS-HD.MA.5.1-GROUP",
+  "expect": {
+   "kind": "movie",
+   "year": 1985
+  }
+ },
+ {
+  "title": "Show.S12E12.1080p.WEB.H264-CAKES",
+  "expect": {
+   "kind": "series",
+   "seasons": [
+    12
+   ],
+   "episodes": [
+    12
+   ],
+   "releaseGroup": "CAKES"
+  }
+ }
+]

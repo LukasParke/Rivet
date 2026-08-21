@@ -1,0 +1,65 @@
+[
+  {
+    "name": "sums_two_matching_formats",
+    "formats": [
+      { "name": "1080p", "score": 100, "enabled": true,
+        "conditions": [{ "kind": "resolution", "value": "1080p", "negate": false }] },
+      { "name": "bluray", "score": 25, "enabled": true,
+        "conditions": [{ "kind": "source", "value": "bluray", "negate": false }] }
+    ],
+    "releaseTitle": "The.Matrix.1999.1080p.BluRay.x264-GRP",
+    "expectTotal": 125
+  },
+  {
+    "name": "disabled_format_contributes_nothing",
+    "formats": [
+      { "name": "1080p", "score": 100, "enabled": true,
+        "conditions": [{ "kind": "resolution", "value": "1080p", "negate": false }] },
+      { "name": "banned-group", "score": -10000, "enabled": false,
+        "conditions": [{ "kind": "group", "value": "GRP", "negate": false }] }
+    ],
+    "releaseTitle": "The.Matrix.1999.1080p.BluRay.x264-GRP",
+    "expectTotal": 100
+  },
+  {
+    "name": "no_matching_format_scores_zero",
+    "formats": [
+      { "name": "2160p", "score": 500, "enabled": true,
+        "conditions": [{ "kind": "resolution", "value": "2160p", "negate": false }] }
+    ],
+    "releaseTitle": "The.Matrix.1999.1080p.BluRay.x264-GRP",
+    "expectTotal": 0
+  },
+  {
+    "name": "negative_scores_are_summed",
+    "formats": [
+      { "name": "dvd", "score": -50, "enabled": true,
+        "conditions": [{ "kind": "source", "value": "dvd", "negate": false }] },
+      { "name": "2000s", "score": -30, "enabled": true,
+        "conditions": [{ "kind": "year", "value": "2000-2009", "negate": false }] }
+    ],
+    "releaseTitle": "Movie.2009.DVDRip.XviD-GRP",
+    "expectTotal": -80
+  },
+  {
+    "name": "mixed_enabled_and_matching_formats",
+    "formats": [
+      { "name": "remux", "score": 300, "enabled": true,
+        "conditions": [{ "kind": "source", "value": "bluray-remux", "negate": false }] },
+      { "name": "2160p", "score": 150, "enabled": true,
+        "conditions": [{ "kind": "resolution", "value": "2160p", "negate": false }] },
+      { "name": "webdl-only", "score": 40, "enabled": true,
+        "conditions": [{ "kind": "source", "value": "web-dl", "negate": false }] },
+      { "name": "disabled-cam", "score": 999, "enabled": false,
+        "conditions": [{ "kind": "source", "value": "cam", "negate": false }] }
+    ],
+    "releaseTitle": "Movie.2020.2160p.BluRay.Remux.AVC.FLAC.2.0-FraMeSToR",
+    "expectTotal": 450
+  },
+  {
+    "name": "empty_format_list_scores_zero",
+    "formats": [],
+    "releaseTitle": "The.Matrix.1999.1080p.BluRay.x264-GRP",
+    "expectTotal": 0
+  }
+]

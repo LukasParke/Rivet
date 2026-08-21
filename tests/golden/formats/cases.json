@@ -1,0 +1,222 @@
+[
+  {
+    "name": "resolution_matches_1080p",
+    "format": { "name": "1080p", "score": 10, "enabled": true,
+      "conditions": [{ "kind": "resolution", "value": "1080p", "negate": false }] },
+    "releaseTitle": "The.Matrix.1999.1080p.BluRay.x264-GRP",
+    "expectMatch": true
+  },
+  {
+    "name": "resolution_mismatch_2160p_vs_1080p",
+    "format": { "name": "2160p", "score": 10, "enabled": true,
+      "conditions": [{ "kind": "resolution", "value": "2160p", "negate": false }] },
+    "releaseTitle": "The.Matrix.1999.1080p.BluRay.x264-GRP",
+    "expectMatch": false
+  },
+  {
+    "name": "resolution_negated_blocks_own_resolution",
+    "format": { "name": "not-1080p", "score": 10, "enabled": true,
+      "conditions": [{ "kind": "resolution", "value": "1080p", "negate": true }] },
+    "releaseTitle": "The.Matrix.1999.1080p.BluRay.x264-GRP",
+    "expectMatch": false
+  },
+  {
+    "name": "resolution_negated_passes_other_resolution",
+    "format": { "name": "not-4k", "score": 10, "enabled": true,
+      "conditions": [{ "kind": "resolution", "value": "2160p", "negate": true }] },
+    "releaseTitle": "The.Matrix.1999.1080p.BluRay.x264-GRP",
+    "expectMatch": true
+  },
+  {
+    "name": "source_matches_webdl",
+    "format": { "name": "webdl", "score": 10, "enabled": true,
+      "conditions": [{ "kind": "source", "value": "web-dl", "negate": false }] },
+    "releaseTitle": "Show.S01E01.720p.WEB-DL.H.264-GRP",
+    "expectMatch": true
+  },
+  {
+    "name": "source_mismatch_bluray_vs_webdl",
+    "format": { "name": "bluray", "score": 10, "enabled": true,
+      "conditions": [{ "kind": "source", "value": "bluray", "negate": false }] },
+    "releaseTitle": "Show.S01E01.720p.WEB-DL.H.264-GRP",
+    "expectMatch": false
+  },
+  {
+    "name": "source_matches_bluray_remux",
+    "format": { "name": "remux-source", "score": 10, "enabled": true,
+      "conditions": [{ "kind": "source", "value": "bluray-remux", "negate": false }] },
+    "releaseTitle": "Movie.2020.2160p.BluRay.Remux.AVC.FLAC.2.0-FraMeSToR",
+    "expectMatch": true
+  },
+  {
+    "name": "quality_modifier_matches_proper",
+    "format": { "name": "proper", "score": 10, "enabled": true,
+      "conditions": [{ "kind": "quality_modifier", "value": "proper", "negate": false }] },
+    "releaseTitle": "Show.S02E03.PROPER.720p.HDTV.x264-GRP",
+    "expectMatch": true
+  },
+  {
+    "name": "quality_modifier_matches_repack",
+    "format": { "name": "repack", "score": 10, "enabled": true,
+      "conditions": [{ "kind": "quality_modifier", "value": "repack", "negate": false }] },
+    "releaseTitle": "Show.S01E04.REPACK.1080p.WEBRip.x264-GRP",
+    "expectMatch": true
+  },
+  {
+    "name": "quality_modifier_proper_fails_on_plain_release",
+    "format": { "name": "proper", "score": 10, "enabled": true,
+      "conditions": [{ "kind": "quality_modifier", "value": "proper", "negate": false }] },
+    "releaseTitle": "Show.S01E04.REPACK.1080p.WEBRip.x264-GRP",
+    "expectMatch": false
+  },
+  {
+    "name": "edition_matches_case_insensitive",
+    "format": { "name": "extended", "score": 10, "enabled": true,
+      "conditions": [{ "kind": "edition", "value": "EXTENDED CUT", "negate": false }] },
+    "releaseTitle": "Movie.2015.1080p.BluRay.x264-{Extended Cut}-GRP",
+    "expectMatch": true
+  },
+  {
+    "name": "edition_mismatch_directors_cut",
+    "format": { "name": "directors-cut", "score": 10, "enabled": true,
+      "conditions": [{ "kind": "edition", "value": "Director's Cut", "negate": false }] },
+    "releaseTitle": "Movie.2015.1080p.BluRay.x264-{Extended Cut}-GRP",
+    "expectMatch": false
+  },
+  {
+    "name": "language_matches_multi",
+    "format": { "name": "multi-language", "score": 10, "enabled": true,
+      "conditions": [{ "kind": "language", "value": "multi", "negate": false }] },
+    "releaseTitle": "Movie.2019.MULTI.1080p.WEB-DL.DDP5.1.H.264-GRP",
+    "expectMatch": true
+  },
+  {
+    "name": "language_matches_japanese",
+    "format": { "name": "japanese", "score": 10, "enabled": true,
+      "conditions": [{ "kind": "language", "value": "japanese", "negate": false }] },
+    "releaseTitle": "Series.Show.2020.S01E01.Japanese.1080p.HDTV-GRP",
+    "expectMatch": true
+  },
+  {
+    "name": "language_mismatch_english_vs_japanese",
+    "format": { "name": "english", "score": 10, "enabled": true,
+      "conditions": [{ "kind": "language", "value": "english", "negate": false }] },
+    "releaseTitle": "Series.Show.2020.S01E01.Japanese.1080p.HDTV-GRP",
+    "expectMatch": false
+  },
+  {
+    "name": "language_negated_not_english_passes",
+    "format": { "name": "not-english", "score": 10, "enabled": true,
+      "conditions": [{ "kind": "language", "value": "english", "negate": true }] },
+    "releaseTitle": "Series.Show.2020.S01E01.Japanese.1080p.HDTV-GRP",
+    "expectMatch": true
+  },
+  {
+    "name": "group_matches_trailing",
+    "format": { "name": "grp", "score": 10, "enabled": true,
+      "conditions": [{ "kind": "group", "value": "GRP", "negate": false }] },
+    "releaseTitle": "The.Matrix.1999.1080p.BluRay.x264-GRP",
+    "expectMatch": true
+  },
+  {
+    "name": "group_matches_bracketed_prefix",
+    "format": { "name": "eml", "score": 10, "enabled": true,
+      "conditions": [{ "kind": "group", "value": "EML", "negate": false }] },
+    "releaseTitle": "[EML] Movie.2018.1080p.WEB-DL.DDP5.1.H.264",
+    "expectMatch": true
+  },
+  {
+    "name": "group_negated_excludes_group",
+    "format": { "name": "not-grp", "score": 10, "enabled": true,
+      "conditions": [{ "kind": "group", "value": "GRP", "negate": true }] },
+    "releaseTitle": "Movie.1994.720p.BluRay.x264-FQM",
+    "expectMatch": true
+  },
+  {
+    "name": "group_negative_fqm_on_grp_release",
+    "format": { "name": "not-fqm", "score": -10000, "enabled": true,
+      "conditions": [{ "kind": "group", "value": "FQM", "negate": false }] },
+    "releaseTitle": "The.Matrix.1999.1080p.BluRay.x264-GRP",
+    "expectMatch": false
+  },
+  {
+    "name": "year_exact_match",
+    "format": { "name": "1999", "score": 10, "enabled": true,
+      "conditions": [{ "kind": "year", "value": "1999", "negate": false }] },
+    "releaseTitle": "The.Matrix.1999.1080p.BluRay.x264-GRP",
+    "expectMatch": true
+  },
+  {
+    "name": "year_range_inclusive_match",
+    "format": { "name": "2010s", "score": 10, "enabled": true,
+      "conditions": [{ "kind": "year", "value": "2010-2019", "negate": false }] },
+    "releaseTitle": "Movie.2015.1080p.BluRay.x264-{Extended Cut}-GRP",
+    "expectMatch": true
+  },
+  {
+    "name": "year_range_miss",
+    "format": { "name": "2000s", "score": 10, "enabled": true,
+      "conditions": [{ "kind": "year", "value": "2000-2009", "negate": false }] },
+    "releaseTitle": "Movie.2015.1080p.BluRay.x264-{Extended Cut}-GRP",
+    "expectMatch": false
+  },
+  {
+    "name": "title_contains_matches_substring",
+    "format": { "name": "matrix-word", "score": 10, "enabled": true,
+      "conditions": [{ "kind": "title_contains", "value": "matrix", "negate": false }] },
+    "releaseTitle": "The.Matrix.1999.1080p.BluRay.x264-GRP",
+    "expectMatch": true
+  },
+  {
+    "name": "title_contains_absent_token",
+    "format": { "name": "imax", "score": 10, "enabled": true,
+      "conditions": [{ "kind": "title_contains", "value": "imax", "negate": false }] },
+    "releaseTitle": "The.Matrix.1999.1080p.BluRay.x264-GRP",
+    "expectMatch": false
+  },
+  {
+    "name": "title_contains_negated_absent_token_passes",
+    "format": { "name": "no-imax", "score": 10, "enabled": true,
+      "conditions": [{ "kind": "title_contains", "value": "imax", "negate": true }] },
+    "releaseTitle": "The.Matrix.1999.1080p.BluRay.x264-GRP",
+    "expectMatch": true
+  },
+  {
+    "name": "multi_condition_all_match",
+    "format": { "name": "hdtv-proper-720", "score": 10, "enabled": true,
+      "conditions": [
+        { "kind": "resolution", "value": "720p", "negate": false },
+        { "kind": "source", "value": "hdtv", "negate": false },
+        { "kind": "quality_modifier", "value": "proper", "negate": false }
+      ] },
+    "releaseTitle": "Show.S02E03.PROPER.720p.HDTV.x264-GRP",
+    "expectMatch": true
+  },
+  {
+    "name": "multi_condition_one_failure_blocks",
+    "format": { "name": "wrong-res-hdtv", "score": 10, "enabled": true,
+      "conditions": [
+        { "kind": "resolution", "value": "1080p", "negate": false },
+        { "kind": "source", "value": "hdtv", "negate": false }
+      ] },
+    "releaseTitle": "Show.S02E03.PROPER.720p.HDTV.x264-GRP",
+    "expectMatch": false
+  },
+  {
+    "name": "multi_condition_with_internal_negation",
+    "format": { "name": "webdl-not-proper", "score": 10, "enabled": true,
+      "conditions": [
+        { "kind": "source", "value": "web-dl", "negate": false },
+        { "kind": "quality_modifier", "value": "proper", "negate": true }
+      ] },
+    "releaseTitle": "Movie.2019.MULTI.1080p.WEB-DL.DDP5.1.H.264-GRP",
+    "expectMatch": true
+  },
+  {
+    "name": "empty_conditions_match_everything",
+    "format": { "name": "catch-all", "score": 5, "enabled": true,
+      "conditions": [] },
+    "releaseTitle": "Movie.1985.REMUX.1080p.Bluray.AVC-GRP",
+    "expectMatch": true
+  }
+]

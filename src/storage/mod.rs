@@ -15,12 +15,17 @@
 pub mod acquisitions;
 pub mod audit;
 pub mod blacklist;
+pub mod calendar_queries;
 pub mod domain;
 pub mod jobs;
+pub mod movies;
+pub mod notifications;
 pub mod migrations;
 pub mod retention;
+pub mod series;
 pub mod sessions;
 pub mod settings;
+pub mod system_ops;
 pub mod users;
 
 use std::time::Duration;
@@ -32,8 +37,6 @@ use sqlx::SqlitePool;
 pub enum StorageError {
     #[error("database open failed: {0}")]
     Open(#[from] sqlx::Error),
-    #[error("migration {0} changed after being applied (recorded sha256 {1}, current {2})")]
-    Drift(String, String, String),
 }
 
 /// Opens the SQLite pool. Foreign keys, WAL and busy_timeout are forced here
@@ -58,8 +61,6 @@ pub async fn open(database_url: &str) -> Result<SqlitePool, StorageError> {
         .synchronous(SqliteSynchronous::Normal)
         .busy_timeout(Duration::from_secs(5));
 
-    // A single writer connection serializes writes and avoids SQLITE_BUSY;
-    // SQLite reads are served fine through the same pool at this scale.
     let pool = SqlitePoolOptions::new()
         .max_connections(4)
         .acquire_timeout(Duration::from_secs(10))
@@ -87,7 +88,6 @@ mod tests {
     async fn pool_enforces_foreign_keys_regardless_of_dsn() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("t.db");
-        // Deliberately plain DSN without pragma parameters.
         let dsn = format!("file://{}", path.display());
         let pool = open(&dsn).await.unwrap();
         assert!(foreign_keys_enabled(&pool).await);
@@ -106,7 +106,6 @@ mod tests {
         let dsn = format!("file://{}", dir.path().join("t.db").display());
         let pool = open(&dsn).await.unwrap();
         migrations::apply(&pool).await.unwrap();
-        // sessions.user_id references users(id): inserting an orphan must fail.
         let res = sqlx::query(
             "INSERT INTO sessions (id, user_id, created_at, expires_at) VALUES ('s','ghost','2026-01-01','2027-01-01')",
         )

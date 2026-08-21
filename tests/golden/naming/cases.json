@@ -1,0 +1,368 @@
+[
+  {
+    "name": "series-standard-full",
+    "template": "{Title} - S{Season:00}E{Episode:00} - {Episode Title}",
+    "context": {
+      "title": "Brooklyn Nine-Nine",
+      "year": 2013,
+      "season": 2,
+      "episodes": [5],
+      "episodeTitles": ["The Mole"],
+      "qualityLabel": "WEB-DL 1080p",
+      "languages": ["English"],
+      "group": "GRP",
+      "airDate": "2014-11-23"
+    },
+    "safe": true,
+    "expected": "Brooklyn Nine-Nine - S02E05 - The Mole"
+  },
+  {
+    "name": "title-lowercase-variant",
+    "template": "{title} S{Season:00}E{Episode:00}",
+    "context": {
+      "title": "Brooklyn Nine-Nine",
+      "season": 2,
+      "episodes": [5]
+    },
+    "safe": true,
+    "expected": "brooklyn nine-nine S02E05"
+  },
+  {
+    "name": "movie-with-year",
+    "template": "{Title} ({Year})",
+    "context": { "title": "Arrival", "year": 2016 },
+    "safe": true,
+    "expected": "Arrival (2016)"
+  },
+  {
+    "name": "missing-year-collapses-empty-parens",
+    "template": "{Title} ({Year})",
+    "context": { "title": "Arrival" },
+    "safe": true,
+    "expected": "Arrival"
+  },
+  {
+    "name": "quality-token-present",
+    "template": "{Title} - {Quality Full}",
+    "context": { "title": "Brooklyn Nine-Nine", "qualityLabel": "WEB-DL 1080p" },
+    "safe": true,
+    "expected": "Brooklyn Nine-Nine - WEB-DL 1080p"
+  },
+  {
+    "name": "unknown-quality-no-dangling-dash",
+    "template": "{Title} - {Quality Full}",
+    "context": { "title": "Brooklyn Nine-Nine", "qualityLabel": "" },
+    "safe": true,
+    "expected": "Brooklyn Nine-Nine"
+  },
+  {
+    "name": "unknown-token-trailing-removed",
+    "template": "{Title} - {Bogus Token}",
+    "context": { "title": "Brooklyn Nine-Nine" },
+    "safe": true,
+    "expected": "Brooklyn Nine-Nine"
+  },
+  {
+    "name": "unknown-token-leading-removed",
+    "template": "{Bogus} - {Title}",
+    "context": { "title": "Brooklyn Nine-Nine" },
+    "safe": true,
+    "expected": "Brooklyn Nine-Nine"
+  },
+  {
+    "name": "two-unknown-tokens-collapse",
+    "template": "{Title} - {Nope} - {Also Missing}",
+    "context": { "title": "Brooklyn Nine-Nine" },
+    "safe": true,
+    "expected": "Brooklyn Nine-Nine"
+  },
+  {
+    "name": "unknown-middle-preserves-separator",
+    "template": "{Title} - {Nope} - S{Season:00}E{Episode:00}",
+    "context": { "title": "Brooklyn Nine-Nine", "season": 2, "episodes": [5] },
+    "safe": true,
+    "expected": "Brooklyn Nine-Nine - S02E05"
+  },
+  {
+    "name": "release-group-present",
+    "template": "{Title} - S{Season:00}E{Episode:00} - {Release Group}",
+    "context": { "title": "Show", "season": 2, "episodes": [5], "group": "GRP" },
+    "safe": true,
+    "expected": "Show - S02E05 - GRP"
+  },
+  {
+    "name": "release-group-missing-cleaned",
+    "template": "{Title} - S{Season:00}E{Episode:00} - {Release Group}",
+    "context": { "title": "Show", "season": 2, "episodes": [5] },
+    "safe": true,
+    "expected": "Show - S02E05"
+  },
+  {
+    "name": "air-date-rendered-with-dashes",
+    "template": "{Title} - {Air Date}",
+    "context": { "title": "Brooklyn Nine-Nine", "airDate": "2014-11-23" },
+    "safe": true,
+    "expected": "Brooklyn Nine-Nine - 2014-11-23"
+  },
+  {
+    "name": "air-date-missing-cleaned",
+    "template": "{Title} - {Air Date}",
+    "context": { "title": "Show" },
+    "safe": true,
+    "expected": "Show"
+  },
+  {
+    "name": "edition-tags-movie",
+    "template": "{Title} {Edition Tags} ({Year})",
+    "context": { "title": "Blade Runner", "year": 1982, "edition": "Final Cut" },
+    "safe": true,
+    "expected": "Blade Runner Final Cut (1982)"
+  },
+  {
+    "name": "edition-tags-missing",
+    "template": "{Title} {Edition Tags} ({Year})",
+    "context": { "title": "Blade Runner", "year": 1982 },
+    "safe": true,
+    "expected": "Blade Runner (1982)"
+  },
+  {
+    "name": "movie-full-template",
+    "template": "{Title} ({Year}) - {Quality Full} - {Edition Tags}",
+    "context": {
+      "title": "Arrival",
+      "year": 2016,
+      "qualityLabel": "Remux 2160p",
+      "edition": "Extended"
+    },
+    "safe": true,
+    "expected": "Arrival (2016) - Remux 2160p - Extended"
+  },
+  {
+    "name": "windows-colon-and-question-safe",
+    "template": "{Title}",
+    "context": { "title": "Re: Animal House?" },
+    "safe": true,
+    "expected": "Re - Animal House"
+  },
+  {
+    "name": "windows-slash-replaced",
+    "template": "{Title} - {Quality Full}",
+    "context": { "title": "AC/DC Live", "qualityLabel": "HDTV 720p" },
+    "safe": true,
+    "expected": "AC-DC Live - HDTV 720p"
+  },
+  {
+    "name": "unsafe-chars-kept-when-not-safe",
+    "template": "{Title}",
+    "context": { "title": "Re: Animal House?" },
+    "safe": false,
+    "expected": "Re: Animal House?"
+  },
+  {
+    "name": "windows-quote-and-brackets-safe",
+    "template": "{Title}",
+    "context": { "title": "The \"Best\" Show: Part 2" },
+    "safe": true,
+    "expected": "The -Best- Show - Part 2"
+  },
+  {
+    "name": "trailing-dots-and-spaces-trimmed",
+    "template": "{Title}.",
+    "context": { "title": "Stark Ind." },
+    "safe": true,
+    "expected": "Stark Ind"
+  },
+  {
+    "name": "multi-two-episodes-join",
+    "template": "{Title} - S{Season:00}E{Episode:00}",
+    "context": { "title": "Show", "season": 2, "episodes": [4, 5] },
+    "safe": true,
+    "expected": "Show - S02E04-E05"
+  },
+  {
+    "name": "multi-three-episodes-pad3",
+    "template": "{Title} - S{Season:00}E{Episode:000}",
+    "context": { "title": "Show", "season": 2, "episodes": [7, 8, 9] },
+    "safe": true,
+    "expected": "Show - S02E007-E008-E009"
+  },
+  {
+    "name": "single-episode-no-join-suffix",
+    "template": "{Title} - S{Season:00}E{Episode:00}",
+    "context": { "title": "Show", "season": 2, "episodes": [5] },
+    "safe": true,
+    "expected": "Show - S02E05"
+  },
+  {
+    "name": "missing-season-token-removed-inline",
+    "template": "{Title} - Season {Season}",
+    "context": { "title": "Show" },
+    "safe": true,
+    "expected": "Show - Season"
+  },
+  {
+    "name": "multi-episode-titles-joined",
+    "template": "{Title} - S{Season:00}E{Episode:00} - {Episode Title}",
+    "context": {
+      "title": "Show",
+      "season": 2,
+      "episodes": [1, 2],
+      "episodeTitles": ["Pilot", "Diversity Day"]
+    },
+    "safe": true,
+    "expected": "Show - S02E01-E02 - Pilot Diversity Day"
+  },
+  {
+    "name": "episode-title-missing-cleaned",
+    "template": "{Title} - S{Season:00}E{Episode:00} - {Episode Title}",
+    "context": { "title": "Show", "season": 2, "episodes": [5] },
+    "safe": true,
+    "expected": "Show - S02E05"
+  },
+  {
+    "name": "original-title-present",
+    "template": "{Original Title} ({Title})",
+    "context": { "title": "Gisaengchung", "originalTitle": "Parasite" },
+    "safe": true,
+    "expected": "Parasite (Gisaengchung)"
+  },
+  {
+    "name": "original-title-missing-leading-cleaned",
+    "template": "{Original Title} - {Title}",
+    "context": { "title": "Show" },
+    "safe": true,
+    "expected": "Show"
+  },
+  {
+    "name": "languages-joined",
+    "template": "{Title} - {Languages} - {Quality Full}",
+    "context": {
+      "title": "Show",
+      "languages": ["English", "Japanese"],
+      "qualityLabel": "WEB-DL 1080p"
+    },
+    "safe": true,
+    "expected": "Show - English-Japanese - WEB-DL 1080p"
+  },
+  {
+    "name": "languages-middle-missing-cleaned",
+    "template": "{Title} - {Languages} - {Quality Full}",
+    "context": { "title": "Show", "qualityLabel": "WEB-DL 1080p" },
+    "safe": true,
+    "expected": "Show - WEB-DL 1080p"
+  },
+  {
+    "name": "full-series-standard-template",
+    "template": "{Title} - S{Season:00}E{Episode:00} - {Episode Title} - {Quality Full}",
+    "context": {
+      "title": "Show",
+      "season": 1,
+      "episodes": [3],
+      "episodeTitles": ["Cat Person"],
+      "qualityLabel": "HDTV 720p"
+    },
+    "safe": true,
+    "expected": "Show - S01E03 - Cat Person - HDTV 720p"
+  },
+  {
+    "name": "render-series-selects-multi-format",
+    "standard": "{Title} - S{Season:00}E{Episode:00}",
+    "multi": "{Title} - S{Season:00}E{Episode}",
+    "context": { "title": "Show", "season": 2, "episodes": [4, 5] },
+    "safe": true,
+    "expected": "Show - S02E04-E05"
+  },
+  {
+    "name": "render-series-single-uses-standard",
+    "standard": "{Title} - S{Season:00}E{Episode:00}",
+    "multi": "{Title} - S{Season:00}E{Episode}",
+    "context": { "title": "Show", "season": 2, "episodes": [4] },
+    "safe": true,
+    "expected": "Show - S02E04"
+  },
+  {
+    "name": "render-series-standard-without-episode-token",
+    "standard": "{Title} ({Year})",
+    "multi": "{Title} - E{Episode}",
+    "context": { "title": "Show", "year": 2019, "episodes": [1, 2] },
+    "safe": true,
+    "expected": "Show (2019)"
+  },
+  {
+    "name": "render-series-empty-multi-falls-back-to-standard",
+    "standard": "{Title} - S{Season:00}E{Episode:00}",
+    "multi": "",
+    "context": { "title": "Show", "season": 1, "episodes": [1, 2] },
+    "safe": true,
+    "expected": "Show - S01E01-E02"
+  },
+  {
+    "name": "render-series-multi-with-quality",
+    "standard": "{Title} - S{Season:00}E{Episode:00}",
+    "multi": "{Title} - S{Season:00}E{Episode} - {Quality Full}",
+    "context": {
+      "title": "Show",
+      "season": 1,
+      "episodes": [2, 3],
+      "qualityLabel": "WEB-DL 1080p"
+    },
+    "safe": true,
+    "expected": "Show - S01E02-E03 - WEB-DL 1080p"
+  },
+  {
+    "name": "padding-season-three-digits",
+    "template": "S{Season:000}E{Episode:00}",
+    "context": { "title": "Show", "season": 5, "episodes": [1] },
+    "safe": true,
+    "expected": "S005E01"
+  },
+  {
+    "name": "no-padding-spec-unpadded",
+    "template": "{Season}x{Episode:00}",
+    "context": { "title": "Show", "season": 2, "episodes": [7] },
+    "safe": true,
+    "expected": "2x07"
+  },
+  {
+    "name": "multi-five-episodes-pad2",
+    "template": "{Title} - S{Season:00}E{Episode:00}",
+    "context": { "title": "Show", "season": 1, "episodes": [10, 11, 12] },
+    "safe": true,
+    "expected": "Show - S01E10-E11-E12"
+  },
+  {
+    "name": "title-hyphens-survive-cleanup",
+    "template": "{Title} - {Episode Title}",
+    "context": { "title": "Spider-Man", "episodeTitles": ["Home - Coming"] },
+    "safe": true,
+    "expected": "Spider-Man - Home - Coming"
+  },
+  {
+    "name": "only-unknown-token-empty-output",
+    "template": "{Nothing Here}",
+    "context": { "title": "Show" },
+    "safe": true,
+    "expected": ""
+  },
+  {
+    "name": "windows-angle-bracket-pipe-safe",
+    "template": "{Title}",
+    "context": { "title": "A<B|C" },
+    "safe": true,
+    "expected": "A-B-C"
+  },
+  {
+    "name": "adjacent-known-unknown-tokens",
+    "template": "{Title} {Year} {Bogus}{Quality Full}",
+    "context": { "title": "Show", "year": 2005, "qualityLabel": "DVD" },
+    "safe": true,
+    "expected": "Show 2005 DVD"
+  },
+  {
+    "name": "tokens-are-case-sensitive",
+    "template": "{Title} - {release group}",
+    "context": { "title": "Show", "group": "GRP" },
+    "safe": true,
+    "expected": "Show"
+  }
+]

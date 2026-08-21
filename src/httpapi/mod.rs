@@ -27,7 +27,12 @@ pub fn build_router(state: AppState, gate: std::sync::Arc<setup_gate::SetupGate>
         .merge(routes::setup_config::router())
         .merge(routes::targets_search::router())
         .merge(routes::acquisitions::router())
-        .merge(routes::diagnostics::router());
+        .merge(routes::diagnostics::router())
+        .merge(routes::calendar::router())
+        .merge(routes::wanted::router())
+        .merge(routes::search_interactive::router())
+        .merge(routes::notifications::router())
+        .merge(routes::system::router());
 
     Router::new()
         // Health/metrics live outside /api/v1 like the original.
