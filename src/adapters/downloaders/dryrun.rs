@@ -171,7 +171,7 @@ impl Downloader for DryRunClient {
         let now = Instant::now();
         // Most recently added first.
         let mut items: Vec<&Download> = inner.downloads.iter().collect();
-        items.sort_by(|a, b| b.seq.cmp(&a.seq));
+        items.sort_by_key(|d| std::cmp::Reverse(d.seq));
         Ok(items.into_iter().map(|d| self.snapshot(d, now)).collect())
     }
 

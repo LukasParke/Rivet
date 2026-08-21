@@ -63,7 +63,7 @@ async fn finish(user: Admin, State(state): State<AppState>) -> Response {
                 .into_response()
         }
     };
-    if let Err(_) = crate::storage::settings::upsert(&state.db, REPORT_KEY, &payload).await {
+    if crate::storage::settings::upsert(&state.db, REPORT_KEY, &payload).await.is_err() {
         return (
             axum::http::StatusCode::INTERNAL_SERVER_ERROR,
             axum::Json(json!({"error": "save_failed"})),

@@ -330,7 +330,7 @@ mod tests {
         assert!(set_cookie.starts_with("rivet_session="));
         assert!(set_cookie.contains("HttpOnly"), "cookie must be HttpOnly");
         assert!(set_cookie.contains("SameSite=Lax"));
-        let sid = set_cookie.split(';').next().unwrap().splitn(2, '=').nth(1).unwrap();
+        let sid = set_cookie.split(';').next().unwrap().split_once('=').unwrap().1;
 
         let stored = crate::storage::sessions::get(&state.db, sid).await.unwrap().unwrap();
         let body = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();

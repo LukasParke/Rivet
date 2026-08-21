@@ -279,7 +279,7 @@ mod tests {
         assert!(!is_internal_ip("100.128.0.1".parse().unwrap()));
         assert!(is_internal_ip("0.0.0.0".parse().unwrap()));
         assert!(is_internal_ip("224.0.0.1".parse().unwrap()));
-        assert!(is_internal_ip("8.8.8.8".parse().unwrap()) == false);
+        assert!(!is_internal_ip("8.8.8.8".parse().unwrap()));
     }
 
     #[test]

@@ -250,7 +250,7 @@ pub fn extract_btih(url: &str) -> Option<String> {
     let idx = lower.find(marker)?;
     let start = idx + marker.len();
     let end = u[start..]
-        .find(|c| c == '&' || c == '#')
+        .find(['&', '#'])
         .map(|i| start + i)
         .unwrap_or(u.len());
     let h = u[start..end].trim();

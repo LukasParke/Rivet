@@ -380,7 +380,7 @@ mod tests {
         for attempt in [1, 2, 3, 10, 100] {
             let next = next_backoff(attempt, now);
             let delta = (next - now).num_seconds();
-            assert!(delta >= 1 && delta <= 60 + 31, "attempt {attempt} → {delta}s");
+            assert!((1..=60 + 31).contains(&delta), "attempt {attempt} → {delta}s");
         }
     }
 }

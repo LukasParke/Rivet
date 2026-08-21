@@ -19,7 +19,7 @@
 //! and the periodic task keeps it honest against out-of-band user deletion.
 
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, OnceLock};
+use std::sync::Arc;
 use std::time::Duration;
 
 use std::future::Future;
@@ -33,7 +33,7 @@ use tokio::time::MissedTickBehavior;
 /// Process-wide shared instance, registered once at boot by [`init_shared`]
 /// and read by route handlers via [`shared`]. A runtime-input registry cannot
 /// be a compile-time constant, hence `OnceLock`.
-static SHARED: OnceLock<Arc<SetupGate>> = OnceLock::new();
+static SHARED: std::sync::Mutex<Option<Arc<SetupGate>>> = std::sync::Mutex::new(None);
 
 pub struct SetupGate {
     setup_mode: AtomicBool,
@@ -187,16 +187,42 @@ fn setup_required_response() -> Response {
 /// Creates the process-wide gate, registers it and starts its refresher.
 /// Must be called once at boot before the router is built; later calls return
 /// the already-registered gate without spawning another refresher.
-pub async fn init_shared(pool: SqlitePool, refresh_every: Duration) -> &'static Arc<SetupGate> {
-    let registered = SHARED.get_or_init(|| SetupGate::new(pool, refresh_every));
-    registered.start_refresher().await;
-    registered
+pub async fn init_shared(pool: SqlitePool, refresh_every: Duration) -> Arc<SetupGate> {
+    // Clone any existing gate out under a short lock; never hold the guard
+    // across the refresher await.
+    let existing = SHARED.lock().expect("setup gate registry").as_ref().map(Arc::clone);
+    if let Some(gate) = existing {
+        gate.start_refresher().await;
+        return gate;
+    }
+    let gate = SetupGate::new(pool, refresh_every);
+    gate.start_refresher().await;
+    let mut slot = SHARED.lock().expect("setup gate registry");
+    match slot.as_ref() {
+        // Another task won the registration race; prefer the winner.
+        Some(winner) => Arc::clone(winner),
+        None => {
+            *slot = Some(Arc::clone(&gate));
+            gate
+        }
+    }
 }
 
 /// The gate registered at boot, if any. Route handlers treat `None` as
 /// standalone/test construction and fall back to direct user counts.
-pub fn shared() -> Option<&'static Arc<SetupGate>> {
-    SHARED.get()
+pub fn shared() -> Option<Arc<SetupGate>> {
+    SHARED
+        .lock()
+        .expect("setup gate registry")
+        .as_ref()
+        .map(Arc::clone)
+}
+
+/// Test isolation: drops the registered gate so a fresh test can install one
+/// bound to its own database. Never used in production paths.
+#[cfg(test)]
+pub fn reset_shared_for_tests() {
+    *SHARED.lock().expect("setup gate registry") = None;
 }
 
 #[cfg(test)]
@@ -315,17 +341,19 @@ mod tests {
 
     #[tokio::test]
     async fn shared_registry_roundtrip_and_double_init_safety() {
+        reset_shared_for_tests();
         let dir = tempfile::tempdir().unwrap();
         let pool = db_pool(&dir).await;
         let first = init_shared(pool.clone(), Duration::from_secs(3600)).await;
         // Second init with a DIFFERENT pool returns the same gate and does not
         // spawn a second refresher.
         let second = init_shared(pool, Duration::from_secs(3600)).await;
-        assert!(Arc::ptr_eq(first, second));
+        assert!(Arc::ptr_eq(&first, &second));
 
         let gate = shared().expect("init_shared registers the shared instance");
         assert!(gate.is_setup_mode());
         gate.notify_user_created();
         assert!(!shared().unwrap().is_setup_mode());
+        reset_shared_for_tests();
     }
 }

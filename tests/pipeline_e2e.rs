@@ -15,7 +15,6 @@ use rivet::storage::jobs as queue;
 use rivet::ws::hub::Hub;
 use serde_json::{json, Value};
 use std::sync::Arc;
-use tower::ServiceExt;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 

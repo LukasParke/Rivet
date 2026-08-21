@@ -197,7 +197,7 @@ async fn save(
     }
 
     let payload = serde_json::Value::Object(persist).to_string();
-    if let Err(_) = crate::storage::settings::upsert(&state.db, SETTING_KEY, &payload).await {
+    if crate::storage::settings::upsert(&state.db, SETTING_KEY, &payload).await.is_err() {
         return (
             StatusCode::INTERNAL_SERVER_ERROR,
             axum::Json(json!({"error": "save_failed"})),

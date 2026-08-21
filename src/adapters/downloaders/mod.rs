@@ -88,11 +88,9 @@ mod tests {
         let policy = OutboundPolicy { allow_internal: true };
         let a = build_torrent_client("dryrun", &serde_json::json!({}), policy, true, None)
             .await
-            .ok()
             .expect("builder ok");
         let b = build_torrent_client("qbittorrent", &serde_json::json!({}), policy, true, None)
             .await
-            .ok()
             .expect("builder ok");
         let hash = a
             .add_url("magnet:?xt=urn:btih:sharedcheck")

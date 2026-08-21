@@ -259,7 +259,7 @@ struct TestConnectionRequest {
     #[serde(default)]
     url: String,
     #[serde(default, rename = "apiKey")]
-    api_key: String,
+    _api_key: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -548,7 +548,7 @@ mod tests {
         };
         let req = TestConnectionRequest {
             url: "http://127.0.0.1:8080/".to_string(),
-            api_key: String::new(),
+            _api_key: String::new(),
         };
         let err = do_test_connection(req, &state, Some("u1"))
             .await

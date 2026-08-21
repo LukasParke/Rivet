@@ -4,7 +4,6 @@
 //! the setup gate ([`SetupGate::notify_user_created`]) so the frontend's
 //! immediate login cannot lose the periodic-refresh race.
 
-use std::sync::Arc;
 
 use axum::extract::State;
 use axum::http::StatusCode;
@@ -13,7 +12,7 @@ use serde::Deserialize;
 use serde_json::json;
 
 use crate::error::AppError;
-use crate::httpapi::middleware::setup_gate::{self, SetupGate};
+use crate::httpapi::middleware::setup_gate;
 use crate::security::password;
 use crate::state::AppState;
 use crate::ws::hub::PublishExt;
@@ -87,7 +86,7 @@ async fn create_admin(
     body: Result<axum::Json<CreateAdminRequest>, axum::extract::rejection::JsonRejection>,
 ) -> Response {
     // Gate fast-path; the user count below stays authoritative either way.
-    if setup_gate::shared().is_some_and(|g: &Arc<SetupGate>| !g.is_setup_mode()) {
+    if setup_gate::shared().is_some_and(|g| !g.is_setup_mode()) {
         return setup_conflict();
     }
 
@@ -165,6 +164,7 @@ async fn create_admin(
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
     use super::*;
     use crate::httpapi::middleware::auth::{csrf, load_session};
     use crate::metrics::Metrics;
@@ -258,7 +258,13 @@ mod tests {
 
     #[tokio::test]
     async fn create_admin_happy_path_and_race_fix() {
+        // The gate registry is process-wide: isolate this test from siblings.
+        crate::httpapi::middleware::setup_gate::reset_shared_for_tests();
         let (_dir, state) = app_state(true).await;
+        if let Some(g) = crate::httpapi::middleware::setup_gate::shared() {
+            g.notify_user_created(); // neutralize any stale gate from another test
+            crate::httpapi::middleware::setup_gate::reset_shared_for_tests();
+        }
 
         // Weak password rejected before any user exists.
         let (s, v) = req_json(

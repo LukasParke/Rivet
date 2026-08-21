@@ -461,7 +461,7 @@ mod tests {
             .collect()
     }
 
-    fn has<'a>(pairs: &'a [(String, String)], key: &str, value: &str) -> bool {
+    fn has(pairs: &[(String, String)], key: &str, value: &str) -> bool {
         pairs.iter().any(|(k, v)| k == key && v == value)
     }
 

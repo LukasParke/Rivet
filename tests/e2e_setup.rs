@@ -49,7 +49,7 @@ async fn app(state: AppState) -> axum::Router {
         std::time::Duration::from_secs(3600),
     )
     .await;
-    httpapi::build_router(state, Arc::clone(&gate))
+    httpapi::build_router(state, gate)
 }
 
 async fn body_json(res: axum::response::Response) -> Value {

@@ -11,7 +11,7 @@ use crate::jobs::ImportPayload;
 use crate::pipeline::import;
 use crate::state::AppState;
 use crate::storage::acquisitions;
-use crate::storage::jobs::{self, Job};
+use crate::storage::jobs::Job;
 
 pub async fn handle(state: &AppState, job: &Job) -> Result<(), String> {
     let payload: ImportPayload = parse_payload(job)?;
@@ -140,6 +140,7 @@ mod tests {
     use std::os::unix::fs::MetadataExt;
     use super::*;
     use crate::jobs::handlers::testutil;
+    use crate::storage::jobs;
     use std::sync::Arc;
 
     async fn seed(state: &AppState, verified_path: Option<&str>) -> String {

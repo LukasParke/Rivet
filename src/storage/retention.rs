@@ -158,7 +158,7 @@ mod tests {
             .await
             .unwrap();
         let run = crate::storage::domain::create_search_run(p, &t.id).await.unwrap();
-        let completed_at = completed_days_ago.map(|d| days_ago(d));
+        let completed_at = completed_days_ago.map(days_ago);
         if let Some(ca) = &completed_at {
             sqlx::query("UPDATE search_runs SET status = ?, completed_at = ? WHERE id = ?")
                 .bind(status)
@@ -224,7 +224,7 @@ mod tests {
         let queued_old = seed_job(&p, "queued", 40).await;
 
         // Audit: >90d goes; recent stays.
-        let old_event = seed_audit(&p, 91).await;
+        let _old_event = seed_audit(&p, 91).await;
         seed_audit(&p, 30).await;
 
         let counts = run_retention(&p).await.unwrap();

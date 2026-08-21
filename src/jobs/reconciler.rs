@@ -15,7 +15,7 @@ use std::time::Duration;
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
 
-use crate::jobs::{EnqueuePayload, MonitorPayload};
+use crate::jobs::MonitorPayload;
 use crate::state::AppState;
 
 /// How often the stuck-acquisition scan runs.

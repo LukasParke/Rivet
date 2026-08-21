@@ -40,7 +40,7 @@ pub enum StorageError {
 /// so they hold no matter what the DSN string contains.
 pub async fn open(database_url: &str) -> Result<SqlitePool, StorageError> {
     // Accept both "file:/path/app.db?_pragma=..." and plain filesystem paths.
-    let raw = database_url.strip_prefix("file://").unwrap_or_else(|| database_url);
+    let raw = database_url.strip_prefix("file://").unwrap_or(database_url);
     let raw = raw.strip_prefix("file:").unwrap_or(raw);
     let path = raw.split('?').next().unwrap_or(raw);
     if path.is_empty() {

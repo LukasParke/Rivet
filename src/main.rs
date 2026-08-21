@@ -86,7 +86,7 @@ async fn async_main() {
         tokio::spawn(async move {
             let mut ticker = tokio::time::interval(std::time::Duration::from_secs(10));
             loop {
-                ticker.tick();
+                ticker.tick().await;
                 if let Ok(snapshot) = health_snapshot(&state).await {
                     hub.publish("health.snapshot", snapshot);
                 }
@@ -94,7 +94,7 @@ async fn async_main() {
         });
     }
 
-    let app = httpapi::build_router(state.clone(), Arc::clone(&gate));
+    let app = httpapi::build_router(state.clone(), gate);
     let addr = cfg.http_addr.clone();
     let listener = match tokio::net::TcpListener::bind(&addr).await {
         Ok(l) => l,

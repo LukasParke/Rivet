@@ -11,7 +11,6 @@
 //!   touching the disk.
 
 use std::io;
-use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 
 /// Media extensions eligible for import/verification.
@@ -115,7 +114,7 @@ pub fn import_file_to_path(src_path: &str, dest_path: &str) -> Result<String, St
         return Err("invalid_source".to_string());
     }
     let dest = Path::new(dest_path.trim());
-    if dest.as_os_str().is_empty() || dest.parent().map_or(true, |d| d.as_os_str().is_empty()) {
+    if dest.as_os_str().is_empty() || dest.parent().is_none_or(|d| d.as_os_str().is_empty()) {
         return Err("invalid_dest_path".to_string());
     }
     std::fs::create_dir_all(dest.parent().unwrap()).map_err(|e| e.to_string())?;
@@ -272,6 +271,7 @@ fn path_str(p: PathBuf) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::os::unix::fs::MetadataExt;
 
     #[test]
     fn sanitizes_path_traversal_attempts() {

@@ -22,7 +22,7 @@ use serde::Deserialize;
 use crate::adapters::{
     AdapterError, Indexer, Release, ReleaseKind, SearchQuery,
 };
-use crate::security::ssrf::{get_validated, validate_url, OutboundPolicy};
+use crate::security::ssrf::{get_validated, OutboundPolicy};
 
 const TIMEOUT: Duration = Duration::from_secs(20);
 const MAX_BODY: usize = 2 * 1024 * 1024;
@@ -379,10 +379,9 @@ pub fn magnet_hash(url: &str) -> Option<String> {
     let rest = &url[start..];
     let end = rest.find('&').unwrap_or(rest.len());
     let h = &rest[..end];
-    if h.len() == 40 && h.bytes().all(|b| b.is_ascii_hexdigit()) {
+    // 40-char hex btih or 32-char base32 btih.
+    if (h.len() == 40 && h.bytes().all(|b| b.is_ascii_hexdigit())) || h.len() == 32 {
         Some(h.to_ascii_lowercase())
-    } else if h.len() == 32 {
-        Some(h.to_ascii_lowercase()) // base32 btih
     } else {
         None
     }
@@ -402,6 +401,7 @@ fn parse_rfc2822(s: &str) -> Option<String> {
 }
 
 /// Normalizes a raw result: quality/tag detection, hash extraction.
+#[allow(clippy::too_many_arguments)]
 pub fn normalize(
     indexer_name: String,
     title: &str,

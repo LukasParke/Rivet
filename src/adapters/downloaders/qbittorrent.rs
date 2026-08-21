@@ -368,7 +368,7 @@ pub(crate) fn extract_btih(u: &str) -> Option<String> {
     let idx = lower.find(marker)?;
     let start = idx + marker.len();
     let end = u[start..]
-        .find(|ch| ch == '&' || ch == '#')
+        .find(['&', '#'])
         .map(|i| start + i)
         .unwrap_or(u.len());
     let hash = u[start..end].trim();
@@ -418,7 +418,7 @@ mod tests {
     #[tokio::test]
     async fn add_url_posts_category_and_returns_magnet_hash() {
         let server = MockServer::start().await;
-        let add = Mock::given(method("POST"))
+        Mock::given(method("POST"))
             .and(path("/api/v2/torrents/add"))
             .and(body_string_contains("urls=magnet%3A%3Fxt%3Durn%3Abtih%3Aabc123"))
             .and(body_string_contains("category=rivet"))
@@ -435,7 +435,6 @@ mod tests {
             .expect("add succeeds");
         assert_eq!(added.as_deref(), Some("abc123"));
         server.verify().await;
-        let _ = add;
     }
 
     #[tokio::test]
@@ -483,7 +482,7 @@ mod tests {
             .expect(1)
             .mount(&server)
             .await;
-        let login = login_mock().expect(2).mount(&server).await; // initial + relogin
+        login_mock().expect(2).mount(&server).await; // initial + relogin
 
         let client = client_for(&server).await;
         client
@@ -491,7 +490,6 @@ mod tests {
             .await
             .expect("retry after 403 succeeds");
         server.verify().await;
-        let _ = login;
     }
 
     #[tokio::test]
