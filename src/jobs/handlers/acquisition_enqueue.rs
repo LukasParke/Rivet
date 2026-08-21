@@ -27,8 +27,12 @@ pub async fn handle(state: &AppState, job: &Job) -> Result<(), String> {
         .ok_or("acquisition_not_found")?;
 
     // Load the candidate's raw JSON for the enclosure URL.
+    // Candidates are stored as serialized `adapters::Release`; accept the
+    // legacy wizard-era field names too.
     #[derive(serde::Deserialize)]
     struct Raw {
+        #[serde(default, rename = "download_url")]
+        download_url: String,
         #[serde(default, rename = "enclosureUrl")]
         enclosure_url: String,
         #[serde(default)]
@@ -42,10 +46,13 @@ pub async fn handle(state: &AppState, job: &Job) -> Result<(), String> {
             .map_err(|e| e.to_string())?;
     let (raw_json,) = row.ok_or("candidate_not_found")?;
     let raw: Raw = serde_json::from_str(&raw_json).unwrap_or(Raw {
+        download_url: String::new(),
         enclosure_url: String::new(),
         link: String::new(),
     });
-    let url = if !raw.enclosure_url.trim().is_empty() {
+    let url = if !raw.download_url.trim().is_empty() {
+        raw.download_url.trim()
+    } else if !raw.enclosure_url.trim().is_empty() {
         raw.enclosure_url.trim()
     } else {
         raw.link.trim()

@@ -1,531 +1,118 @@
-## Media Automation Control Plane (self‑hosted)
+# Rivet — Media Automation Control Plane
 
-A self-hosted, publicly accessible **media automation control plane** that manages discovery, decisioning, acquisition, verification, and import—while delegating actual downloading to mature external clients (qBittorrent/Deluge/Transmission, NZBGet/SABnzbd).
+A self-hosted, publicly-accessible **media automation control plane** that manages
+discovery, decisioning, acquisition, verification, and import — delegating actual
+downloading to mature external clients (qBittorrent, Deluge, Transmission,
+NZBGet, SABnzbd).
 
-Core goals: **fast**, **explainable**, **secure**, **observable**, great as a **single-container install**, with an easy path to **Postgres + Redis** scaling.
+Core goals: **fast**, **explainable**, **secure**, **observable**, great as a
+**single-container install**.
 
----
+## Implementation
 
-## Current implementation status (pick up here)
+| Layer      | Technology                                                        |
+|------------|-------------------------------------------------------------------|
+| API/Engine | **Rust** — axum + tokio + SQLx (SQLite), role-gated WebSocket hub |
+| Storage    | SQLite (WAL, enforced foreign keys), transactional migrations     |
+| Web UI     | SvelteKit SSR (`apps/web`)                                        |
+| Deploy     | Single container: nginx `:8080` → Rust API `:8081` + node `:3000` |
 
-This repo already contains a working “MVP spine” (API + DB + worker + WS + basic UI). Below is a consolidated snapshot of what is implemented so far and what’s next.
+### Backend layout (`src/`)
 
-### Implemented (today)
+- `security/` — Argon2id passwords, AES-256-GCM secret box, bounded rate
+  limiter, and the **SSRF-safe outbound layer**: every outbound request is
+  validated once and its resolved IPs *pinned* into the client's DNS resolver;
+  redirects are followed manually with per-hop revalidation. No adapter may
+  construct a raw HTTP client.
+- `storage/` — connection pool forces `foreign_keys`/WAL/`busy_timeout`
+  regardless of DSN; migrations run one file per `BEGIN IMMEDIATE`
+  transaction, keyed by filename, with drift detection; durable job queue with
+  leases, renewal, owner-checked terminal writes, and attempt caps.
+- `ws/` — hub enforces channel clearance at delivery: `audit` is admin-only,
+  `downloads`/`imports` operator+, `activity`/`jobs`/`health` any
+  authenticated user. Unsubscribe is explicit.
+- `jobs/` — worker panic-isolates handlers (a poisoned job fails, never the
+  process); heartbeat renews leases; every pipeline continuation propagates
+  enqueue errors; a reconciler rescues stale non-terminal acquisitions; a
+  retention janitor prunes sessions/jobs/audit/candidates.
+- `adapters/` — Newznab + Torznab indexers (Prowlarr aggregation, API-key
+  redaction), qBittorrent (category-scoped, v5 state names), Deluge,
+  Transmission, NZBGet, SABnzbd, dry-run simulator, TMDB/TVDB metadata.
+- `httpapi/` — routes mirroring `packages/contracts/openapi.yaml`; CSRF
+  double-submit on cookie-auth mutations; RBAC viewer < operator < admin.
 
-- **Backend service (Go + Fiber)**
-  - **Auth + security**: sessions, CSRF for cookie-auth mutations, RBAC (admin/operator/viewer), login rate limiting, Argon2id password hashing, secrets encryption (AES-256-GCM), SSRF defenses for outbound HTTP, audit event recording.
-  - **DB**: SQLite via `modernc.org/sqlite` + embedded SQL migrations.
-  - **Durable jobs**: DB-backed job queue with leases, retries, exponential backoff + jitter; in-process worker loop.
-  - **Observability**: structured JSON logging (`slog`), `/healthz`, `/readyz`, `/metrics`, diagnostics bundle endpoint.
-  - **WebSockets**: `/ws` with channel subscriptions; server publishes events for jobs, health, audit, downloads, imports.
+### Pipeline semantics
 
-- **Setup wizard (API + UI)**
-  - Wizard steps exist in the UI and corresponding API endpoints store validated configs in settings:
-    - Paths (`setup.paths`): downloads, library roots, quarantine
-    - Clients (`setup.clients`): qBittorrent credentials stored encrypted
-    - Indexers (`setup.indexers`): Newznab/Torznab configs (stored + validated)
-    - Metadata (`setup.metadata`): TMDB/TVDB configs (stored + validated)
-    - Policies (`setup.policies`): profile/policy JSON (validated + stored)
+- A search run records all candidates + decisions and creates **one**
+  acquisition for the best-scoring accepted candidate (score desc, seeders
+  desc, title asc); the rest remain as rescout fallbacks.
+- Enqueue identifies torrents exactly: magnet btih or a client-returned id
+  under the `rivet` category. No fuzzy matching against unrelated downloads.
+- Monitor bounds ghost/paused polling (30 not-found / 60 paused polls →
+  needs_review). Verify quarantines failures and records evidence; rescout
+  fires once per verify failure budget and is depth-capped per target.
+- Dry-run mode simulates download clients and never writes to the filesystem.
 
-- **Discovery → decisioning pipeline**
-  - Wanted targets, search runs, release candidates, decisions stored in DB.
-  - `search_run` job executes: searches indexers, normalizes candidates, runs decisioning, stores decisions, emits WS events.
-
-- **Acquisition pipeline (qBittorrent MVP)**
-  - Unified `acquisitions` record with lifecycle state.
-  - `acquisition_enqueue` job:
-    - Reads candidate URL (enclosure/link), sends to qBittorrent, extracts `btih` hash from magnet, stores `external_id`, emits `download.enqueued`.
-    - Schedules monitoring (`acquisition_monitor`).
-  - `acquisition_monitor` job:
-    - Polls qBittorrent `/api/v2/torrents/info`, updates progress in DB, emits `download.progress`.
-    - On completion: marks acquisition completed, emits `download.completed`, schedules `acquisition_verify`.
-    - Stall detection v1: if no progress change within a window, sets `status=stalled`, emits `download.stalled`, schedules `acquisition_recover`.
-  - **Verification v0** (`acquisition_verify` job):
-    - Picks a media file, applies minimal safety checks (extension allowlist, “sample” detection, minimum size).
-    - On failure: quarantines file and marks `status=needs_review`, emits `verify.failed`.
-    - On success: marks verified and schedules `acquisition_import`, emits `verify.completed`.
-  - **Import v0** (`acquisition_import` job):
-    - Hardlink-first import into library root (fallback copy), marks `status=imported`, emits `import.completed`.
-  - **Recovery v1** (`acquisition_recover` job, qBittorrent):
-    - Attempts: resume → reannounce → recheck, emits `download.recovery_*` events, then resumes monitoring.
-    - Escalates to `needs_review` after repeated failures/attempts.
-
-- **API endpoints (implemented)**
-  - Auth: `/api/v1/auth/*` (login/logout/me/csrf)
-  - Setup: `/api/v1/setup/*`
-  - Targets/search: `/api/v1/targets`, `/api/v1/targets/{id}/search`, `/api/v1/search/runs/{id}`
-  - Diagnostics: `/api/v1/diagnostics/bundle`
-  - Acquisitions:
-    - `GET /api/v1/acquisitions`
-    - `GET /api/v1/acquisitions/{id}`
-
-- **Web UI (SvelteKit)**
-  - Setup wizard pages.
-  - `/app` demo page: create target → start search → poll results + live WS feed.
-  - Acquisitions view on `/app`: refreshes automatically when `download.*` / `import.*` / `verify.*` events arrive.
-
-### WebSocket event types (implemented)
-
-- **Jobs**: `job.claimed`, `job.completed`, `job.failed`, `job.retry_scheduled`
-- **Downloads** (`downloads` channel): `download.enqueued`, `download.progress`, `download.completed`, `download.failed`, `download.stalled`, `download.recovery_attempt`, `download.recovery_scheduled`, `download.recovery_failed`, `download.needs_review`, `download.blacklisted`, `download.rescout.*`
-- **Verification/import** (`imports` channel): `verify.started`, `verify.completed`, `verify.failed`, `import.started`, `import.completed`, `import.failed`
-- **Audit** (`audit` channel): `audit.*`
-- **Health** (`health` channel): `health.snapshot`
-
-### Job kinds (implemented)
-
-- `search_run`
-- `acquisition_enqueue`
-- `acquisition_monitor`
-- `acquisition_verify`
-- `acquisition_import`
-- `acquisition_recover`
-- `acquisition_rescout`
-
-### Migrations added so far (high-level)
-
-- Core auth/session/audit/settings/jobs tables
-- Core domain tables (targets/search runs/candidates/decisions)
-- Acquisition tables and follow-on fields:
-  - `0004_acquisitions.sql` (base)
-  - `0005_acquisitions_fields.sql` (source/content/import/progress fields)
-  - `0006_acquisition_verify_stall.sql` (verify/quarantine + stall/recovery fields)
-  - `0007_blacklist.sql` (blacklist entries)
-  - `0008_verify_evidence.sql` (verification evidence JSON)
-
-### How to run
-
-- **Go tests**:
-  - `go test ./...`
-- **Web build**:
-  - `npm -C apps/web run build`
-
----
-
-## Local development (preview UI + API)
-
-Run the Go API/WS server on port 8080 and the SvelteKit dev server on port 5173. The web app proxies `/api/*` and `/ws` to the Go server during development (see `apps/web/vite.config.ts`).
-
-**Important**: Secrets and configuration are persisted between runs:
-- Secret key is stored in `.rivet-secret-key` (auto-created on first run)
-- Database is stored in `rivet-dev.db` (in the project root)
-- Both files are git-ignored for security
-
-### Quick start (recommended)
+## Running
 
 ```bash
-# Start both backend and web servers (auto-creates persistent secret key)
+# Tests (Rust)
+cargo test
+
+# Web tests + build
+npm -C apps/web install && npm -C apps/web test && npm -C apps/web run build
+
+# Dev: backend :8080 + web :5173 (persists .rivet-secret-key and rivet-dev.db)
 make dev
+
+# Dry-run backend (simulated download clients, real indexer calls)
+make backend-dry-run        # or: DRY_RUN=1 make backend
 ```
 
-This will:
-- Create `.rivet-secret-key` if it doesn't exist (persists between runs)
-- Use `rivet-dev.db` for the database (persists between runs)
-- Start both servers in parallel
+Environment: `APP_ENV`, `HTTP_ADDR`, `DATABASE_URL`, `APP_SECRET_KEY`
+(base64, 32 bytes; required outside dev), `SESSION_TTL`, `ALLOW_INTERNAL_URLS`
+(defaults true in dev), `DRY_RUN`, `DRY_RUN_FIXTURE_PATH`, `FFPROBE_PATH`.
 
-### Manual start
+## First-run wizard
 
-- **Backend (Go)**:
+With no users, only `/api/v1/setup/*` is reachable:
 
-```bash
-# The Makefile will auto-load the secret key from .rivet-secret-key if APP_SECRET_KEY is not set
-make backend
+1. **Create admin** — first user becomes admin; the gate flips synchronously
+   so the immediate login cannot race it.
+2. **Paths** — downloads/quarantine/library roots validated (stat-only in dry-run).
+3. **Download clients** — qBittorrent/Deluge/Transmission + NZBGet/SABnzbd;
+   connectivity tested under the SSRF policy; secrets encrypted at rest.
+4. **Indexers** — Torznab/Newznab or Prowlarr; test search + parsing.
+5. **Metadata** — TMDB/TVDB validation.
+6. **Policies** — quality profiles, banned tags, language.
+7. **Finish** — writes the setup report and opens the app.
 
-# Or manually:
-export APP_SECRET_KEY="$(cat .rivet-secret-key 2>/dev/null || python3 -c 'import base64, os; print(base64.b64encode(os.urandom(32)).decode())')"
-export APP_ENV=dev
-export HTTP_ADDR=":8080"
-export DATABASE_URL="file:rivet-dev.db?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)"
-go run ./cmd/server
-```
-
-- **Web (SvelteKit)**:
+## Docker
 
 ```bash
-npm -C apps/web install
-npm -C apps/web run dev
-```
-
-Then open the web UI at `http://localhost:5173` (it will call the API at `http://localhost:8080` via proxy).
-
-### Dry Run mode (recommended for local testing)
-
-Dry Run keeps real indexer/metadata network calls but simulates download client operations and filesystem writes.
-
-```bash
-# Uses persistent secret key and database
-make backend-dry-run
-
-# Or manually:
-export DRY_RUN=1
-# Optional: point at an existing local media file or directory so verify/import can run read-only.
-export DRY_RUN_FIXTURE_PATH="/path/to/a/media/file-or-folder"
-make backend
-```
-
----
-
-## Single-container MVP (Docker + nginx)
-
-This repo can be built into a single container that runs:
-
-- **nginx** on `:8080` (public)
-- **Go API/WS** on `127.0.0.1:8081` (internal)
-- **SvelteKit SSR** on `127.0.0.1:3000` (internal)
-
-Data persists under `/data` (SQLite default).
-
-```bash
-# Build
 docker build -t rivet:dev .
-
-# Run (bind to localhost:8080 and persist db under ./data)
 docker run --rm -p 8080:8080 -v "$PWD/data:/data" \
   -e APP_ENV=prod \
-  -e APP_SECRET_KEY="$(python3 - <<'PY'
-import base64, os
-print(base64.b64encode(os.urandom(32)).decode())
-PY
-)" \
+  -e APP_SECRET_KEY="$(python3 -c 'import base64,os;print(base64.b64encode(os.urandom(32)).decode())')" \
   rivet:dev
 ```
 
-Then open the UI at `http://localhost:8080`.
----
-
-## Architecture overview
-
-### Components
-
-- **Web UI**: SvelteKit
-  - Server-rendered initial data (native server loads)
-  - WebSockets for realtime updates
-- **API/Engine**: Go + Fiber
-  - REST (OpenAPI-first)
-  - WebSockets
-  - Background workers/controllers
-- **Storage profiles**
-  - **Default**: SQLite (WAL) on a mounted volume
-  - **Scale mode**: Postgres (source of truth)
-- **Redis** (optional → recommended in scale mode)
-  - Provider call caching
-  - Rate-limit state
-  - Distributed job leases
-  - WebSocket fanout pub/sub
-- **External reverse proxy**: handled outside the app (no TLS concerns inside app)
-
-### Core design principles
-
-- **Declarative desired state** (what you want) + **reconciliation loops** (controllers) that continuously drive reality toward that state.
-- **Durable job orchestration** (DB-backed queue) with leases, retries, jittered backoff, and explainable outcomes.
-- **Client-agnostic acquisition model** that unifies torrents + usenet under one state machine.
-- **Security-first** for internet-exposed installs: RBAC, audit logging, SSRF defenses, rate limiting, secret encryption.
-- **Observability-first**: OpenTelemetry traces/metrics/logs, diagnostics bundle, health dashboards.
-
----
-
-## First-run registration + guided setup wizard (required)
-
-### Setup Mode gate
-
-If **no users exist**, the site enters **Setup Mode**:
-
-- Only wizard routes are accessible
-- The first created user becomes **Admin**
-- Registration **closes by default** after setup (admin can enable invites later)
-
-### Wizard steps (with real validations)
-
-1. **Create Admin**
-   - Email/password (Argon2id)
-   - Optional TOTP
-2. **Paths**
-   - Downloads completed path
-   - Library roots
-   - Quarantine path
-   - Validate permissions + hardlink viability (same filesystem)
-3. **Download clients**
-   - Configure at least one torrent client: qBittorrent (recommended) or Deluge/Transmission
-   - Usenet: NZBGet (required) + SABnzbd (recommended)
-   - Test connectivity; store secrets encrypted
-4. **Indexers**
-   - **Recommended**: Add Prowlarr as a Torznab indexer (manages multiple indexers)
-   - Or add individual Torznab (torrents) / Newznab (usenet) indexers
-   - Test search + parsing
-5. **Metadata providers**
-   - **TMDB**: Optional API key (leave blank to use shared key, rate-limited)
-   - **TVDB**: Optional API key
-   - Get free API keys: [TMDB](https://www.themoviedb.org/settings/api) | [TVDB](https://thetvdb.com/dashboard/account/apikey)
-   - Test and set request budgets
-6. **Policies**
-   - Quality profiles, language, upgrade rules, safety gates
-7. **Finish**
-   - Health summary
-   - Store “setup report”
-   - Unlock full UI
-
-Validations are not cosmetic: connectivity, permissions, basic search/parse, plus a sample end-to-end **dry run**.
-
----
-
-## Integrations and adapters (v1 set)
-
-### Indexers (avoid one-off integrations)
-
-- **Torznab adapter** (torrent searching)
-- **Newznab adapter** (usenet searching)
-
-#### Recommended: Prowlarr for indexer management
-
-**Prowlarr** is a standalone indexer manager that aggregates multiple indexers (both Torznab and Newznab) and provides a single unified Torznab endpoint. This is the easiest way to get started:
-
-1. **Install Prowlarr** (Docker):
-   ```bash
-   docker run -d --name prowlarr -p 9696:9696 lscr.io/linuxserver/prowlarr
-   ```
-
-2. **Configure indexers in Prowlarr**:
-   - Access Prowlarr web UI at `http://localhost:9696`
-   - Add your indexers (public or private) through Prowlarr's interface
-   - Prowlarr manages API keys, rate limits, and health checks
-
-3. **Add Prowlarr to Rivet**:
-   - In Rivet's setup wizard, add Prowlarr as a Torznab indexer
-   - URL: `http://localhost:9696` (or your Prowlarr instance URL)
-   - API Key: Found in Prowlarr Settings → General → API Key
-   - Name: "Prowlarr"
-
-This approach gives you:
-- **Single endpoint** instead of managing multiple indexers individually
-- **Automatic health monitoring** and failover
-- **Unified search** across all configured indexers
-- **Easy indexer management** through Prowlarr's UI
-
-You can also add individual Torznab/Newznab indexers directly if you prefer, but Prowlarr is recommended for most users.
-
-### Download clients (native support)
-
-All integrations implement a shared **Downloader** interface plus optional capability interfaces (e.g., torrent reannounce/recheck; usenet retry/postprocess).
-
-- **Torrents**: qBittorrent (default), Deluge, Transmission
-- **Usenet**: NZBGet (first-class), SABnzbd (strongly recommended)
-
----
-
-## Core domain model
-
-### Key objects
-
-- **Library**: kind (movies/tv), root paths, import mode, quarantine path
-- **Profile/Policy**: hard filters + scoring weights + upgrade policy
-- **Wanted Target**: desired item (movie, episode, season pack)
-- **Release Candidate**: indexer result (raw + normalized parse)
-- **Decision**: accepted/rejected with score breakdown and reasons
-- **Acquisition**: unified record (torrent or usenet) + lifecycle
-- **Verification**: post-download correctness + safety outcomes
-- **Asset**: imported file on disk + hash + media info
-- **Jobs**: durable queue items powering controllers/workflows
-- **Audit Events**: privileged actions + sensitive system actions
-
----
-
-## System workflows (end-to-end)
-
-### Standard flow
-
-1. Target created (user adds wanted item, or via list import)
-2. Search via Torznab/Newznab
-3. Normalize titles into structured metadata (resolution/source/codec/etc.)
-4. Filter + score using profile rules
-5. Decision recorded (explainable report stored)
-6. Queue download in chosen client (torrent or usenet)
-7. Monitor progress (polling clients) → realtime UI via WS
-8. Stall detection runs continuously
-9. On completion → verify (safety + correctness)
-10. Import (hardlink/copy/move) + rename + folder layout
-11. Update target state (imported) + notify
-12. Periodic reconciliation (repair/missing/moved)
-
-Everything is **idempotent** and **resumable**.
-
----
-
-## Torrent/NZB selection and validation
-
-### Pre-grab filtering (cheap/fast)
-
-- Parse + normalize release title
-- Hard rejects
-  - Too few seeders (torrent)
-  - Size outside expected band
-  - Banned tags (cam/ts/scr/etc.)
-  - Target mismatch (wrong season/episode/year)
-- Soft scoring
-  - Quality tier, source, codec/audio prefs
-  - Group reputation (locally learned)
-  - Age/freshness, size closeness
-
-Always store **decision reasons** + **score breakdown**.
-
-### Post-download verification (deep/trustworthy)
-
-- Media-only import policy (default)
-  - Only allowlisted media extensions are importable
-  - Everything else quarantined/ignored (configurable)
-- Inspect streams (ffprobe/mediainfo)
-  - Duration sanity bounds
-  - Resolution/codec/audio checks
-  - Detect samples and ignore
-- Identity match
-  - TV: SxxEyy/date mapping; season-pack completeness rules
-  - Movies: title similarity + year tolerance
-- Integrity
-  - Hash (blake3 recommended) for dedupe + avoiding loops
-- Optional malware scanning
-  - ClamAV sidecar scanning for suspicious non-media payloads
-
-Failures go to a **Review Queue** with full evidence and override options (admin-only, audited).
-
----
-
-## Native stalled-download handling + rescout
-
-### Unified acquisition state machine
-
-Queued → Downloading → Completed → Verifying → Imported
-
-With side states: Degraded, Stalled, Failed, NeedsReview, Blacklisted.
-
-### Stall detection signals (composite)
-
-- No progress delta in bytes for a configured window
-- Download rate ~ 0
-- Torrent: peers/seeders collapse, tracker errors
-- Usenet: missing articles/server failures/postprocess stuck
-
-### Recovery ladder (policy-driven, rate-limited)
-
-- Torrents
-  1. Resume
-  2. Reannounce (if supported)
-  3. Force recheck (if supported)
-  4. Rescout alternatives
-  5. Fail → NeedsReview (with logs + reasons)
-- Usenet
-  1. Resume/retry
-  2. Dependency unhealthy → stop hammering, alert
-  3. Postprocess loops → quarantine/NeedsReview
-  4. Rescout alternative
-  5. Fail
-
-Every action is recorded (recovery history), emitted via WS, and audited.
-
----
-
-## API + WebSockets
-
-### REST (OpenAPI-first)
-
-- Auth/session/token management
-- Wizard validation endpoints
-- Libraries/targets/profiles
-- Search runs + decisions + blacklists
-- Acquisition controls (pause/resume/remove/retry)
-- Verification/import/review queue actions
-- Health/diagnostics
-
-### WebSockets (`/ws`)
-
-- Authenticated
-- Channels: activity, jobs, downloads, imports, health, audit
-- Versioned event envelope: `{ v, type, ts, payload }`
-- Scale mode: Redis pub/sub for fanout
-
----
-
-## Observability (required)
-
-### OpenTelemetry
-
-- **Traces**: REST + WS messages + provider calls + job runs (single trace across pipeline)
-- **Metrics**: queue depth, job latency, provider error rates, import throughput, WS connections
-- **Logs**: structured JSON with trace/span IDs
-
-### Endpoints
-
-- `/healthz`
-- `/readyz`
-- `/metrics`
-
-### Diagnostics bundle
-
-Sanitized settings + last N errors + health snapshot + top reject reasons.
-
----
-
-## Test strategy (required)
-
-### Unit + integration
-
-- **Unit tests**: pure logic (parsing/decisioning/scoring/state machine), storage helpers, SSRF guards, crypto helpers.
-- **Integration tests** (real external providers): run against public APIs when credentials are provided via env; otherwise **auto-skip**.
-  - TMDB: set `TMDB_API_KEY`
-  - TVDB: set `TVDB_API_KEY`
-  - (extend similarly for other providers as they’re added)
-
-These tests validate the real request/response contract, rate-limit handling, and auth failures without requiring a full deployment.
-
----
-
-## Security (publicly accessible by design)
-
-- **RBAC**: admin/operator/viewer
-- **Audit log**: privileged + sensitive operations
-- **Secrets encrypted at rest**: integration credentials
-- **SSRF defenses**: block internal ranges unless explicitly allowed
-- **Strict CORS allowlist**
-- **CSRF protection**: for cookie-auth mutations
-- **Rate limiting**: login, WS connect, search/rescout triggers
-- **Secure session cookies**: HTTPOnly; SameSite chosen for deployment model
-- **Safe-by-default mounts**
-  - Recommend host-mounted SMB/NFS bind-mounted into container
-  - Optional privileged mount helper sidecar later (not in core)
-
----
-
-## Repo layout (target)
-
-- `apps/web`: SvelteKit UI
-- `cmd/server`: API + WS + workers (default)
-- `cmd/worker`: optional scale mode worker
-- `cmd/migrate`: migrations + sqlite→pg tool
-- `internal/adapters`: downloaders/indexers/metadata
-- `internal/jobs`: queue + runners (search/decide/monitor/recover/rescout/verify/import)
-- `internal/import`: verifier/organizer/scanner
-- `internal/security`: auth/RBAC/audit/secrets/SSRF/rate-limit
-- `internal/observability`: OTel, logging, metrics, diagnostics
-- `packages/contracts`: OpenAPI + WS events codegen
-
----
-
-## Delivery milestones
-
-### MVP
-
-Wizard + qBittorrent + Torznab + one domain + verify/import + WS feed + stall recovery v1.
-
-### Next (recommended order)
-
-- **Review queue UI + admin actions** (needs_review acquisitions: view evidence, re-run verify/import, manual override; audited)
-- **Acquisition controls API** (pause/resume/remove/retry) and wire to qBittorrent controls
-- **Better verification** (ffprobe/mediainfo, sample detection beyond filename, hash/dedupe)
-- **Rename + folder layout** (movie vs TV rules, year tolerance, season/episode formatting)
-- **Rescout v1** (when stalled/failed: search alternatives and re-enqueue)
-
-### v1
-
-Add Deluge/Transmission + NZBGet/SABnzbd + Newznab + quarantine/review + rescout + Redis scale mode.
-
-### vNext
-
-Multi-domain, repair/reconcile, richer decision tuning, more metadata/list providers.
+The entrypoint forwards SIGTERM/SIGINT to all three processes and tears the
+rest down if any child dies.
+
+## API contract
+
+`packages/contracts/openapi.yaml` documents every endpoint including status
+codes. The WebSocket protocol (`/ws`) uses `{v, type, ts, payload}` envelopes;
+clients subscribe explicitly (`{"type":"subscribe","channels":[...]}`).
+
+## Security posture
+
+- Argon2id (m=64 MiB, t=3) password hashing; constant-shape login errors with
+  dummy verification against timing enumeration.
+- AES-256-GCM encryption for all stored credentials via ONE shared SecretBox.
+- Per-IP login rate limiting (10/min fixed window).
+- Outbound SSRF policy blocks loopback/private/link-local/CGNAT/multicast/
+  NAT64 targets unless `ALLOW_INTERNAL_URLS` is set; pinned-IP dialing defeats
+  DNS rebinding; redirect hops revalidated.
+- Audit events for auth/setup/admin actions; WS event payloads gated by role.

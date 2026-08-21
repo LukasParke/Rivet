@@ -134,11 +134,14 @@ async fn run_inner(state: &AppState, run_id: &str, target_id: &str) -> Result<()
             let normalized = decisioning::normalize_title(&rel.title);
             let normalized_json = serde_json::to_string(&normalized).unwrap_or_default();
 
+            // Persist the FULL release: downstream stages (enqueue's
+            // candidate_missing_url check, monitor, rescout dedup) read
+            // download_url/info_hash from this row.
             let cand = match domain::insert_candidate(
                 &state.db,
                 run_id,
                 ix.name(),
-                &serde_json::to_string(&rel.raw).unwrap_or_default(),
+                &serde_json::to_string(&rel).unwrap_or_default(),
                 Some(&normalized_json),
             )
             .await

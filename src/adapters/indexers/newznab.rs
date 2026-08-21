@@ -31,6 +31,7 @@ const MAX_BODY: usize = 2 * 1024 * 1024;
 pub struct IndexerConfig {
     pub name: String,
     pub url: String,
+    #[serde(alias = "api_key", alias = "apiKey")]
     pub apikey: String,
     #[serde(default)]
     pub torznab: bool,
