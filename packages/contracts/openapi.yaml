@@ -108,6 +108,8 @@ paths:
                   type: string
       responses:
         '201':
+        '409':
+          description: Setup already completed
           description: Created
           content:
             application/json:
@@ -308,6 +310,10 @@ paths:
         '200': { description: OK }
         '401': { description: Unauthorized }
         '403': { description: Forbidden/CSRF }
+        '502':
+          description: Upstream client error
+
+
   /api/v1/acquisitions/{id}/actions/resume:
     post:
       summary: Resume an acquisition download (client control)
@@ -320,6 +326,10 @@ paths:
         '200': { description: OK }
         '401': { description: Unauthorized }
         '403': { description: Forbidden/CSRF }
+        '502':
+          description: Upstream client error
+
+
   /api/v1/acquisitions/{id}/actions/retry:
     post:
       summary: Retry an acquisition (re-enqueue acquisition_enqueue)
@@ -332,6 +342,10 @@ paths:
         '200': { description: OK }
         '401': { description: Unauthorized }
         '403': { description: Forbidden/CSRF }
+        '502':
+          description: Upstream client error
+
+
   /api/v1/acquisitions/{id}/actions/remove:
     post:
       summary: Remove an acquisition from client (admin)
@@ -348,6 +362,10 @@ paths:
         '200': { description: OK }
         '401': { description: Unauthorized }
         '403': { description: Forbidden/CSRF }
+        '502':
+          description: Upstream client error
+
+
   /api/v1/acquisitions/{id}/actions/reverify:
     post:
       summary: Re-run verification for a needs_review acquisition (admin)
@@ -491,3 +509,59 @@ paths:
           description: Ready
         '503':
           description: Not ready
+  /api/v1/candidates/{id}/acquisition:
+    post:
+      summary: Create an acquisition for an accepted candidate (idempotent per candidate)
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '201': { description: Created }
+        '200': { description: Already exists for this candidate }
+        '400': { description: candidate not found or not accepted }
+        '401': { description: Unauthorized }
+        '403': { description: Forbidden or csrf_required }
+  /api/v1/setup/config:
+    get:
+      summary: Full setup configuration (secrets decrypted; admin only)
+      security: [{ sessionCookie: [] }]
+      responses:
+        '200': { description: OK }
+        '401': { description: Unauthorized }
+        '403': { description: Forbidden }
+  /api/v1/diagnostics/test-connection:
+    post:
+      summary: Validate and probe a configured URL under the outbound SSRF policy
+      security: [{ sessionCookie: [] }]
+      responses:
+        '200':
+          description: Probe result (ok flag with error detail on failure)
+        '400': { description: invalid_url, disallowed_target, dns_failure }
+        '401': { description: Unauthorized }
+        '403': { description: Forbidden }
+  /metrics:
+    get:
+      summary: Prometheus text exposition of job/queue metrics
+      responses:
+        '200':
+          description: OK
+          content:
+            text/plain:
+              schema: { type: string }
+  /ws:
+    get:
+      summary: WebSocket event stream (session-authenticated upgrade)
+      responses:
+        '101': { description: Switching Protocols }
+        '401': { description: Unauthorized (pre-upgrade) }
+  /ws/info:
+    get:
+      summary: WebSocket endpoint probe
+      responses:
+        '200': { description: OK }
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: rivet_session

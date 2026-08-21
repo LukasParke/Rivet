@@ -1,4 +1,6 @@
 <script>
+	import { apiFetch } from '$lib/api';
+
 	/** @typedef {{ ok: boolean; details?: Record<string,string>; error?: string }} ClientTestResult */
 	/** @typedef {{ ok: boolean; qbittorrent?: ClientTestResult; nzbget?: ClientTestResult; sabnzbd?: ClientTestResult }} ValidateResponse */
 
@@ -22,10 +24,6 @@
 	let error = null;
 	let busy = false;
 
-	function csrfHeader() {
-		const t = sessionStorage.getItem('csrf');
-		return t ? { 'x-csrf-token': t } : {};
-	}
 
 	function payload() {
 		/** @type {any} */
@@ -41,9 +39,9 @@
 		error = null;
 		result = null;
 		try {
-			const res = await fetch('/api/v1/setup/clients/validate', {
+			const res = await apiFetch('/api/v1/setup/clients/validate', {
 				method: 'POST',
-				headers: { 'content-type': 'application/json', ...csrfHeader() },
+				headers: { 'content-type': 'application/json' },
 				body: JSON.stringify(payload())
 			});
 			const data = await res.json().catch(() => null);
@@ -60,9 +58,9 @@
 		busy = true;
 		error = null;
 		try {
-			const res = await fetch('/api/v1/setup/clients/save', {
+			const res = await apiFetch('/api/v1/setup/clients/save', {
 				method: 'POST',
-				headers: { 'content-type': 'application/json', ...csrfHeader() },
+				headers: { 'content-type': 'application/json' },
 				body: JSON.stringify(payload())
 			});
 			const data = await res.json().catch(() => null);

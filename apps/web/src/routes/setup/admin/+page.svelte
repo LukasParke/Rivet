@@ -1,4 +1,6 @@
 <script>
+	import { setCsrfToken } from '$lib/api';
+
 	let email = '';
 	let password = '';
 	let error = null;
@@ -28,7 +30,8 @@
 			}
 			/** @type {{ token: string }} */
 			const data = await login.json();
-			sessionStorage.setItem('csrf', data.token);
+			// localStorage-backed so every tab shares the token.
+			setCsrfToken(data.token);
 			window.location.href = '/setup/paths';
 		} catch (e) {
 			error = e instanceof Error ? e.message : String(e);
@@ -41,11 +44,34 @@
 <div class="card">
 	<h2>Create Admin</h2>
 	<p class="muted">Password must be at least 12 characters.</p>
-	<div class="row">
-		<input placeholder="Email" bind:value={email} />
-		<input placeholder="Password" type="password" bind:value={password} />
-		<button disabled={busy} on:click={submit}>Create</button>
-	</div>
+	<form on:submit|preventDefault={submit}>
+		<div class="row">
+			<div>
+				<label class="visually-hidden" for="admin_email">Email</label>
+				<input
+					id="admin_email"
+					type="email"
+					autocomplete="email"
+					placeholder="Email"
+					bind:value={email}
+					required
+				/>
+			</div>
+			<div>
+				<label class="visually-hidden" for="admin_password">Password</label>
+				<input
+					id="admin_password"
+					type="password"
+					autocomplete="new-password"
+					placeholder="Password"
+					bind:value={password}
+					required
+					minlength="12"
+				/>
+			</div>
+			<button type="submit" disabled={busy}>Create</button>
+		</div>
+	</form>
 	{#if error}
 		<p class="error">{error}</p>
 	{/if}

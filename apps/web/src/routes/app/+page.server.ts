@@ -1,19 +1,14 @@
-import { redirect } from '@sveltejs/kit';
-
+// Data load only — routing guards live in src/hooks.server.ts.
 export async function load({ fetch }) {
-	const s = await fetch('/api/v1/setup/status');
-	if (s.ok) {
-		const data = (await s.json()) as { setupMode: boolean; setupComplete?: boolean };
-		if (data.setupMode) throw redirect(302, '/setup');
-		// If setup is not complete, redirect to setup wizard
-		if (!data.setupComplete) {
-			throw redirect(302, '/setup');
-		}
+	try {
+		const res = await fetch('/api/v1/setup/status');
+		if (!res.ok) return { dryRun: false, setupComplete: false };
+		const data = await res.json();
+		return {
+			dryRun: !!data.dryRun,
+			setupComplete: !!data.setupComplete
+		};
+	} catch {
+		return { dryRun: false, setupComplete: false };
 	}
-	const me = await fetch('/api/v1/auth/me');
-	if (!me.ok) {
-		// If setup is complete, redirect to login page instead of setup/admin
-		throw redirect(302, '/login');
-	}
-	return {};
 }

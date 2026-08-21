@@ -171,6 +171,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "axum-extra"
+version = "0.10.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9963ff19f40c6102c76756ef0a46004c0d58957d87259fc9208ff8441c12ab96"
+dependencies = [
+ "axum",
+ "axum-core",
+ "bytes",
+ "cookie",
+ "futures-util",
+ "http",
+ "http-body",
+ "http-body-util",
+ "mime",
+ "pin-project-lite",
+ "rustversion",
+ "serde_core",
+ "tower-layer",
+ "tower-service",
+ "tracing",
+]
+
+[[package]]
 name = "base64"
 version = "0.22.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1790,6 +1813,7 @@ dependencies = [
  "argon2",
  "async-trait",
  "axum",
+ "axum-extra",
  "base64",
  "chrono",
  "futures-util",
@@ -1798,6 +1822,7 @@ dependencies = [
  "proptest",
  "rand 0.8.7",
  "reqwest",
+ "roxmltree",
  "serde",
  "serde_json",
  "sha2",
@@ -1813,6 +1838,12 @@ dependencies = [
  "uuid",
  "wiremock",
 ]
+
+[[package]]
+name = "roxmltree"
+version = "0.20.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6c20b6793b5c2fa6553b250154b78d6d0db37e72700ae35fad9387a46f487c97"
 
 [[package]]
 name = "rsa"

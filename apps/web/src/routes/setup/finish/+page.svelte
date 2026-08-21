@@ -1,21 +1,18 @@
 <script>
+	import { apiFetch } from '$lib/api';
+
 	let busy = false;
 	let error = null;
 	let result = null;
 
-	function csrfHeader() {
-		const t = sessionStorage.getItem('csrf');
-		return t ? { 'x-csrf-token': t } : {};
-	}
 
 	async function finish() {
 		busy = true;
 		error = null;
 		result = null;
 		try {
-			const res = await fetch('/api/v1/setup/finish', {
-				method: 'POST',
-				headers: { ...csrfHeader() }
+			const res = await apiFetch('/api/v1/setup/finish', {
+				method: 'POST'
 			});
 			const data = await res.json().catch(() => null);
 			if (!res.ok) throw new Error(data?.error || 'finish_failed');

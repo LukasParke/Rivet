@@ -1,31 +1,26 @@
-FROM golang:1.24-bookworm AS go-builder
+# Rivet — media automation control plane (Rust API/WS server + SvelteKit web).
+
+FROM rust:1.90-slim-bookworm AS rust-builder
 WORKDIR /src
-
-COPY go.mod go.sum ./
-RUN go mod download
-
-COPY . .
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/rivet-server ./cmd/server
-
+RUN apt-get update && apt-get install -y --no-install-recommends pkg-config && rm -rf /var/lib/apt/lists/*
+COPY Cargo.toml Cargo.lock ./
+COPY src ./src
+RUN cargo build --release --locked -p rivet --bin rivet-server
 
 FROM node:20-bookworm-slim AS web-builder
 WORKDIR /src/apps/web
-
 COPY apps/web/package.json apps/web/package-lock.json ./
 RUN npm ci
-
 COPY apps/web/ ./
 RUN npm run build
 
-
 FROM node:20-bookworm-slim
 WORKDIR /app
-
 RUN apt-get update && \
   apt-get install -y --no-install-recommends nginx tini ca-certificates && \
   rm -rf /var/lib/apt/lists/*
 
-COPY --from=go-builder /out/rivet-server /app/rivet-server
+COPY --from=rust-builder /src/target/release/rivet-server /app/rivet-server
 
 WORKDIR /app/web
 COPY --from=web-builder /src/apps/web/build ./build
@@ -49,5 +44,3 @@ VOLUME ["/data"]
 
 ENTRYPOINT ["tini", "--"]
 CMD ["/entrypoint.sh"]
-
-

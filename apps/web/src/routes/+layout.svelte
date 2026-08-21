@@ -1,27 +1,13 @@
 <script lang="ts">
 	import '../styles.css';
-	import { onMount } from 'svelte';
 
-	let dryRun = false;
-	let dryRunFixturePathSet = false;
-
-	onMount(async () => {
-		try {
-			const res = await fetch('/api/v1/setup/status');
-			if (!res.ok) return;
-			const data = (await res.json()) as { dryRun?: boolean; dryRunFixturePathSet?: boolean };
-			dryRun = !!data.dryRun;
-			dryRunFixturePathSet = !!data.dryRunFixturePathSet;
-		} catch {
-			// ignore
-		}
-	});
+	let { data } = $props();
 </script>
 
-{#if dryRun}
+{#if data.dryRun}
 	<div class="dryrun-banner">
 		<strong>Dry Run</strong> — downloads and filesystem writes are simulated
-		{#if dryRunFixturePathSet}
+		{#if data.dryRunFixturePathSet}
 			<span class="muted">(fixture configured)</span>
 		{:else}
 			<span class="muted">(no fixture)</span>

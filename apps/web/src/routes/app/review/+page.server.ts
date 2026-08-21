@@ -1,13 +1,14 @@
-import { redirect } from '@sveltejs/kit';
+// Data load only — routing guards live in src/hooks.server.ts.
+/** @typedef {{ id?: string, status?: string, clientKind?: string, clientName?: string, verifyStatus?: string | null, lastError?: string | null, [k: string]: unknown }} ReviewItem */
 
+/** @returns {Promise<{ items: ReviewItem[] }>} */
 export async function load({ fetch }) {
-	const s = await fetch('/api/v1/setup/status');
-	if (s.ok) {
-		const data = (await s.json()) as { setupMode: boolean };
-		if (data.setupMode) throw redirect(302, '/setup');
+	try {
+		const res = await fetch('/api/v1/acquisitions?status=needs_review&limit=100');
+		if (!res.ok) return { items: [] };
+		const data = await res.json().catch(() => null);
+		return { items: Array.isArray(data) ? data : [] };
+	} catch {
+		return { items: [] };
 	}
-	const me = await fetch('/api/v1/auth/me');
-	if (!me.ok) throw redirect(302, '/setup/admin');
-	return {};
 }
-

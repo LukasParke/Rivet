@@ -1,4 +1,6 @@
 <script>
+	import { apiFetch } from '$lib/api';
+
 	/** @typedef {{ path: string; exists: boolean; isDir: boolean; readable: boolean; writable: boolean; errors?: string[]; warnings?: string[]; filesystemId?: string; hardlinkViable: boolean }} PathCheck */
 	/** @typedef {{ ok: boolean; downloadsCompleted: PathCheck; libraryRoots: PathCheck[]; quarantine: PathCheck }} ValidateResponse */
 
@@ -10,10 +12,6 @@
 	let error = null;
 	let busy = false;
 
-	function csrfHeader() {
-		const t = sessionStorage.getItem('csrf');
-		return t ? { 'x-csrf-token': t } : {};
-	}
 
 	function payload() {
 		const roots = libraryRootsRaw
@@ -28,9 +26,9 @@
 		error = null;
 		result = null;
 		try {
-			const res = await fetch('/api/v1/setup/paths/validate', {
+			const res = await apiFetch('/api/v1/setup/paths/validate', {
 				method: 'POST',
-				headers: { 'content-type': 'application/json', ...csrfHeader() },
+				headers: { 'content-type': 'application/json' },
 				body: JSON.stringify(payload())
 			});
 			const data = await res.json().catch(() => null);
@@ -49,9 +47,9 @@
 		busy = true;
 		error = null;
 		try {
-			const res = await fetch('/api/v1/setup/paths/save', {
+			const res = await apiFetch('/api/v1/setup/paths/save', {
 				method: 'POST',
-				headers: { 'content-type': 'application/json', ...csrfHeader() },
+				headers: { 'content-type': 'application/json' },
 				body: JSON.stringify(payload())
 			});
 			const data = await res.json().catch(() => null);

@@ -44,6 +44,8 @@ pub enum SsrfError {
     DisallowedAddress,
     #[error("DNS resolution failed")]
     DnsFailure,
+    #[error("request failed")]
+    Network,
 }
 
 /// A URL whose host has been resolved and policy-checked.
@@ -134,7 +136,6 @@ async fn resolve_host(host: &str, port: u16) -> Result<Vec<IpAddr>, SsrfError> {
         .filter(|ip| seen.insert(*ip))
         .collect())
 }
-
 /// Validates `raw` against the policy: scheme allowlist plus resolution of the
 /// host with an internal-address check over EVERY returned IP.
 pub async fn validate_url(raw: &str, policy: OutboundPolicy) -> Result<ValidatedTarget, SsrfError> {
@@ -177,8 +178,13 @@ impl Resolve for PinnedResolver {
         })
     }
 }
+/// Public wrapper: a client pinned to the pre-validated target (no redirect
+/// following). Use for POST/PUT probes that `get_validated` cannot express.
+pub fn pinned_client(target: &ValidatedTarget, timeout: std::time::Duration) -> reqwest::Client {
+    build_pinned_client(target, timeout)
+}
 
-fn build_pinned_client(target: &ValidatedTarget, timeout: Duration) -> reqwest::Client {
+pub(crate) fn build_pinned_client(target: &ValidatedTarget, timeout: Duration) -> reqwest::Client {
     let port = target
         .url
         .port_or_known_default()
@@ -196,6 +202,30 @@ fn build_pinned_client(target: &ValidatedTarget, timeout: Duration) -> reqwest::
         .build()
         .expect("static client configuration")
 }
+/// Performs a single arbitrary-method request against a validated, pinned
+/// target. No redirect following (3xx surfaces to the caller, which must
+/// re-validate the Location itself). Use for authenticated POST/PUT probes
+/// that [`get_validated`] cannot express.
+pub async fn request_validated(
+    method: reqwest::Method,
+    raw_url: &str,
+    policy: OutboundPolicy,
+    timeout: Duration,
+    headers: &[(&str, &str)],
+    body: Option<String>,
+) -> Result<reqwest::Response, SsrfError> {
+    let target = validate_url(raw_url, policy).await?;
+    let client = build_pinned_client(&target, timeout);
+    let mut req = client.request(method, target.url.clone());
+    for (k, v) in headers {
+        req = req.header(*k, *v);
+    }
+    if let Some(b) = body {
+        req = req.body(b);
+    }
+    req.send().await.map_err(|_| SsrfError::Network)
+}
+
 
 /// Performs a GET following at most `max_hops` redirects, validating and
 /// pinning every hop against the policy. Returns the final response.

@@ -1,5 +1,10 @@
 <script>
-  import { onMount } from "svelte";
+  import { onMount, onDestroy } from "svelte";
+  import { apiFetch } from "$lib/api";
+  import { connectWS } from "$lib/ws";
+  import SecretInput from "$lib/components/SecretInput.svelte";
+
+  export let data;
 
   let kind = "movie";
   let externalSource = "tmdb";
@@ -13,14 +18,25 @@
   let results = null;
   let wsStatus = "disconnected";
   let events = [];
-  let wsRef = null;
   let acquisitions = [];
   let acqError = null;
   let acqBusy = false;
-  let acqRefreshTimer = null;
   let acqStatusFilter = "";
-  let overrideImportedPath = "";
-  let dryRun = false;
+  /** @type {Record<string, string>} per-acquisition override paths */
+  let overridePaths = {};
+  let wsHandle = null;
+  let acqRefreshTimer = null;
+  const pendingTimers = new Set();
+
+  function later(fn, ms) {
+    const id = setTimeout(() => {
+      pendingTimers.delete(id);
+      fn();
+    }, ms);
+    pendingTimers.add(id);
+    return id;
+  }
+  let dryRun = !!data.dryRun;
   let creatingAcquisition = {};
   let acquisitionError = null;
   let eventFilter = "";
@@ -38,12 +54,15 @@
     acquisitionId: null,
     candidateId: null,
   };
-  let setupComplete = false;
+  let setupComplete = !!data.setupComplete;
   let prerequisitesError = null;
 
   // Configuration editor state
   let configExpanded = false;
   let configLoaded = false;
+  /** Full config as returned by GET /api/v1/setup/config — source of truth
+   * for sections this editor does not render, so saves never wipe them. */
+  let savedConfig = null;
   let validatingAll = false;
   let validationSummary = {
     total: 0,
@@ -103,24 +122,31 @@
   let policiesBusy = false;
   let policiesSaveStatus = null;
 
-  onMount(async () => {
-    try {
-      const res = await fetch("/api/v1/setup/status");
-      if (!res.ok) return;
-      const data = await res.json();
-      dryRun = !!data.dryRun;
-      setupComplete = !!data.setupComplete;
-    } catch {
-      // ignore
+  onMount(() => {
+    openSocket();
+    refreshAcquisitions();
+  });
+
+  onDestroy(() => {
+    if (wsHandle) {
+      wsHandle.close();
+      wsHandle = null;
     }
-    await checkPrerequisites();
+    if (acqRefreshTimer !== null) {
+      clearTimeout(acqRefreshTimer);
+      acqRefreshTimer = null;
+    }
+    for (const id of pendingTimers) clearTimeout(id);
+    pendingTimers.clear();
   });
 
   async function loadCurrentConfig() {
     try {
-      const res = await fetch("/api/v1/setup/config");
+      const res = await apiFetch("/api/v1/setup/config");
       if (!res.ok) return;
       const data = await res.json();
+      // Keep the full payload: sections without UI fields are merged back on save.
+      savedConfig = data;
       
       // Load paths
       if (data.paths) {
@@ -187,15 +213,10 @@
     }
   }
 
-  function csrfHeader() {
-    const t = sessionStorage.getItem("csrf");
-    return t ? { "x-csrf-token": t } : {};
-  }
-
   async function checkPrerequisites() {
     prerequisitesError = null;
     try {
-      const res = await fetch("/api/v1/setup/status");
+      const res = await apiFetch("/api/v1/setup/status");
       if (!res.ok) {
         prerequisitesError = "Unable to check setup status";
         return false;
@@ -390,9 +411,9 @@
     busy = true;
     error = null;
     try {
-      const res = await fetch("/api/v1/targets", {
+      const res = await apiFetch("/api/v1/targets", {
         method: "POST",
-        headers: { "content-type": "application/json", ...csrfHeader() },
+        headers: { "content-type": "application/json" },
         body: JSON.stringify({ kind, externalSource, externalId, query }),
       });
       const data = await res.json().catch(() => null);
@@ -411,9 +432,8 @@
     error = null;
     results = null;
     try {
-      const res = await fetch(`/api/v1/targets/${targetId}/search`, {
+      const res = await apiFetch(`/api/v1/targets/${targetId}/search`, {
         method: "POST",
-        headers: { ...csrfHeader() },
       });
       const data = await res.json().catch(() => null);
       if (!res.ok) throw new Error(data?.error || "start_failed");
@@ -430,7 +450,7 @@
     busy = true;
     error = null;
     try {
-      const res = await fetch(`/api/v1/search/runs/${runId}`);
+      const res = await apiFetch(`/api/v1/search/runs/${runId}`);
       const data = await res.json().catch(() => null);
       if (!res.ok) throw new Error(data?.error || "fetch_failed");
       results = data;
@@ -448,7 +468,7 @@
       const q = acqStatusFilter
         ? `?status=${encodeURIComponent(acqStatusFilter)}`
         : "";
-      const res = await fetch(`/api/v1/acquisitions${q}`);
+      const res = await apiFetch(`/api/v1/acquisitions${q}`);
       const data = await res.json().catch(() => null);
       if (!res.ok) throw new Error(data?.error || "fetch_failed");
       acquisitions = Array.isArray(data) ? data : [];
@@ -463,11 +483,11 @@
     acqBusy = true;
     acqError = null;
     try {
-      const res = await fetch(
+      const res = await apiFetch(
         `/api/v1/acquisitions/${acquisitionId}/actions/${action}`,
         {
           method: "POST",
-          headers: { "content-type": "application/json", ...csrfHeader() },
+          headers: { "content-type": "application/json" },
           body: body ? JSON.stringify(body) : undefined,
         }
       );
@@ -482,8 +502,8 @@
   }
 
   function scheduleAcqRefresh() {
-    if (acqRefreshTimer) return;
-    acqRefreshTimer = setTimeout(() => {
+    if (acqRefreshTimer !== null) return;
+    acqRefreshTimer = later(() => {
       acqRefreshTimer = null;
       refreshAcquisitions();
     }, 500);
@@ -493,9 +513,8 @@
     creatingAcquisition[candidateId] = true;
     acquisitionError = null;
     try {
-      const res = await fetch(`/api/v1/candidates/${candidateId}/acquisition`, {
+      const res = await apiFetch(`/api/v1/candidates/${candidateId}/acquisition`, {
         method: "POST",
-        headers: { ...csrfHeader() },
       });
       const data = await res.json().catch(() => null);
       if (!res.ok) throw new Error(data?.error || "create_failed");
@@ -503,7 +522,7 @@
       scheduleAcqRefresh();
       // Optionally refresh results to show updated state
       if (runId) {
-        setTimeout(() => refresh(), 500);
+        later(() => refresh(), 500);
       }
     } catch (e) {
       acquisitionError = e instanceof Error ? e.message : String(e);
@@ -512,127 +531,114 @@
     }
   }
 
-  function connectWS() {
+  function openSocket() {
     try {
-      if (wsRef) wsRef.close();
-      const proto = window.location.protocol === "https:" ? "wss" : "ws";
-      wsRef = new WebSocket(`${proto}://${window.location.host}/ws`);
-      wsStatus = "connecting";
-      wsRef.onopen = () => {
-        wsStatus = "connected";
-        wsRef.send(
-          JSON.stringify({
-            type: "subscribe",
-            channels: ["activity", "jobs", "audit", "downloads", "imports"],
-          })
-        );
-      };
-      wsRef.onclose = () => {
-        wsStatus = "disconnected";
-      };
-      wsRef.onerror = () => {
-        wsStatus = "error";
-      };
-      wsRef.onmessage = (ev) => {
-        try {
-          const msg = JSON.parse(ev.data);
-          events = [
-            { ts: msg.ts, type: msg.type, payload: msg.payload },
-            ...events,
-          ].slice(0, 200);
-          if (
-            typeof msg?.type === "string" &&
-            (msg.type.startsWith("download.") || msg.type.startsWith("import."))
-          ) {
-            scheduleAcqRefresh();
-          }
-          // Auto-refresh results when search completes
-          if (msg?.type === "search.run.completed" && runId) {
-            setTimeout(() => refresh(), 500);
-          }
-
-          // Track test state based on WebSocket events
-          if (testRunning && typeof msg?.type === "string") {
-            const eventType = msg.type;
-            const payload = msg.payload || {};
-
-            // Handle test.* events
-            if (eventType === "test.target.creating") {
-              testState = "creating_target";
-            } else if (eventType === "test.target.created") {
-              testState = "searching";
-              if (payload.targetId) {
-                testSummary.targetId = payload.targetId;
-                targetId = payload.targetId;
-              }
-            } else if (eventType === "test.search.starting") {
-              testState = "searching";
-            } else if (eventType === "test.search.started") {
-              testState = "waiting_for_candidates";
-              if (payload.runId) {
-                testSummary.runId = payload.runId;
-                runId = payload.runId;
-              }
-            } else if (eventType === "test.acquisition.creating") {
-              testState = "creating_acquisition";
-            } else if (eventType === "test.acquisition.created") {
-              testState = "monitoring";
-              if (payload.acquisitionId) {
-                testSummary.acquisitionId = payload.acquisitionId;
-              }
-              if (payload.candidateId) {
-                testSummary.candidateId = payload.candidateId;
-              }
-            } else if (eventType === "test.target.error" || eventType === "test.search.error" || eventType === "test.acquisition.error") {
-              testState = "error";
-              testRunning = false;
-              testEndTime = new Date();
-            }
-
-            // Update test state based on other events
-            if (eventType === "download.enqueued" && testState === "creating_acquisition") {
-              testState = "monitoring";
-            } else if (eventType === "download.completed" && testState === "monitoring") {
-              testState = "verifying";
-            } else if (eventType === "verify.started" && testState === "verifying") {
-              testState = "verifying";
-            } else if (eventType === "verify.completed" && testState === "verifying") {
-              testState = "importing";
-            } else if (eventType === "import.started" && testState === "importing") {
-              testState = "importing";
-            } else if (eventType === "import.completed" && testState === "importing") {
-              testState = "completed";
-              testRunning = false;
-              testEndTime = new Date();
-            } else if (
-              (eventType.includes("failed") || eventType.includes("error")) &&
-              testState !== "completed" &&
-              testState !== "error"
-            ) {
-              // Check if this error is related to our test
-              const relevantId = payload.acquisitionId || payload.runId || payload.targetId;
-              if (
-                relevantId === testSummary.acquisitionId ||
-                relevantId === testSummary.runId ||
-                relevantId === testSummary.targetId
-              ) {
-                testState = "error";
-                testRunning = false;
-                testEndTime = new Date();
-              }
-            }
-          }
-
-          // Auto-scroll to top when new events arrive
-          if (autoScroll && logsContainer) {
-            logsContainer.scrollTop = 0;
-          }
-        } catch {
-          // ignore
-        }
-      };
+      if (wsHandle) wsHandle.close();
+      wsHandle = connectWS({
+        channels: ["activity", "jobs", "audit", "downloads", "imports"],
+        onStatus: (status) => (wsStatus = status),
+        onEvent: handleWsEvent,
+      });
     } catch {
       wsStatus = "error";
+    }
+  }
+
+  function handleWsEvent(msg) {
+    // Heartbeats drive staleness detection inside lib/ws only; keep them out
+    // of the visible event feed.
+    if (msg?.type === "health.snapshot") return;
+    events = [
+      { ts: msg.ts, type: msg.type, payload: msg.payload },
+      ...events,
+    ].slice(0, 200);
+    if (
+      typeof msg?.type === "string" &&
+      (msg.type.startsWith("download.") || msg.type.startsWith("import."))
+    ) {
+      // Debounced: bursts of download/import events trigger a single refetch.
+      scheduleAcqRefresh();
+    }
+    // Auto-refresh results when search completes
+    if (msg?.type === "search.run.completed" && runId) {
+      later(() => refresh(), 500);
+    }
+
+    // Track test state based on WebSocket events
+    if (testRunning && typeof msg?.type === "string") {
+      const eventType = msg.type;
+      const payload = msg.payload || {};
+
+      // Handle test.* events
+      if (eventType === "test.target.creating") {
+        testState = "creating_target";
+      } else if (eventType === "test.target.created") {
+        testState = "searching";
+        if (payload.targetId) {
+          testSummary.targetId = payload.targetId;
+          targetId = payload.targetId;
+        }
+      } else if (eventType === "test.search.starting") {
+        testState = "searching";
+      } else if (eventType === "test.search.started") {
+        testState = "waiting_for_candidates";
+        if (payload.runId) {
+          testSummary.runId = payload.runId;
+          runId = payload.runId;
+        }
+      } else if (eventType === "test.acquisition.creating") {
+        testState = "creating_acquisition";
+      } else if (eventType === "test.acquisition.created") {
+        testState = "monitoring";
+        if (payload.acquisitionId) {
+          testSummary.acquisitionId = payload.acquisitionId;
+        }
+        if (payload.candidateId) {
+          testSummary.candidateId = payload.candidateId;
+        }
+      } else if (eventType === "test.target.error" || eventType === "test.search.error" || eventType === "test.acquisition.error") {
+        testState = "error";
+        testRunning = false;
+        testEndTime = new Date();
+      }
+
+      // Update test state based on other events
+      if (eventType === "download.enqueued" && testState === "creating_acquisition") {
+        testState = "monitoring";
+      } else if (eventType === "download.completed" && testState === "monitoring") {
+        testState = "verifying";
+      } else if (eventType === "verify.started" && testState === "verifying") {
+        testState = "verifying";
+      } else if (eventType === "verify.completed" && testState === "verifying") {
+        testState = "importing";
+      } else if (eventType === "import.started" && testState === "importing") {
+        testState = "importing";
+      } else if (eventType === "import.completed" && testState === "importing") {
+        testState = "completed";
+        testRunning = false;
+        testEndTime = new Date();
+      } else if (
+        (eventType.includes("failed") || eventType.includes("error")) &&
+        testState !== "completed" &&
+        testState !== "error"
+      ) {
+        // Check if this error is related to our test
+        const relevantId = payload.acquisitionId || payload.runId || payload.targetId;
+        if (
+          relevantId === testSummary.acquisitionId ||
+          relevantId === testSummary.runId ||
+          relevantId === testSummary.targetId
+        ) {
+          testState = "error";
+          testRunning = false;
+          testEndTime = new Date();
+        }
+      }
+    }
+
+    // Auto-scroll to top when new events arrive
+    if (autoScroll && logsContainer) {
+      logsContainer.scrollTop = 0;
     }
   }
 
@@ -744,9 +750,9 @@
         .split('\n')
         .map((s) => s.trim())
         .filter(Boolean);
-      const res = await fetch('/api/v1/setup/paths/validate', {
+      const res = await apiFetch('/api/v1/setup/paths/validate', {
         method: 'POST',
-        headers: { 'content-type': 'application/json', ...csrfHeader() },
+        headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
           downloadsCompletedPath: pathsDownloadsCompleted,
           quarantinePath: pathsQuarantine,
@@ -772,9 +778,9 @@
         .split('\n')
         .map((s) => s.trim())
         .filter(Boolean);
-      const res = await fetch('/api/v1/setup/paths/save', {
+      const res = await apiFetch('/api/v1/setup/paths/save', {
         method: 'POST',
-        headers: { 'content-type': 'application/json', ...csrfHeader() },
+        headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
           downloadsCompletedPath: pathsDownloadsCompleted,
           quarantinePath: pathsQuarantine,
@@ -790,7 +796,7 @@
         throw new Error(data?.message || data?.error || 'save_failed');
       }
       pathsSaveStatus = 'saved';
-      setTimeout(() => { pathsSaveStatus = null; }, 3000);
+      later(() => { pathsSaveStatus = null; }, 3000);
     } catch (e) {
       pathsError = e instanceof Error ? e.message : String(e);
     } finally {
@@ -798,16 +804,27 @@
     }
   }
 
+  /** Full clients map: edited qBittorrent merged over whatever /setup/config
+   * returned, so NZBGet/SABnzbd entries are never wiped by a save. */
+  function buildClientsPayload() {
+    const clients = JSON.parse(JSON.stringify(savedConfig?.clients ?? {}));
+    if (clientsIncludeQb) {
+      clients.qbittorrent = { url: clientsQbUrl, username: clientsQbUser, password: clientsQbPass };
+    } else {
+      delete clients.qbittorrent;
+    }
+    return clients;
+  }
+
   async function validateClients() {
     clientsBusy = true;
     clientsError = null;
     clientsResult = null;
     try {
-      const payload = {};
-      if (clientsIncludeQb) payload.qbittorrent = { url: clientsQbUrl, username: clientsQbUser, password: clientsQbPass };
-      const res = await fetch('/api/v1/setup/clients/validate', {
+      const payload = buildClientsPayload();
+      const res = await apiFetch('/api/v1/setup/clients/validate', {
         method: 'POST',
-        headers: { 'content-type': 'application/json', ...csrfHeader() },
+        headers: { 'content-type': 'application/json' },
         body: JSON.stringify(payload),
       });
       const data = await res.json().catch(() => null);
@@ -825,11 +842,10 @@
     clientsError = null;
     clientsSaveStatus = null;
     try {
-      const payload = {};
-      if (clientsIncludeQb) payload.qbittorrent = { url: clientsQbUrl, username: clientsQbUser, password: clientsQbPass };
-      const res = await fetch('/api/v1/setup/clients/save', {
+      const payload = buildClientsPayload();
+      const res = await apiFetch('/api/v1/setup/clients/save', {
         method: 'POST',
-        headers: { 'content-type': 'application/json', ...csrfHeader() },
+        headers: { 'content-type': 'application/json' },
         body: JSON.stringify(payload),
       });
       const data = await res.json().catch(() => null);
@@ -841,7 +857,7 @@
         throw new Error(data?.message || data?.error || 'save_failed');
       }
       clientsSaveStatus = 'saved';
-      setTimeout(() => { clientsSaveStatus = null; }, 3000);
+      later(() => { clientsSaveStatus = null; }, 3000);
     } catch (e) {
       clientsError = e instanceof Error ? e.message : String(e);
     } finally {
@@ -870,11 +886,12 @@
           username: ix.username || '',
           password: ix.password || '',
         })),
-        newznab: [],
+        // Preserve Newznab entries this editor does not render.
+        newznab: savedConfig?.indexers?.newznab ?? [],
       };
-      const res = await fetch('/api/v1/setup/indexers/validate', {
+      const res = await apiFetch('/api/v1/setup/indexers/validate', {
         method: 'POST',
-        headers: { 'content-type': 'application/json', ...csrfHeader() },
+        headers: { 'content-type': 'application/json' },
         body: JSON.stringify(payload),
       });
       const data = await res.json().catch(() => null);
@@ -897,9 +914,9 @@
     connectionTestError = null;
     connectionTestResult = null;
     try {
-      const res = await fetch('/api/v1/diagnostics/test-connection', {
+      const res = await apiFetch('/api/v1/diagnostics/test-connection', {
         method: 'POST',
-        headers: { 'content-type': 'application/json', ...csrfHeader() },
+        headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
           url: indexersTorznab[0].url,
           apiKey: indexersTorznab[0].apiKey,
@@ -928,11 +945,12 @@
           username: ix.username || '',
           password: ix.password || '',
         })),
-        newznab: [],
+        // Preserve Newznab entries this editor does not render.
+        newznab: savedConfig?.indexers?.newznab ?? [],
       };
-      const res = await fetch('/api/v1/setup/indexers/save', {
+      const res = await apiFetch('/api/v1/setup/indexers/save', {
         method: 'POST',
-        headers: { 'content-type': 'application/json', ...csrfHeader() },
+        headers: { 'content-type': 'application/json' },
         body: JSON.stringify(payload),
       });
       const data = await res.json().catch(() => null);
@@ -944,7 +962,7 @@
         throw new Error(data?.message || data?.error || 'save_failed');
       }
       indexersSaveStatus = 'saved';
-      setTimeout(() => { indexersSaveStatus = null; }, 3000);
+      later(() => { indexersSaveStatus = null; }, 3000);
     } catch (e) {
       indexersError = e instanceof Error ? e.message : String(e);
     } finally {
@@ -952,17 +970,32 @@
     }
   }
 
+  /** Full metadata map: edited providers merged over whatever /setup/config
+   * returned, so disabled providers are removed and unknown ones preserved. */
+  function buildMetadataPayload() {
+    const metadata = JSON.parse(JSON.stringify(savedConfig?.metadata ?? {}));
+    if (metadataIncludeTMDB) {
+      metadata.tmdb = { baseUrl: metadataTmdbBaseUrl, apiKey: metadataTmdbKey };
+    } else {
+      delete metadata.tmdb;
+    }
+    if (metadataIncludeTVDB) {
+      metadata.tvdb = { baseUrl: metadataTvdbBaseUrl, apiKey: metadataTvdbKey };
+    } else {
+      delete metadata.tvdb;
+    }
+    return metadata;
+  }
+
   async function validateMetadata() {
     metadataBusy = true;
     metadataError = null;
     metadataResult = null;
     try {
-      const payload = {};
-      if (metadataIncludeTMDB) payload.tmdb = { baseUrl: metadataTmdbBaseUrl, apiKey: metadataTmdbKey };
-      if (metadataIncludeTVDB) payload.tvdb = { baseUrl: metadataTvdbBaseUrl, apiKey: metadataTvdbKey };
-      const res = await fetch('/api/v1/setup/metadata/validate', {
+      const payload = buildMetadataPayload();
+      const res = await apiFetch('/api/v1/setup/metadata/validate', {
         method: 'POST',
-        headers: { 'content-type': 'application/json', ...csrfHeader() },
+        headers: { 'content-type': 'application/json' },
         body: JSON.stringify(payload),
       });
       const data = await res.json().catch(() => null);
@@ -980,12 +1013,10 @@
     metadataError = null;
     metadataSaveStatus = null;
     try {
-      const payload = {};
-      if (metadataIncludeTMDB) payload.tmdb = { baseUrl: metadataTmdbBaseUrl, apiKey: metadataTmdbKey };
-      if (metadataIncludeTVDB) payload.tvdb = { baseUrl: metadataTvdbBaseUrl, apiKey: metadataTvdbKey };
-      const res = await fetch('/api/v1/setup/metadata/save', {
+      const payload = buildMetadataPayload();
+      const res = await apiFetch('/api/v1/setup/metadata/save', {
         method: 'POST',
-        headers: { 'content-type': 'application/json', ...csrfHeader() },
+        headers: { 'content-type': 'application/json' },
         body: JSON.stringify(payload),
       });
       const data = await res.json().catch(() => null);
@@ -997,7 +1028,7 @@
         throw new Error(data?.message || data?.error || 'save_failed');
       }
       metadataSaveStatus = 'saved';
-      setTimeout(() => { metadataSaveStatus = null; }, 3000);
+      later(() => { metadataSaveStatus = null; }, 3000);
     } catch (e) {
       metadataError = e instanceof Error ? e.message : String(e);
     } finally {
@@ -1023,9 +1054,9 @@
         bannedTags,
         qualityProfiles: [{ name: policiesProfileName, allowedQualities, upgradeAllowed: policiesUpgradeAllowed }],
       };
-      const res = await fetch('/api/v1/setup/policies/validate', {
+      const res = await apiFetch('/api/v1/setup/policies/validate', {
         method: 'POST',
-        headers: { 'content-type': 'application/json', ...csrfHeader() },
+        headers: { 'content-type': 'application/json' },
         body: JSON.stringify(payload),
       });
       const data = await res.json().catch(() => null);
@@ -1116,9 +1147,9 @@
         bannedTags,
         qualityProfiles: [{ name: policiesProfileName, allowedQualities, upgradeAllowed: policiesUpgradeAllowed }],
       };
-      const res = await fetch('/api/v1/setup/policies/save', {
+      const res = await apiFetch('/api/v1/setup/policies/save', {
         method: 'POST',
-        headers: { 'content-type': 'application/json', ...csrfHeader() },
+        headers: { 'content-type': 'application/json' },
         body: JSON.stringify(payload),
       });
       const data = await res.json().catch(() => null);
@@ -1126,7 +1157,7 @@
         throw new Error((data?.errors && data.errors.join(', ')) || data?.error || 'save_failed');
       }
       policiesSaveStatus = 'saved';
-      setTimeout(() => { policiesSaveStatus = null; }, 3000);
+      later(() => { policiesSaveStatus = null; }, 3000);
     } catch (e) {
       policiesError = e instanceof Error ? e.message : String(e);
     } finally {
@@ -1304,10 +1335,6 @@ ${jsonOutput}
       });
   }
 
-  if (typeof window !== "undefined") {
-    setTimeout(connectWS, 0);
-    setTimeout(refreshAcquisitions, 0);
-  }
 </script>
 
 <div class="container">
@@ -1402,7 +1429,12 @@ ${jsonOutput}
         <div class="row" style="margin-top: 8px;">
           <input placeholder="URL" bind:value={clientsQbUrl} disabled={!clientsIncludeQb} />
           <input placeholder="Username" bind:value={clientsQbUser} disabled={!clientsIncludeQb} />
-          <input placeholder="Password" bind:value={clientsQbPass} disabled={!clientsIncludeQb} />
+          <SecretInput
+            placeholder="Password"
+            autocomplete="current-password"
+            bind:value={clientsQbPass}
+            disabled={!clientsIncludeQb}
+          />
         </div>
 
         <div class="row" style="margin-top: 12px;">
@@ -1431,9 +1463,9 @@ ${jsonOutput}
             </div>
             <div class="row">
               <input placeholder="Base URL" bind:value={indexer.url} />
-              <input placeholder="API key" bind:value={indexer.apiKey} />
+              <SecretInput placeholder="API key" bind:value={indexer.apiKey} />
               <input placeholder="Username (optional)" bind:value={indexer.username} />
-              <input placeholder="Password (optional)" bind:value={indexer.password} />
+              <SecretInput placeholder="Password (optional)" bind:value={indexer.password} />
             </div>
           </div>
         {/each}
@@ -1484,14 +1516,22 @@ ${jsonOutput}
         <label><input type="checkbox" bind:checked={metadataIncludeTMDB} /> Enable</label>
         <div class="row" style="margin-top: 8px;">
           <input placeholder="Base URL" bind:value={metadataTmdbBaseUrl} disabled={!metadataIncludeTMDB} />
-          <input placeholder="API key (optional)" bind:value={metadataTmdbKey} disabled={!metadataIncludeTMDB} />
+          <SecretInput
+            placeholder="API key (optional)"
+            bind:value={metadataTmdbKey}
+            disabled={!metadataIncludeTMDB}
+          />
         </div>
 
         <h3 style="margin-top: 16px;">TVDB</h3>
         <label><input type="checkbox" bind:checked={metadataIncludeTVDB} /> Enable</label>
         <div class="row" style="margin-top: 8px;">
           <input placeholder="Base URL" bind:value={metadataTvdbBaseUrl} disabled={!metadataIncludeTVDB} />
-          <input placeholder="API key" bind:value={metadataTvdbKey} disabled={!metadataIncludeTVDB} />
+          <SecretInput
+            placeholder="API key"
+            bind:value={metadataTvdbKey}
+            disabled={!metadataIncludeTVDB}
+          />
         </div>
 
         <div class="row" style="margin-top: 12px;">
@@ -1670,7 +1710,7 @@ ${jsonOutput}
       >
     </p>
     <div class="row" style="gap: 8px; margin-bottom: 12px; flex-wrap: wrap;">
-      <button class="secondary" disabled={busy} on:click={connectWS}>
+      <button class="secondary" disabled={busy} on:click={openSocket}>
         Reconnect
       </button>
       <button
@@ -1853,14 +1893,16 @@ ${jsonOutput}
               <div class="row" style="margin-top: 8px;">
                 <input
                   placeholder="override importedPath (admin)"
-                  bind:value={overrideImportedPath}
+                  aria-label={`Override importedPath for ${a.id}`}
+                  value={overridePaths[a.id] ?? ''}
+                  on:input={(e) => (overridePaths[a.id] = e.currentTarget.value)}
                 />
                 <button
                   class="secondary"
-                  disabled={acqBusy || !overrideImportedPath}
+                  disabled={acqBusy || !(overridePaths[a.id] ?? '').trim()}
                   on:click={() =>
                     act(a.id, "override_imported", {
-                      importedPath: overrideImportedPath,
+                      importedPath: (overridePaths[a.id] ?? '').trim(),
                     })}
                 >
                   Mark imported

@@ -1,9 +1,14 @@
 <script>
-	let items = [];
+	import { onDestroy } from 'svelte';
+	import { apiFetch } from '$lib/api';
+	import { connectWS } from '$lib/ws';
+
+	export let data;
+
+	let items = data?.items ?? [];
 	let busy = false;
 	let error = null;
 	let wsStatus = 'disconnected';
-	let wsRef = null;
 
 	/** @type {Record<string, string>} */
 	let overridePaths = {};
@@ -14,19 +19,19 @@
 	/** @type {Record<string, boolean>} */
 	let blacklistGlobal = {};
 
-	function csrfHeader() {
-		const t = sessionStorage.getItem('csrf');
-		return t ? { 'x-csrf-token': t } : {};
-	}
+	let wsHandle = null;
+	let refreshTimer = null;
+
+	const REFRESH_DEBOUNCE_MS = 500;
 
 	async function refresh() {
 		busy = true;
 		error = null;
 		try {
-			const res = await fetch('/api/v1/acquisitions?status=needs_review&limit=100');
-			const data = await res.json().catch(() => null);
-			if (!res.ok) throw new Error(data?.error || 'fetch_failed');
-			items = Array.isArray(data) ? data : [];
+			const res = await apiFetch('/api/v1/acquisitions?status=needs_review&limit=100');
+			const resData = await res.json().catch(() => null);
+			if (!res.ok) throw new Error(resData?.error || 'fetch_failed');
+			items = Array.isArray(resData) ? resData : [];
 		} catch (e) {
 			error = e instanceof Error ? e.message : String(e);
 		} finally {
@@ -34,17 +39,47 @@
 		}
 	}
 
+	function scheduleRefresh() {
+		if (refreshTimer !== null) return;
+		refreshTimer = setTimeout(() => {
+			refreshTimer = null;
+			refresh();
+		}, REFRESH_DEBOUNCE_MS);
+	}
+
+	/** Only lifecycle-changing events justify a refetch; progress spam does not. */
+	function eventWarrantsRefresh(type) {
+		if (typeof type !== 'string') return false;
+		if (type === 'download.progress') return false;
+		return (
+			type.startsWith('download.') ||
+			type.startsWith('import.') ||
+			type.startsWith('verify.')
+		);
+	}
+
+	function openSocket() {
+		wsHandle?.close();
+		wsHandle = connectWS({
+			channels: ['downloads', 'imports', 'jobs', 'audit'],
+			onStatus: (status) => (wsStatus = status),
+			onEvent: (msg) => {
+				if (eventWarrantsRefresh(msg.type)) scheduleRefresh();
+			}
+		});
+	}
+
 	async function act(id, action, body = null, query = '') {
 		busy = true;
 		error = null;
 		try {
-			const res = await fetch(`/api/v1/acquisitions/${id}/actions/${action}${query}`, {
+			const res = await apiFetch(`/api/v1/acquisitions/${id}/actions/${action}${query}`, {
 				method: 'POST',
-				headers: { 'content-type': 'application/json', ...csrfHeader() },
+				headers: { 'content-type': 'application/json' },
 				body: body ? JSON.stringify(body) : undefined
 			});
-			const data = await res.json().catch(() => null);
-			if (!res.ok) throw new Error(data?.error || 'action_failed');
+			const resData = await res.json().catch(() => null);
+			if (!res.ok) throw new Error(resData?.error || 'action_failed');
 			await refresh();
 		} catch (e) {
 			error = e instanceof Error ? e.message : String(e);
@@ -53,41 +88,16 @@
 		}
 	}
 
-	function connectWS() {
-		try {
-			if (wsRef) wsRef.close();
-			const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
-			wsRef = new WebSocket(`${proto}://${window.location.host}/ws`);
-			wsStatus = 'connecting';
-			wsRef.onopen = () => {
-				wsStatus = 'connected';
-				wsRef.send(JSON.stringify({ type: 'subscribe', channels: ['downloads', 'imports', 'jobs', 'audit'] }));
-			};
-			wsRef.onclose = () => {
-				wsStatus = 'disconnected';
-			};
-			wsRef.onerror = () => {
-				wsStatus = 'error';
-			};
-			wsRef.onmessage = (ev) => {
-				try {
-					const msg = JSON.parse(ev.data);
-					if (typeof msg?.type === 'string' && (msg.type.startsWith('download.') || msg.type.startsWith('import.') || msg.type.startsWith('verify.'))) {
-						refresh();
-					}
-				} catch {
-					// ignore
-				}
-			};
-		} catch {
-			wsStatus = 'error';
-		}
-	}
+	openSocket();
 
-	if (typeof window !== 'undefined') {
-		setTimeout(connectWS, 0);
-		setTimeout(refresh, 0);
-	}
+	onDestroy(() => {
+		wsHandle?.close();
+		wsHandle = null;
+		if (refreshTimer !== null) {
+			clearTimeout(refreshTimer);
+			refreshTimer = null;
+		}
+	});
 </script>
 
 <div class="container">
@@ -99,7 +109,7 @@
 		<div class="row">
 			<a href="/app"><button class="secondary">Back to app</button></a>
 			<button class="secondary" disabled={busy} on:click={refresh}>Refresh</button>
-			<button class="secondary" disabled={busy} on:click={connectWS}>Reconnect WS</button>
+			<button class="secondary" disabled={busy} on:click={openSocket}>Reconnect WS</button>
 		</div>
 	</div>
 

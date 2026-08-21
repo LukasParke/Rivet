@@ -10,6 +10,7 @@ path = "src/main.rs"
 
 [dependencies]
 axum = { version = "0.8", features = ["ws"] }
+axum-extra = { version = "0.10", features = ["cookie"] }
 tokio = { version = "1", features = ["full"] }
 tower = "0.5"
 tower-http = { version = "0.6", features = ["trace", "fs"] }
@@ -32,6 +33,7 @@ url = "2"
 futures-util = "0.3"
 async-trait = "0.1"
 percent-encoding = "2"
+roxmltree = "0.20"
 
 [dev-dependencies]
 wiremock = "0.6"
