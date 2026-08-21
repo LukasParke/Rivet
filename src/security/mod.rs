@@ -10,5 +10,6 @@ pub mod password;
 pub mod ratelimit;
 pub mod secrets;
 pub mod ssrf;
+pub mod totp;
 
 pub use ssrf::{validate_url, OutboundPolicy};

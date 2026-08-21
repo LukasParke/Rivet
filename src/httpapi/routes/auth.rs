@@ -24,6 +24,9 @@ use crate::timeutil;
 struct LoginRequest {
     email: String,
     password: String,
+    /// TOTP code; required only when the account has two-factor enabled.
+    #[serde(default)]
+    code: Option<String>,
 }
 
 #[derive(Debug, serde::Serialize)]
@@ -45,6 +48,9 @@ pub fn router() -> axum::Router<AppState> {
         .route("/auth/logout", axum::routing::post(logout))
         .route("/auth/me", axum::routing::get(me))
         .route("/auth/csrf", axum::routing::get(deliver_csrf))
+        .route("/auth/totp/setup", axum::routing::post(totp_setup))
+        .route("/auth/totp/enable", axum::routing::post(totp_enable))
+        .route("/auth/totp/disable", axum::routing::post(totp_disable))
 }
 
 /// JSON error envelope with an explicit machine-readable code, for codes not
@@ -101,6 +107,27 @@ async fn login(
     };
     if !verify_in_blocking(pw.clone(), &user.password_hash).await {
         return invalid_credentials(pw).await;
+    }
+
+    // Two-factor gate: enabled accounts MUST present a valid TOTP code.
+    // Accounts without TOTP are unaffected (backward compatible).
+    if user.totp_enabled {
+        let Some(code) = req.code.as_deref().map(str::trim).filter(|c| !c.is_empty()) else {
+            return coded_error(StatusCode::UNAUTHORIZED, "totp_required");
+        };
+        let Some(enc) = user.totp_secret_enc.as_deref() else {
+            return coded_error(StatusCode::UNAUTHORIZED, "invalid_code");
+        };
+        let Ok(secret) = state.secret_box.decrypt_string(enc) else {
+            return coded_error(StatusCode::UNAUTHORIZED, "invalid_code");
+        };
+        let Ok(secret_b32) = std::str::from_utf8(&secret) else {
+            return coded_error(StatusCode::UNAUTHORIZED, "invalid_code");
+        };
+        match crate::security::totp::verify(secret_b32, code, 1) {
+            Ok(true) => {}
+            _ => return coded_error(StatusCode::UNAUTHORIZED, "invalid_code"),
+        }
     }
 
     let ua = headers
@@ -223,6 +250,119 @@ async fn deliver_csrf(user: AuthenticatedUser) -> Result<axum::Json<CsrfResponse
         return Err(AppError::Unauthorized);
     }
     Ok(axum::Json(CsrfResponse { token: user.session.csrf_token }))
+}
+
+// ---------------------------------------------------------------------------
+// TOTP two-factor self-service.
+
+#[derive(Debug, Deserialize)]
+struct TotpCodeRequest {
+    #[serde(default)]
+    code: Option<String>,
+}
+
+#[derive(Debug, serde::Serialize)]
+struct TotpSetupResponse {
+    otpauthUri: String,
+}
+
+/// Generates a fresh secret, stores it ENCRYPTED but disabled until confirmed
+/// via /auth/totp/enable. Re-running setup replaces any pending secret.
+async fn totp_setup(
+    State(state): State<AppState>,
+    user: AuthenticatedUser,
+) -> Result<axum::Json<TotpSetupResponse>, AppError> {
+    let secret_b32 = crate::security::totp::generate_secret();
+    let enc = state
+        .secret_box
+        .encrypt_to_string(secret_b32.as_bytes())
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+    crate::storage::users::set_totp_secret(&state.db, &user.user.id, Some(&enc), false)
+        .await
+        .map_err(AppError::from)?;
+    insert_audit(
+        &state.db,
+        AuditEvent {
+            actor_user_id: Some(user.user.id.clone()),
+            action: "auth.totp.setup".into(),
+            ..Default::default()
+        },
+    )
+    .await
+    .ok();
+    Ok(axum::Json(TotpSetupResponse {
+        otpauthUri: crate::security::totp::otpauth_uri(&user.user.email, &secret_b32),
+    }))
+}
+
+/// Confirms enrollment: verifies one live code against the pending secret,
+/// then flips totp_enabled=1.
+async fn totp_enable(
+    State(state): State<AppState>,
+    user: AuthenticatedUser,
+    body: Result<axum::Json<TotpCodeRequest>, axum::extract::rejection::JsonRejection>,
+) -> Response {
+    handle_totp_toggle(state, user, body, true).await
+}
+
+/// Turns two-factor off after verifying a live code; clears the stored secret.
+async fn totp_disable(
+    State(state): State<AppState>,
+    user: AuthenticatedUser,
+    body: Result<axum::Json<TotpCodeRequest>, axum::extract::rejection::JsonRejection>,
+) -> Response {
+    handle_totp_toggle(state, user, body, false).await
+}
+
+async fn handle_totp_toggle(
+    state: AppState,
+    user: AuthenticatedUser,
+    body: Result<axum::Json<TotpCodeRequest>, axum::extract::rejection::JsonRejection>,
+    enable: bool,
+) -> Response {
+    let Ok(axum::Json(req)) = body else {
+        return AppError::BadRequest("invalid_json".into()).into_response();
+    };
+    let Some(code) = req.code.as_deref().map(str::trim).filter(|c| !c.is_empty()) else {
+        return coded_error(StatusCode::BAD_REQUEST, "code_required");
+    };
+    let Some(enc) = user.user.totp_secret_enc.as_deref() else {
+        return coded_error(StatusCode::BAD_REQUEST, "totp_not_setup");
+    };
+    let secret = match state.secret_box.decrypt_string(enc)
+        .ok()
+        .and_then(|bytes| String::from_utf8(bytes).ok())
+    {
+        Some(s) => s,
+        None => return coded_error(StatusCode::INTERNAL_SERVER_ERROR, "totp_secret_unreadable"),
+    };
+    match crate::security::totp::verify(&secret, code, 1) {
+        Ok(true) => {}
+        Ok(false) => return coded_error(StatusCode::UNAUTHORIZED, "invalid_code"),
+        Err(_) => return coded_error(StatusCode::INTERNAL_SERVER_ERROR, "totp_secret_unreadable"),
+    }
+    let new_enc = if enable {
+        Some(enc.to_string())
+    } else {
+        None
+    };
+    if crate::storage::users::set_totp_secret(&state.db, &user.user.id, new_enc.as_deref(), enable)
+        .await
+        .is_err()
+    {
+        return coded_error(StatusCode::INTERNAL_SERVER_ERROR, "totp_update_failed");
+    }
+    let action = if enable { "auth.totp.enable" } else { "auth.totp.disable" };
+    let _ = insert_audit(
+        &state.db,
+        AuditEvent {
+            actor_user_id: Some(user.user.id.clone()),
+            action: action.into(),
+            ..Default::default()
+        },
+    )
+    .await;
+    StatusCode::NO_CONTENT.into_response()
 }
 
 // ---------------------------------------------------------------------------
@@ -485,4 +625,183 @@ mod tests {
         let resp = full_router(state).oneshot(req).await.unwrap();
         assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
     }
-}
+
+    // -- TOTP two-factor -----------------------------------------------------
+
+    /// Runs setup for `email`'s user (fresh login each time) and returns
+    /// (session, otpauth URI).
+    async fn do_setup(
+        state: &AppState,
+        email: &str,
+    ) -> (crate::storage::sessions::Session, String) {
+        let sess = seed_session(state, email, "admin").await;
+        let req = Request::builder()
+            .method("POST")
+            .uri("/api/v1/auth/totp/setup")
+            .header("cookie", format!("rivet_session={}", sess.id))
+            .header("x-csrf-token", &sess.csrf_token)
+            .body(Body::empty())
+            .unwrap();
+        let resp = full_router(state.clone()).oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+        let v = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        let uri = v["otpauthUri"].as_str().unwrap().to_string();
+        assert!(uri.starts_with("otpauth://totp/Rivet:"));
+        (sess, uri)
+    }
+
+    fn uri_secret(uri: &str) -> String {
+        uri.split("secret=").nth(1).unwrap().split('&').next().unwrap().to_string()
+    }
+
+    fn current_code(secret: &str) -> String {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        crate::security::totp::totp_at(secret, 6, 30, 0, now).unwrap()
+    }
+
+    async fn login_body(state: AppState, payload: String) -> (StatusCode, serde_json::Value) {
+        let resp = full_router(state)
+            .oneshot(post_json("/api/v1/auth/login", &payload, Some("203.0.113.50")))
+            .await
+            .unwrap();
+        let status = resp.status();
+        let body = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+        (status, serde_json::from_slice(&body).unwrap())
+    }
+
+    #[tokio::test]
+    async fn totp_setup_enable_login_flow() {
+        let (_dir, state) = app_state().await;
+        let (sess, uri) = do_setup(&state, "totp@x.test").await;
+        let secret = uri_secret(&uri);
+
+        // Enrollment is NOT active until enable: login without code still works.
+        let (status, v) = login_body(
+            state.clone(),
+            r#"{"email":"totp@x.test","password":"long-enough-password"}"#.into(),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK, "pending setup must not gate login: {v}");
+
+        // Enable with a WRONG code is rejected and does not activate.
+        let req = Request::builder()
+            .method("POST")
+            .uri("/api/v1/auth/totp/enable")
+            .header("content-type", "application/json")
+            .header("cookie", format!("rivet_session={}", sess.id))
+            .header("x-csrf-token", &sess.csrf_token)
+            .body(Body::from(r#"{"code":"000000"}"#.to_string()))
+            .unwrap();
+        let resp = full_router(state.clone()).oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+        let body = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+        assert_eq!(serde_json::from_slice::<serde_json::Value>(&body).unwrap()["error"], "invalid_code");
+
+        // Enable with a live code flips the flag.
+        let code = current_code(&secret);
+        let req = Request::builder()
+            .method("POST")
+            .uri("/api/v1/auth/totp/enable")
+            .header("content-type", "application/json")
+            .header("cookie", format!("rivet_session={}", sess.id))
+            .header("x-csrf-token", &sess.csrf_token)
+            .body(Body::from(format!(r#"{{"code":"{code}"}}"#)))
+            .unwrap();
+        let resp = full_router(state.clone()).oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::NO_CONTENT);
+        let user = crate::storage::users::get_by_email(&state.db, "totp@x.test")
+            .await
+            .unwrap();
+        assert!(user.totp_enabled);
+        assert!(user.totp_secret_enc.is_some());
+
+        // Login WITHOUT code now → totp_required.
+        let (status, v) = login_body(
+            state.clone(),
+            r#"{"email":"totp@x.test","password":"long-enough-password"}"#.into(),
+        )
+        .await;
+        assert_eq!(status, StatusCode::UNAUTHORIZED);
+        assert_eq!(v, serde_json::json!({"error": "totp_required"}));
+
+        // Login with a WRONG code → invalid_code.
+        let (status, v) = login_body(
+            state.clone(),
+            r#"{"email":"totp@x.test","password":"long-enough-password","code":"000000"}"#.into(),
+        )
+        .await;
+        assert_eq!(status, StatusCode::UNAUTHORIZED);
+        assert_eq!(v, serde_json::json!({"error": "invalid_code"}));
+
+        // Login with the live code succeeds end-to-end.
+        let code = current_code(&secret);
+        let (status, v) = login_body(
+            state.clone(),
+            format!(r#"{{"email":"totp@x.test","password":"long-enough-password","code":"{code}"}}"#),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK, "valid TOTP must grant login: {v}");
+        assert!(v["token"].is_string());
+
+        // Disable with a live code clears secret + flag.
+        let code = current_code(&secret);
+        let req = Request::builder()
+            .method("POST")
+            .uri("/api/v1/auth/totp/disable")
+            .header("content-type", "application/json")
+            .header("cookie", format!("rivet_session={}", sess.id))
+            .header("x-csrf-token", &sess.csrf_token)
+            .body(Body::from(format!(r#"{{"code":"{code}"}}"#)))
+            .unwrap();
+        let resp = full_router(state.clone()).oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::NO_CONTENT);
+        let user = crate::storage::users::get_by_email(&state.db, "totp@x.test")
+            .await
+            .unwrap();
+        assert!(!user.totp_enabled);
+        assert!(user.totp_secret_enc.is_none(), "disable must clear the secret");
+
+        // And password-only login works again.
+        let (status, _) = login_body(
+            state,
+            r#"{"email":"totp@x.test","password":"long-enough-password"}"#.into(),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn totp_endpoints_require_session() {
+        let (_dir, state) = app_state().await;
+        for uri in ["/api/v1/auth/totp/setup", "/api/v1/auth/totp/enable", "/api/v1/auth/totp/disable"] {
+            let req = Request::builder()
+                .method("POST")
+                .uri(uri)
+                .header("content-type", "application/json")
+                .body(Body::from("{}"))
+                .unwrap();
+            let resp = full_router(state.clone()).oneshot(req).await.unwrap();
+            assert_eq!(resp.status(), StatusCode::UNAUTHORIZED, "{uri} requires a session");
+        }
+    }
+
+    #[tokio::test]
+    async fn totp_enable_without_setup_fails() {
+        let (_dir, state) = app_state().await;
+        let sess = seed_session(&state, "nosetup@x.test", "admin").await;
+        let req = Request::builder()
+            .method("POST")
+            .uri("/api/v1/auth/totp/enable")
+            .header("content-type", "application/json")
+            .header("cookie", format!("rivet_session={}", sess.id))
+            .header("x-csrf-token", &sess.csrf_token)
+            .body(Body::from(r#"{"code":"123456"}"#.to_string()))
+            .unwrap();
+        let resp = full_router(state).oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+    }
+ }

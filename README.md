@@ -78,7 +78,9 @@ Environment: `APP_ENV`, `HTTP_ADDR`, `DATABASE_URL`, `APP_SECRET_KEY`
 With no users, only `/api/v1/setup/*` is reachable:
 
 1. **Create admin** — first user becomes admin; the gate flips synchronously
-   so the immediate login cannot race it.
+   so the immediate login cannot race it. Optional TOTP two-factor
+   (`POST /auth/totp/setup` → `enable`; enabled accounts require a 6-digit code
+   at login).
 2. **Paths** — downloads/quarantine/library roots validated (stat-only in dry-run).
 3. **Download clients** — qBittorrent/Deluge/Transmission + NZBGet/SABnzbd;
    connectivity tested under the SSRF policy; secrets encrypted at rest.

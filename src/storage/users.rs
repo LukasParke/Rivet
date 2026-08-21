@@ -10,6 +10,8 @@ pub struct User {
     pub password_hash: String,
     pub role: String,
     pub totp_secret_enc: Option<String>,
+    #[serde(default)]
+    pub totp_enabled: bool,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -51,4 +53,22 @@ pub async fn create(
         .execute(pool)
         .await?;
     get_by_id(pool, &id).await
+}
+
+/// Sets (or clears) the encrypted TOTP secret and enabled flag atomically.
+pub async fn set_totp_secret(
+    pool: &SqlitePool,
+    user_id: &str,
+    enc: Option<&str>,
+    enabled: bool,
+) -> Result<(), sqlx::Error> {
+    let now = crate::timeutil::fmt(Utc::now());
+    sqlx::query("UPDATE users SET totp_secret_enc = ?, totp_enabled = ?, updated_at = ? WHERE id = ?")
+        .bind(enc)
+        .bind(enabled)
+        .bind(&now)
+        .bind(user_id)
+        .execute(pool)
+        .await
+        .map(|_| ())
 }

@@ -124,14 +124,15 @@ pub fn cookie_value(headers: &HeaderMap, name: &str) -> Option<String> {
     None
 }
 
-/// Best-effort client IP, forwarded-proxy aware: the left-most entry of
-/// `X-Forwarded-For`, else `X-Real-IP`, else `"unknown"`. Used for audit rows
-/// and rate-limit keys. (The Go original used fiber's `c.IP()`, which is
-/// remote-addr based unless trusted proxies are configured.)
+/// Best-effort client IP, forwarded-proxy aware: the RIGHT-MOST entry of
+/// `X-Forwarded-For` (the hop appended by our own reverse proxy), else
+/// `X-Real-IP`, else `"unknown"`. The shipped nginx config appends the real
+/// client address, so the last entry cannot be spoofed by the client, unlike
+/// the left-most entry. Used for audit rows and rate-limit keys.
 pub fn client_ip(headers: &HeaderMap) -> String {
     for header in ["x-forwarded-for", "x-real-ip"] {
         if let Some(v) = headers.get(header).and_then(|v| v.to_str().ok()) {
-            let candidate = v.split(',').next().unwrap_or("").trim();
+            let candidate = v.rsplit(',').next().unwrap_or("").trim();
             if !candidate.is_empty() {
                 return candidate.to_string();
             }
@@ -529,7 +530,7 @@ mod tests {
         let mut h = HeaderMap::new();
         assert_eq!(client_ip(&h), "unknown");
         h.insert("x-forwarded-for", "203.0.113.7, 10.0.0.1".parse().unwrap());
-        assert_eq!(client_ip(&h), "203.0.113.7");
+        assert_eq!(client_ip(&h), "10.0.0.1");
         h.remove("x-forwarded-for");
         h.insert("x-real-ip", "198.51.100.2".parse().unwrap());
         assert_eq!(client_ip(&h), "198.51.100.2");
