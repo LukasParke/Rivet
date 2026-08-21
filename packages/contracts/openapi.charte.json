@@ -1,0 +1,1396 @@
+{
+  "components": {
+    "schemas": {
+      "CreateTargetRequest": {
+        "properties": {
+          "external_id": {
+            "type": "string",
+            "x-charte.rs-provenance": [
+              {
+                "byte_end": 6313,
+                "byte_start": 6294,
+                "end_column": 24,
+                "end_line": 222,
+                "extraction_reason": "rust_struct_field",
+                "file": "src/httpapi/routes/targets_search.rs",
+                "node_kind": "field_declaration",
+                "start_column": 5,
+                "start_line": 222
+              }
+            ]
+          },
+          "external_source": {
+            "type": "string",
+            "x-charte.rs-provenance": [
+              {
+                "byte_end": 6266,
+                "byte_start": 6243,
+                "end_column": 28,
+                "end_line": 220,
+                "extraction_reason": "rust_struct_field",
+                "file": "src/httpapi/routes/targets_search.rs",
+                "node_kind": "field_declaration",
+                "start_column": 5,
+                "start_line": 220
+              }
+            ]
+          },
+          "kind": {
+            "type": "string",
+            "x-charte.rs-provenance": [
+              {
+                "byte_end": 6215,
+                "byte_start": 6203,
+                "end_column": 17,
+                "end_line": 218,
+                "extraction_reason": "rust_struct_field",
+                "file": "src/httpapi/routes/targets_search.rs",
+                "node_kind": "field_declaration",
+                "start_column": 5,
+                "start_line": 218
+              }
+            ]
+          },
+          "query": {
+            "type": "string",
+            "x-charte.rs-provenance": [
+              {
+                "byte_end": 6354,
+                "byte_start": 6341,
+                "end_column": 18,
+                "end_line": 224,
+                "extraction_reason": "rust_struct_field",
+                "file": "src/httpapi/routes/targets_search.rs",
+                "node_kind": "field_declaration",
+                "start_column": 5,
+                "start_line": 224
+              }
+            ]
+          }
+        },
+        "required": [
+          "kind",
+          "external_source",
+          "external_id",
+          "query"
+        ],
+        "type": "object",
+        "x-charte.rs-confidence": "exact",
+        "x-charte.rs-provenance": [
+          {
+            "byte_end": 6357,
+            "byte_start": 6148,
+            "end_column": 2,
+            "end_line": 225,
+            "extraction_reason": "rust_struct",
+            "file": "src/httpapi/routes/targets_search.rs",
+            "node_kind": "struct_item",
+            "start_column": 1,
+            "start_line": 216
+          }
+        ]
+      },
+      "TestConnectionRequest": {
+        "properties": {
+          "_api_key": {
+            "type": "string",
+            "x-charte.rs-provenance": [
+              {
+                "byte_end": 8690,
+                "byte_start": 8674,
+                "end_column": 21,
+                "end_line": 262,
+                "extraction_reason": "rust_struct_field",
+                "file": "src/httpapi/routes/diagnostics.rs",
+                "node_kind": "field_declaration",
+                "start_column": 5,
+                "start_line": 262
+              }
+            ]
+          },
+          "url": {
+            "type": "string",
+            "x-charte.rs-provenance": [
+              {
+                "byte_end": 8627,
+                "byte_start": 8616,
+                "end_column": 16,
+                "end_line": 260,
+                "extraction_reason": "rust_struct_field",
+                "file": "src/httpapi/routes/diagnostics.rs",
+                "node_kind": "field_declaration",
+                "start_column": 5,
+                "start_line": 260
+              }
+            ]
+          }
+        },
+        "required": [
+          "url",
+          "_api_key"
+        ],
+        "type": "object",
+        "x-charte.rs-confidence": "exact",
+        "x-charte.rs-provenance": [
+          {
+            "byte_end": 8693,
+            "byte_start": 8559,
+            "end_column": 2,
+            "end_line": 263,
+            "extraction_reason": "rust_struct",
+            "file": "src/httpapi/routes/diagnostics.rs",
+            "node_kind": "struct_item",
+            "start_column": 1,
+            "start_line": 258
+          }
+        ]
+      }
+    }
+  },
+  "info": {
+    "title": "Generated API",
+    "version": "0.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/acquisitions": {
+      "get": {
+        "operationId": "list_acquisitions_handler",
+        "responses": {
+          "default": {
+            "description": "Response schema unknown"
+          }
+        },
+        "x-charte.rs-confidence": "exact",
+        "x-charte.rs-handler": "list_acquisitions_handler",
+        "x-charte.rs-provenance": [
+          {
+            "byte_end": 1709,
+            "byte_start": 1597,
+            "end_column": 10,
+            "end_line": 44,
+            "extraction_reason": "axum_route",
+            "file": "src/httpapi/routes/acquisitions.rs",
+            "node_kind": "call_expression",
+            "start_column": 5,
+            "start_line": 40
+          }
+        ]
+      }
+    },
+    "/acquisitions/{id}": {
+      "get": {
+        "operationId": "get_acquisition",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "x-charte.rs-confidence": "exact",
+            "x-charte.rs-provenance": [
+              {
+                "byte_end": 1768,
+                "byte_start": 1597,
+                "end_column": 59,
+                "end_line": 45,
+                "extraction_reason": "path_template_parameter:route-0024:get_acquisition",
+                "file": "src/httpapi/routes/acquisitions.rs",
+                "node_kind": "call_expression",
+                "start_column": 5,
+                "start_line": 40
+              },
+              {
+                "byte_end": 7198,
+                "byte_start": 7176,
+                "end_column": 27,
+                "end_line": 204,
+                "extraction_reason": "axum_path_extractor",
+                "file": "src/httpapi/routes/acquisitions.rs",
+                "node_kind": "parameter",
+                "start_column": 5,
+                "start_line": 204
+              }
+            ]
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response schema unknown"
+          }
+        },
+        "x-charte.rs-confidence": "exact",
+        "x-charte.rs-handler": "get_acquisition",
+        "x-charte.rs-provenance": [
+          {
+            "byte_end": 1768,
+            "byte_start": 1597,
+            "end_column": 59,
+            "end_line": 45,
+            "extraction_reason": "axum_route",
+            "file": "src/httpapi/routes/acquisitions.rs",
+            "node_kind": "call_expression",
+            "start_column": 5,
+            "start_line": 40
+          }
+        ]
+      }
+    },
+    "/acquisitions/{id}/actions/accept_verified": {
+      "post": {
+        "operationId": "accept_verified",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "x-charte.rs-confidence": "exact",
+            "x-charte.rs-provenance": [
+              {
+                "byte_end": 2359,
+                "byte_start": 1597,
+                "end_column": 10,
+                "end_line": 55,
+                "extraction_reason": "path_template_parameter:route-0010:accept_verified",
+                "file": "src/httpapi/routes/acquisitions.rs",
+                "node_kind": "call_expression",
+                "start_column": 5,
+                "start_line": 40
+              },
+              {
+                "byte_end": 17448,
+                "byte_start": 17426,
+                "end_column": 27,
+                "end_line": 537,
+                "extraction_reason": "axum_path_extractor",
+                "file": "src/httpapi/routes/acquisitions.rs",
+                "node_kind": "parameter",
+                "start_column": 5,
+                "start_line": 537
+              }
+            ]
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response schema unknown"
+          }
+        },
+        "x-charte.rs-confidence": "exact",
+        "x-charte.rs-handler": "accept_verified",
+        "x-charte.rs-provenance": [
+          {
+            "byte_end": 2359,
+            "byte_start": 1597,
+            "end_column": 10,
+            "end_line": 55,
+            "extraction_reason": "axum_route",
+            "file": "src/httpapi/routes/acquisitions.rs",
+            "node_kind": "call_expression",
+            "start_column": 5,
+            "start_line": 40
+          }
+        ]
+      }
+    },
+    "/acquisitions/{id}/actions/blacklist": {
+      "post": {
+        "operationId": "blacklist",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "x-charte.rs-confidence": "exact",
+            "x-charte.rs-provenance": [
+              {
+                "byte_end": 2554,
+                "byte_start": 1597,
+                "end_column": 72,
+                "end_line": 60,
+                "extraction_reason": "path_template_parameter:route-0006:blacklist",
+                "file": "src/httpapi/routes/acquisitions.rs",
+                "node_kind": "call_expression",
+                "start_column": 5,
+                "start_line": 40
+              },
+              {
+                "byte_end": 21817,
+                "byte_start": 21795,
+                "end_column": 27,
+                "end_line": 669,
+                "extraction_reason": "axum_path_extractor",
+                "file": "src/httpapi/routes/acquisitions.rs",
+                "node_kind": "parameter",
+                "start_column": 5,
+                "start_line": 669
+              }
+            ]
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response schema unknown"
+          }
+        },
+        "x-charte.rs-confidence": "exact",
+        "x-charte.rs-handler": "blacklist",
+        "x-charte.rs-provenance": [
+          {
+            "byte_end": 2554,
+            "byte_start": 1597,
+            "end_column": 72,
+            "end_line": 60,
+            "extraction_reason": "axum_route",
+            "file": "src/httpapi/routes/acquisitions.rs",
+            "node_kind": "call_expression",
+            "start_column": 5,
+            "start_line": 40
+          }
+        ]
+      }
+    },
+    "/acquisitions/{id}/actions/blacklist_and_rescout": {
+      "post": {
+        "operationId": "blacklist_and_rescout",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "x-charte.rs-confidence": "exact",
+            "x-charte.rs-provenance": [
+              {
+                "byte_end": 2685,
+                "byte_start": 1597,
+                "end_column": 10,
+                "end_line": 64,
+                "extraction_reason": "path_template_parameter:route-0004:blacklist_and_rescout",
+                "file": "src/httpapi/routes/acquisitions.rs",
+                "node_kind": "call_expression",
+                "start_column": 5,
+                "start_line": 40
+              },
+              {
+                "byte_end": 22162,
+                "byte_start": 22140,
+                "end_column": 27,
+                "end_line": 679,
+                "extraction_reason": "axum_path_extractor",
+                "file": "src/httpapi/routes/acquisitions.rs",
+                "node_kind": "parameter",
+                "start_column": 5,
+                "start_line": 679
+              }
+            ]
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response schema unknown"
+          }
+        },
+        "x-charte.rs-confidence": "exact",
+        "x-charte.rs-handler": "blacklist_and_rescout",
+        "x-charte.rs-provenance": [
+          {
+            "byte_end": 2685,
+            "byte_start": 1597,
+            "end_column": 10,
+            "end_line": 64,
+            "extraction_reason": "axum_route",
+            "file": "src/httpapi/routes/acquisitions.rs",
+            "node_kind": "call_expression",
+            "start_column": 5,
+            "start_line": 40
+          }
+        ]
+      }
+    },
+    "/acquisitions/{id}/actions/override_imported": {
+      "post": {
+        "operationId": "override_imported",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "x-charte.rs-confidence": "exact",
+            "x-charte.rs-provenance": [
+              {
+                "byte_end": 2482,
+                "byte_start": 1597,
+                "end_column": 10,
+                "end_line": 59,
+                "extraction_reason": "path_template_parameter:route-0008:override_imported",
+                "file": "src/httpapi/routes/acquisitions.rs",
+                "node_kind": "call_expression",
+                "start_column": 5,
+                "start_line": 40
+              },
+              {
+                "byte_end": 20200,
+                "byte_start": 20178,
+                "end_column": 27,
+                "end_line": 618,
+                "extraction_reason": "axum_path_extractor",
+                "file": "src/httpapi/routes/acquisitions.rs",
+                "node_kind": "parameter",
+                "start_column": 5,
+                "start_line": 618
+              }
+            ]
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response schema unknown"
+          }
+        },
+        "x-charte.rs-confidence": "exact",
+        "x-charte.rs-handler": "override_imported",
+        "x-charte.rs-provenance": [
+          {
+            "byte_end": 2482,
+            "byte_start": 1597,
+            "end_column": 10,
+            "end_line": 59,
+            "extraction_reason": "axum_route",
+            "file": "src/httpapi/routes/acquisitions.rs",
+            "node_kind": "call_expression",
+            "start_column": 5,
+            "start_line": 40
+          }
+        ]
+      }
+    },
+    "/acquisitions/{id}/actions/pause": {
+      "post": {
+        "operationId": "pause_acquisition",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "x-charte.rs-confidence": "exact",
+            "x-charte.rs-provenance": [
+              {
+                "byte_end": 1844,
+                "byte_start": 1597,
+                "end_column": 76,
+                "end_line": 46,
+                "extraction_reason": "path_template_parameter:route-0022:pause_acquisition",
+                "file": "src/httpapi/routes/acquisitions.rs",
+                "node_kind": "call_expression",
+                "start_column": 5,
+                "start_line": 40
+              },
+              {
+                "byte_end": 10711,
+                "byte_start": 10689,
+                "end_column": 27,
+                "end_line": 303,
+                "extraction_reason": "axum_path_extractor",
+                "file": "src/httpapi/routes/acquisitions.rs",
+                "node_kind": "parameter",
+                "start_column": 5,
+                "start_line": 303
+              }
+            ]
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response schema unknown"
+          }
+        },
+        "x-charte.rs-confidence": "exact",
+        "x-charte.rs-handler": "pause_acquisition",
+        "x-charte.rs-provenance": [
+          {
+            "byte_end": 1844,
+            "byte_start": 1597,
+            "end_column": 76,
+            "end_line": 46,
+            "extraction_reason": "axum_route",
+            "file": "src/httpapi/routes/acquisitions.rs",
+            "node_kind": "call_expression",
+            "start_column": 5,
+            "start_line": 40
+          }
+        ]
+      }
+    },
+    "/acquisitions/{id}/actions/reimport": {
+      "post": {
+        "operationId": "reimport_acquisition",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "x-charte.rs-confidence": "exact",
+            "x-charte.rs-provenance": [
+              {
+                "byte_end": 2240,
+                "byte_start": 1597,
+                "end_column": 82,
+                "end_line": 51,
+                "extraction_reason": "path_template_parameter:route-0012:reimport_acquisition",
+                "file": "src/httpapi/routes/acquisitions.rs",
+                "node_kind": "call_expression",
+                "start_column": 5,
+                "start_line": 40
+              },
+              {
+                "byte_end": 15856,
+                "byte_start": 15834,
+                "end_column": 27,
+                "end_line": 479,
+                "extraction_reason": "axum_path_extractor",
+                "file": "src/httpapi/routes/acquisitions.rs",
+                "node_kind": "parameter",
+                "start_column": 5,
+                "start_line": 479
+              }
+            ]
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response schema unknown"
+          }
+        },
+        "x-charte.rs-confidence": "exact",
+        "x-charte.rs-handler": "reimport_acquisition",
+        "x-charte.rs-provenance": [
+          {
+            "byte_end": 2240,
+            "byte_start": 1597,
+            "end_column": 82,
+            "end_line": 51,
+            "extraction_reason": "axum_route",
+            "file": "src/httpapi/routes/acquisitions.rs",
+            "node_kind": "call_expression",
+            "start_column": 5,
+            "start_line": 40
+          }
+        ]
+      }
+    },
+    "/acquisitions/{id}/actions/remove": {
+      "post": {
+        "operationId": "remove_acquisition",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "x-charte.rs-confidence": "exact",
+            "x-charte.rs-provenance": [
+              {
+                "byte_end": 2076,
+                "byte_start": 1597,
+                "end_column": 78,
+                "end_line": 49,
+                "extraction_reason": "path_template_parameter:route-0016:remove_acquisition",
+                "file": "src/httpapi/routes/acquisitions.rs",
+                "node_kind": "call_expression",
+                "start_column": 5,
+                "start_line": 40
+              },
+              {
+                "byte_end": 13559,
+                "byte_start": 13537,
+                "end_column": 27,
+                "end_line": 393,
+                "extraction_reason": "axum_path_extractor",
+                "file": "src/httpapi/routes/acquisitions.rs",
+                "node_kind": "parameter",
+                "start_column": 5,
+                "start_line": 393
+              }
+            ]
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response schema unknown"
+          }
+        },
+        "x-charte.rs-confidence": "exact",
+        "x-charte.rs-handler": "remove_acquisition",
+        "x-charte.rs-provenance": [
+          {
+            "byte_end": 2076,
+            "byte_start": 1597,
+            "end_column": 78,
+            "end_line": 49,
+            "extraction_reason": "axum_route",
+            "file": "src/httpapi/routes/acquisitions.rs",
+            "node_kind": "call_expression",
+            "start_column": 5,
+            "start_line": 40
+          }
+        ]
+      }
+    },
+    "/acquisitions/{id}/actions/resume": {
+      "post": {
+        "operationId": "resume_acquisition",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "x-charte.rs-confidence": "exact",
+            "x-charte.rs-provenance": [
+              {
+                "byte_end": 1922,
+                "byte_start": 1597,
+                "end_column": 78,
+                "end_line": 47,
+                "extraction_reason": "path_template_parameter:route-0020:resume_acquisition",
+                "file": "src/httpapi/routes/acquisitions.rs",
+                "node_kind": "call_expression",
+                "start_column": 5,
+                "start_line": 40
+              },
+              {
+                "byte_end": 10940,
+                "byte_start": 10918,
+                "end_column": 27,
+                "end_line": 311,
+                "extraction_reason": "axum_path_extractor",
+                "file": "src/httpapi/routes/acquisitions.rs",
+                "node_kind": "parameter",
+                "start_column": 5,
+                "start_line": 311
+              }
+            ]
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response schema unknown"
+          }
+        },
+        "x-charte.rs-confidence": "exact",
+        "x-charte.rs-handler": "resume_acquisition",
+        "x-charte.rs-provenance": [
+          {
+            "byte_end": 1922,
+            "byte_start": 1597,
+            "end_column": 78,
+            "end_line": 47,
+            "extraction_reason": "axum_route",
+            "file": "src/httpapi/routes/acquisitions.rs",
+            "node_kind": "call_expression",
+            "start_column": 5,
+            "start_line": 40
+          }
+        ]
+      }
+    },
+    "/acquisitions/{id}/actions/retry": {
+      "post": {
+        "operationId": "retry_acquisition",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "x-charte.rs-confidence": "exact",
+            "x-charte.rs-provenance": [
+              {
+                "byte_end": 1998,
+                "byte_start": 1597,
+                "end_column": 76,
+                "end_line": 48,
+                "extraction_reason": "path_template_parameter:route-0018:retry_acquisition",
+                "file": "src/httpapi/routes/acquisitions.rs",
+                "node_kind": "call_expression",
+                "start_column": 5,
+                "start_line": 40
+              },
+              {
+                "byte_end": 15222,
+                "byte_start": 15200,
+                "end_column": 27,
+                "end_line": 449,
+                "extraction_reason": "axum_path_extractor",
+                "file": "src/httpapi/routes/acquisitions.rs",
+                "node_kind": "parameter",
+                "start_column": 5,
+                "start_line": 449
+              }
+            ]
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response schema unknown"
+          }
+        },
+        "x-charte.rs-confidence": "exact",
+        "x-charte.rs-handler": "retry_acquisition",
+        "x-charte.rs-provenance": [
+          {
+            "byte_end": 1998,
+            "byte_start": 1597,
+            "end_column": 76,
+            "end_line": 48,
+            "extraction_reason": "axum_route",
+            "file": "src/httpapi/routes/acquisitions.rs",
+            "node_kind": "call_expression",
+            "start_column": 5,
+            "start_line": 40
+          }
+        ]
+      }
+    },
+    "/acquisitions/{id}/actions/reverify": {
+      "post": {
+        "operationId": "reverify_acquisition",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "x-charte.rs-confidence": "exact",
+            "x-charte.rs-provenance": [
+              {
+                "byte_end": 2158,
+                "byte_start": 1597,
+                "end_column": 82,
+                "end_line": 50,
+                "extraction_reason": "path_template_parameter:route-0014:reverify_acquisition",
+                "file": "src/httpapi/routes/acquisitions.rs",
+                "node_kind": "call_expression",
+                "start_column": 5,
+                "start_line": 40
+              },
+              {
+                "byte_end": 15538,
+                "byte_start": 15516,
+                "end_column": 27,
+                "end_line": 464,
+                "extraction_reason": "axum_path_extractor",
+                "file": "src/httpapi/routes/acquisitions.rs",
+                "node_kind": "parameter",
+                "start_column": 5,
+                "start_line": 464
+              }
+            ]
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response schema unknown"
+          }
+        },
+        "x-charte.rs-confidence": "exact",
+        "x-charte.rs-handler": "reverify_acquisition",
+        "x-charte.rs-provenance": [
+          {
+            "byte_end": 2158,
+            "byte_start": 1597,
+            "end_column": 82,
+            "end_line": 50,
+            "extraction_reason": "axum_route",
+            "file": "src/httpapi/routes/acquisitions.rs",
+            "node_kind": "call_expression",
+            "start_column": 5,
+            "start_line": 40
+          }
+        ]
+      }
+    },
+    "/candidates/{id}/acquisition": {
+      "post": {
+        "operationId": "create_candidate_acquisition",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "x-charte.rs-confidence": "exact",
+            "x-charte.rs-provenance": [
+              {
+                "byte_end": 1691,
+                "byte_start": 1378,
+                "end_column": 10,
+                "end_line": 42,
+                "extraction_reason": "path_template_parameter:route-0034:create_candidate_acquisition",
+                "file": "src/httpapi/routes/targets_search.rs",
+                "node_kind": "call_expression",
+                "start_column": 5,
+                "start_line": 35
+              },
+              {
+                "byte_end": 11581,
+                "byte_start": 11559,
+                "end_column": 27,
+                "end_line": 380,
+                "extraction_reason": "axum_path_extractor",
+                "file": "src/httpapi/routes/targets_search.rs",
+                "node_kind": "parameter",
+                "start_column": 5,
+                "start_line": 380
+              }
+            ]
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response schema unknown"
+          }
+        },
+        "x-charte.rs-confidence": "exact",
+        "x-charte.rs-handler": "create_candidate_acquisition",
+        "x-charte.rs-provenance": [
+          {
+            "byte_end": 1691,
+            "byte_start": 1378,
+            "end_column": 10,
+            "end_line": 42,
+            "extraction_reason": "axum_route",
+            "file": "src/httpapi/routes/targets_search.rs",
+            "node_kind": "call_expression",
+            "start_column": 5,
+            "start_line": 35
+          }
+        ]
+      }
+    },
+    "/diagnostics/bundle": {
+      "get": {
+        "operationId": "diagnostics_bundle",
+        "responses": {
+          "default": {
+            "description": "Response schema unknown"
+          }
+        },
+        "x-charte.rs-confidence": "exact",
+        "x-charte.rs-handler": "diagnostics_bundle",
+        "x-charte.rs-provenance": [
+          {
+            "byte_end": 1146,
+            "byte_start": 1070,
+            "end_column": 63,
+            "end_line": 32,
+            "extraction_reason": "axum_route",
+            "file": "src/httpapi/routes/diagnostics.rs",
+            "node_kind": "call_expression",
+            "start_column": 5,
+            "start_line": 31
+          }
+        ]
+      }
+    },
+    "/diagnostics/test-connection": {
+      "post": {
+        "operationId": "test_connection",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TestConnectionRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-charte.rs-confidence": "exact",
+          "x-charte.rs-provenance": [
+            {
+              "byte_end": 10602,
+              "byte_start": 10564,
+              "end_column": 43,
+              "end_line": 335,
+              "extraction_reason": "axum_json_extractor",
+              "file": "src/httpapi/routes/diagnostics.rs",
+              "node_kind": "parameter",
+              "start_column": 5,
+              "start_line": 335
+            }
+          ]
+        },
+        "responses": {
+          "default": {
+            "description": "Response schema unknown"
+          }
+        },
+        "x-charte.rs-confidence": "exact",
+        "x-charte.rs-handler": "test_connection",
+        "x-charte.rs-provenance": [
+          {
+            "byte_end": 1216,
+            "byte_start": 1070,
+            "end_column": 70,
+            "end_line": 33,
+            "extraction_reason": "axum_route",
+            "file": "src/httpapi/routes/diagnostics.rs",
+            "node_kind": "call_expression",
+            "start_column": 5,
+            "start_line": 31
+          }
+        ]
+      }
+    },
+    "/healthz": {
+      "get": {
+        "operationId": "routeshealthhealthz",
+        "responses": {
+          "default": {
+            "description": "Response schema unknown"
+          }
+        },
+        "x-charte.rs-confidence": "exact",
+        "x-charte.rs-handler": "routes::health::healthz",
+        "x-charte.rs-provenance": [
+          {
+            "byte_end": 1295,
+            "byte_start": 1159,
+            "end_column": 57,
+            "end_line": 34,
+            "extraction_reason": "axum_route",
+            "file": "src/httpapi/mod.rs",
+            "node_kind": "call_expression",
+            "start_column": 5,
+            "start_line": 32
+          },
+          {
+            "byte_end": 3115,
+            "byte_start": 3057,
+            "end_column": 45,
+            "end_line": 92,
+            "extraction_reason": "axum_route",
+            "file": "src/httpapi/routes/health.rs",
+            "node_kind": "call_expression",
+            "start_column": 19,
+            "start_line": 91
+          }
+        ]
+      }
+    },
+    "/metrics": {
+      "get": {
+        "operationId": "routesmetricsmetrics_handler",
+        "responses": {
+          "default": {
+            "description": "Response schema unknown"
+          }
+        },
+        "x-charte.rs-confidence": "exact",
+        "x-charte.rs-handler": "routes::metrics::metrics_handler",
+        "x-charte.rs-provenance": [
+          {
+            "byte_end": 1416,
+            "byte_start": 1159,
+            "end_column": 66,
+            "end_line": 36,
+            "extraction_reason": "axum_route",
+            "file": "src/httpapi/mod.rs",
+            "node_kind": "call_expression",
+            "start_column": 5,
+            "start_line": 32
+          },
+          {
+            "byte_end": 2202,
+            "byte_start": 2136,
+            "end_column": 53,
+            "end_line": 67,
+            "extraction_reason": "axum_route",
+            "file": "src/httpapi/routes/metrics.rs",
+            "node_kind": "call_expression",
+            "start_column": 19,
+            "start_line": 66
+          }
+        ]
+      }
+    },
+    "/readyz": {
+      "get": {
+        "operationId": "routeshealthreadyz",
+        "responses": {
+          "default": {
+            "description": "Response schema unknown"
+          }
+        },
+        "x-charte.rs-confidence": "exact",
+        "x-charte.rs-handler": "routes::health::readyz",
+        "x-charte.rs-provenance": [
+          {
+            "byte_end": 1350,
+            "byte_start": 1159,
+            "end_column": 55,
+            "end_line": 35,
+            "extraction_reason": "axum_route",
+            "file": "src/httpapi/mod.rs",
+            "node_kind": "call_expression",
+            "start_column": 5,
+            "start_line": 32
+          },
+          {
+            "byte_end": 3706,
+            "byte_start": 3650,
+            "end_column": 43,
+            "end_line": 105,
+            "extraction_reason": "axum_route",
+            "file": "src/httpapi/routes/health.rs",
+            "node_kind": "call_expression",
+            "start_column": 19,
+            "start_line": 104
+          },
+          {
+            "byte_end": 4568,
+            "byte_start": 4512,
+            "end_column": 43,
+            "end_line": 123,
+            "extraction_reason": "axum_route",
+            "file": "src/httpapi/routes/health.rs",
+            "node_kind": "call_expression",
+            "start_column": 19,
+            "start_line": 122
+          }
+        ]
+      }
+    },
+    "/search/runs/{id}": {
+      "get": {
+        "operationId": "get_search_run",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "x-charte.rs-confidence": "exact",
+            "x-charte.rs-provenance": [
+              {
+                "byte_end": 1573,
+                "byte_start": 1378,
+                "end_column": 57,
+                "end_line": 38,
+                "extraction_reason": "path_template_parameter:route-0036:get_search_run",
+                "file": "src/httpapi/routes/targets_search.rs",
+                "node_kind": "call_expression",
+                "start_column": 5,
+                "start_line": 35
+              },
+              {
+                "byte_end": 10343,
+                "byte_start": 10321,
+                "end_column": 27,
+                "end_line": 348,
+                "extraction_reason": "axum_path_extractor",
+                "file": "src/httpapi/routes/targets_search.rs",
+                "node_kind": "parameter",
+                "start_column": 5,
+                "start_line": 348
+              }
+            ]
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response schema unknown"
+          }
+        },
+        "x-charte.rs-confidence": "exact",
+        "x-charte.rs-handler": "get_search_run",
+        "x-charte.rs-provenance": [
+          {
+            "byte_end": 1573,
+            "byte_start": 1378,
+            "end_column": 57,
+            "end_line": 38,
+            "extraction_reason": "axum_route",
+            "file": "src/httpapi/routes/targets_search.rs",
+            "node_kind": "call_expression",
+            "start_column": 5,
+            "start_line": 35
+          }
+        ]
+      }
+    },
+    "/targets": {
+      "get": {
+        "operationId": "list_targets",
+        "responses": {
+          "default": {
+            "description": "Response schema unknown"
+          }
+        },
+        "x-charte.rs-confidence": "exact",
+        "x-charte.rs-handler": "list_targets",
+        "x-charte.rs-provenance": [
+          {
+            "byte_end": 1457,
+            "byte_start": 1378,
+            "end_column": 66,
+            "end_line": 36,
+            "extraction_reason": "axum_route",
+            "file": "src/httpapi/routes/targets_search.rs",
+            "node_kind": "call_expression",
+            "start_column": 5,
+            "start_line": 35
+          }
+        ]
+      },
+      "post": {
+        "operationId": "create_target",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTargetRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-charte.rs-confidence": "exact",
+          "x-charte.rs-provenance": [
+            {
+              "byte_end": 6489,
+              "byte_start": 6453,
+              "end_column": 41,
+              "end_line": 230,
+              "extraction_reason": "axum_json_extractor",
+              "file": "src/httpapi/routes/targets_search.rs",
+              "node_kind": "parameter",
+              "start_column": 5,
+              "start_line": 230
+            }
+          ]
+        },
+        "responses": {
+          "default": {
+            "description": "Response schema unknown"
+          }
+        },
+        "x-charte.rs-confidence": "exact",
+        "x-charte.rs-handler": "create_target",
+        "x-charte.rs-provenance": [
+          {
+            "byte_end": 1457,
+            "byte_start": 1378,
+            "end_column": 66,
+            "end_line": 36,
+            "extraction_reason": "axum_route",
+            "file": "src/httpapi/routes/targets_search.rs",
+            "node_kind": "call_expression",
+            "start_column": 5,
+            "start_line": 35
+          }
+        ]
+      }
+    },
+    "/targets/{id}/search": {
+      "post": {
+        "operationId": "start_search",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "x-charte.rs-confidence": "exact",
+            "x-charte.rs-provenance": [
+              {
+                "byte_end": 1516,
+                "byte_start": 1378,
+                "end_column": 59,
+                "end_line": 37,
+                "extraction_reason": "path_template_parameter:route-0038:start_search",
+                "file": "src/httpapi/routes/targets_search.rs",
+                "node_kind": "call_expression",
+                "start_column": 5,
+                "start_line": 35
+              },
+              {
+                "byte_end": 8234,
+                "byte_start": 8212,
+                "end_column": 27,
+                "end_line": 284,
+                "extraction_reason": "axum_path_extractor",
+                "file": "src/httpapi/routes/targets_search.rs",
+                "node_kind": "parameter",
+                "start_column": 5,
+                "start_line": 284
+              }
+            ]
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response schema unknown"
+          }
+        },
+        "x-charte.rs-confidence": "exact",
+        "x-charte.rs-handler": "start_search",
+        "x-charte.rs-provenance": [
+          {
+            "byte_end": 1516,
+            "byte_start": 1378,
+            "end_column": 59,
+            "end_line": 37,
+            "extraction_reason": "axum_route",
+            "file": "src/httpapi/routes/targets_search.rs",
+            "node_kind": "call_expression",
+            "start_column": 5,
+            "start_line": 35
+          }
+        ]
+      }
+    },
+    "/ws": {
+      "get": {
+        "operationId": "ws_handler",
+        "responses": {
+          "default": {
+            "description": "Response schema unknown"
+          }
+        },
+        "x-charte.rs-confidence": "exact",
+        "x-charte.rs-handler": "ws_handler",
+        "x-charte.rs-provenance": [
+          {
+            "byte_end": 942,
+            "byte_start": 890,
+            "end_column": 39,
+            "end_line": 24,
+            "extraction_reason": "axum_route",
+            "file": "src/httpapi/routes/ws.rs",
+            "node_kind": "call_expression",
+            "start_column": 5,
+            "start_line": 23
+          }
+        ]
+      }
+    },
+    "/ws/info": {
+      "get": {
+        "operationId": "ws_info",
+        "responses": {
+          "default": {
+            "description": "Response schema unknown"
+          }
+        },
+        "x-charte.rs-confidence": "exact",
+        "x-charte.rs-handler": "ws_info",
+        "x-charte.rs-provenance": [
+          {
+            "byte_end": 983,
+            "byte_start": 890,
+            "end_column": 41,
+            "end_line": 25,
+            "extraction_reason": "axum_route",
+            "file": "src/httpapi/routes/ws.rs",
+            "node_kind": "call_expression",
+            "start_column": 5,
+            "start_line": 23
+          }
+        ]
+      }
+    }
+  },
+  "x-charte.rs-diagnostics": [
+    {
+      "adapter_id": null,
+      "affects_output_validity": false,
+      "code": "CHARTE_RS_IR_CONFLICTING_ROUTES",
+      "message": "GET /healthz is declared by multiple distinct handlers: `healthz`, `routes::health::healthz`; their sub-facts were merged",
+      "schema_version": 1,
+      "severity": "warning",
+      "source_span": {
+        "byte_end": 1295,
+        "byte_start": 1159,
+        "end_column": 57,
+        "end_line": 34,
+        "extraction_reason": "axum_route",
+        "file": "src/httpapi/mod.rs",
+        "node_kind": "call_expression",
+        "start_column": 5,
+        "start_line": 32
+      }
+    },
+    {
+      "adapter_id": null,
+      "affects_output_validity": false,
+      "code": "CHARTE_RS_IR_CONFLICTING_ROUTES",
+      "message": "GET /readyz is declared by multiple distinct handlers: `readyz`, `routes::health::readyz`; their sub-facts were merged",
+      "schema_version": 1,
+      "severity": "warning",
+      "source_span": {
+        "byte_end": 1350,
+        "byte_start": 1159,
+        "end_column": 55,
+        "end_line": 35,
+        "extraction_reason": "axum_route",
+        "file": "src/httpapi/mod.rs",
+        "node_kind": "call_expression",
+        "start_column": 5,
+        "start_line": 32
+      }
+    },
+    {
+      "adapter_id": null,
+      "affects_output_validity": false,
+      "code": "CHARTE_RS_IR_CONFLICTING_ROUTES",
+      "message": "GET /metrics is declared by multiple distinct handlers: `metrics_handler`, `routes::metrics::metrics_handler`; their sub-facts were merged",
+      "schema_version": 1,
+      "severity": "warning",
+      "source_span": {
+        "byte_end": 1416,
+        "byte_start": 1159,
+        "end_column": 66,
+        "end_line": 36,
+        "extraction_reason": "axum_route",
+        "file": "src/httpapi/mod.rs",
+        "node_kind": "call_expression",
+        "start_column": 5,
+        "start_line": 32
+      }
+    }
+  ]
+}
