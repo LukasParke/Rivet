@@ -53,5 +53,12 @@ EXPOSE 8080
 
 VOLUME ["/data"]
 
+# One probe validates the full chain and both processes:
+#   :8080/readyz  -> nginx -> rivet-server -> SQLite round trip
+#   :3000/        -> SvelteKit SSR process alive
+# Node's global fetch avoids adding curl/wget to the runtime image.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+  CMD ["node", "-e", "const ok=u=>fetch(u).then(r=>{if(!r.ok)throw new Error(u+' '+r.status)});Promise.all([ok('http://127.0.0.1:8080/readyz'),ok('http://127.0.0.1:3000/')]).then(()=>process.exit(0),()=>process.exit(1))"]
+
 ENTRYPOINT ["tini", "--"]
 CMD ["/entrypoint.sh"]

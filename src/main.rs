@@ -116,7 +116,21 @@ async fn async_main() {
     // in httpapi/mod.rs for the direct-exposure mitigation.
     let axum_app = app.into_make_service();
 
+    // Docker/Kubernetes stop and the entrypoint trap deliver SIGTERM;
+    // interactive runs deliver SIGINT. Handle both so graceful shutdown
+    // (worker drain + DB checkpoint) actually runs on container stop.
     let shutdown = async move {
+        #[cfg(unix)]
+        {
+            let mut sigterm =
+                tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+                    .expect("sigterm handler");
+            tokio::select! {
+                _ = tokio::signal::ctrl_c() => {}
+                _ = sigterm.recv() => {}
+            }
+        }
+        #[cfg(not(unix))]
         let _ = tokio::signal::ctrl_c().await;
         let _ = shutdown_tx.send(true);
     };
