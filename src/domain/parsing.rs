@@ -321,6 +321,17 @@ static RE_AUDIO: LazyLock<regex::Regex> = LazyLock::new(|| {
     )
     .unwrap()
 });
+static RE_PROPER: LazyLock<regex::Regex> =
+    LazyLock::new(|| regex::Regex::new(r"(?i)\bproper\b").unwrap());
+static RE_REPACK: LazyLock<regex::Regex> =
+    LazyLock::new(|| regex::Regex::new(r"(?i)\brepack\d*\b").unwrap());
+static RE_REAL: LazyLock<regex::Regex> =
+    LazyLock::new(|| regex::Regex::new(r"(?i)\breal\b").unwrap());
+static RE_HARDCODED: LazyLock<regex::Regex> =
+    LazyLock::new(|| regex::Regex::new(r"(?i)\bhardcoded[.\s_-]?subs\b|\bhc\b").unwrap());
+static RE_REMUX_WORD: LazyLock<regex::Regex> =
+    LazyLock::new(|| regex::Regex::new(r"(?i)remux").unwrap());
+
 static RE_CODECS: LazyLock<regex::Regex> = LazyLock::new(|| {
     regex::Regex::new(r"(?i)\b(x264|x265|h\.?264|h\.?265|hevc|avc|xvid|divx|vp9|av1)\b").unwrap()
 });
@@ -335,33 +346,22 @@ pub fn parse(input: &str) -> ParsedRelease {
     let lower = normalized.to_ascii_lowercase();
 
     // ---- modifiers -------------------------------------------------------
-    if regex::Regex::new(r"(?i)\bproper\b")
-        .unwrap()
-        .is_match(&normalized)
+    if RE_PROPER.is_match(&normalized)
     {
         out.proper = true;
         out.quality.modifier = QualityModifier::Proper;
     }
-    if regex::Regex::new(r"(?i)\brepack\d*\b")
-        .unwrap()
-        .is_match(&normalized)
+    if RE_REPACK.is_match(&normalized)
     {
         out.repack = true;
         out.quality.modifier = QualityModifier::Repack;
     }
-    if (regex::Regex::new(r"(?i)\breal\b")
-        .unwrap()
-        .is_match(&normalized)
-        && regex::Regex::new(r"(?i)\bproper\b")
-            .unwrap()
-            .is_match(&normalized))
+    if (RE_REAL.is_match(&normalized) && RE_PROPER.is_match(&normalized))
         || normalized.contains("REAL")
     {
         out.real = true;
     }
-    if regex::Regex::new(r"(?i)\bhardcoded[.\s_-]?subs\b|\bhc\b")
-        .unwrap()
-        .is_match(&lower)
+    if RE_HARDCODED.is_match(&lower)
     {
         out.hardcoded_subs = true;
     }
@@ -381,9 +381,7 @@ pub fn parse(input: &str) -> ParsedRelease {
         let t = m.as_str().to_ascii_lowercase();
         // REMUX must be checked before plain BluRay. "BDMux" is a remux by
         // definition even when the word "REMUX" is absent.
-        let is_remux_wording = regex::Regex::new(r"(?i)remux")
-            .unwrap()
-            .is_match(&normalized);
+        let is_remux_wording = RE_REMUX_WORD.is_match(&normalized);
         if t.contains("bdmux") || (t.contains("blu") && is_remux_wording) {
             out.quality.source = Source::BlurayRemux;
             out.quality.modifier = QualityModifier::Remux;

@@ -8,6 +8,10 @@ description = "Media automation control plane"
 name = "rivet-server"
 path = "src/main.rs"
 
+[[bin]]
+name = "loadgen"
+path = "src/bin/loadgen.rs"
+
 [dependencies]
 axum = { version = "0.8", features = ["ws"] }
 axum-extra = { version = "0.10", features = ["cookie"] }
@@ -36,13 +40,28 @@ percent-encoding = "2"
 roxmltree = "0.20"
 sha1 = "0.10"
 regex = "1"
+tokio-tungstenite = "0.24"
+tempfile = "3"
 libc = "0.2"
 hmac = "0.12"
 
 [dev-dependencies]
 wiremock = "0.6"
-tempfile = "3"
 proptest = "1"
+criterion = { version = "0.5", features = ["async_tokio"] }
+futures-util = "0.3"
+
+[[bench]]
+name = "domain_benches"
+harness = false
+
+[[bench]]
+name = "storage_benches"
+harness = false
+
+[[bench]]
+name = "ws_bench"
+harness = false
 
 [profile.release]
 lto = "thin"

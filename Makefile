@@ -68,7 +68,12 @@ docker-stop: ## Stop any running Docker containers
 test: ## Run all Rust tests
 	cargo test
 
-test-verbose: ## Run Rust tests with verbose output
+bench: ## Run all criterion benchmarks
+	cargo bench
+
+golden-check: ## Run golden tests only
+	cargo test --test parser_golden --test api_golden
+
 	cargo test -- --nocapture
 
 fmt: ## Format Rust and web code
@@ -96,5 +101,3 @@ build-web: ## Build the web app for production
 goldens: ## Regenerate committed golden artifacts (charte OpenAPI, parser, api routes)
 	./scripts/update-goldens.sh
 
-golden-check: ## Assert committed goldens match source of truth
-	cargo test --test parser_golden --test api_golden
