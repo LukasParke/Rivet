@@ -18,8 +18,8 @@ use crate::error::AppError;
 use crate::httpapi::middleware::auth::Admin;
 use crate::security::ssrf::{self, SsrfError};
 use crate::state::AppState;
-use crate::ws::hub::PublishExt;
 use crate::storage::audit::{insert as insert_audit, AuditEvent};
+use crate::ws::hub::PublishExt;
 
 const SETTING_KEY: &str = "setup.metadata";
 const PROBE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(8);
@@ -64,11 +64,19 @@ struct ProviderTestResult {
 
 impl ProviderTestResult {
     fn fail(code: &str) -> Self {
-        ProviderTestResult { ok: false, error: Some(code.to_string()), ..Default::default() }
+        ProviderTestResult {
+            ok: false,
+            error: Some(code.to_string()),
+            ..Default::default()
+        }
     }
 
     fn ok_with(details: BTreeMap<String, String>) -> Self {
-        ProviderTestResult { ok: true, details, error: None }
+        ProviderTestResult {
+            ok: true,
+            details,
+            error: None,
+        }
     }
 }
 
@@ -95,10 +103,7 @@ pub fn router() -> axum::Router<AppState> {
 async fn validate(
     _user: Admin,
     State(state): State<AppState>,
-    body: Result<
-        axum::Json<SetupMetadataValidateRequest>,
-        axum::extract::rejection::JsonRejection,
-    >,
+    body: Result<axum::Json<SetupMetadataValidateRequest>, axum::extract::rejection::JsonRejection>,
 ) -> Response {
     let Ok(axum::Json(req)) = body else {
         return AppError::BadRequest("invalid_json".into()).into_response();
@@ -110,10 +115,7 @@ async fn validate(
 async fn save(
     user: Admin,
     State(state): State<AppState>,
-    body: Result<
-        axum::Json<SetupMetadataValidateRequest>,
-        axum::extract::rejection::JsonRejection,
-    >,
+    body: Result<axum::Json<SetupMetadataValidateRequest>, axum::extract::rejection::JsonRejection>,
 ) -> Response {
     let actor = user.0.user.id.clone();
     let Ok(axum::Json(req)) = body else {
@@ -190,8 +192,7 @@ fn save_failed_response() -> Response {
 fn base_origin(raw: &str, default_base: &str) -> Result<url::Url, SsrfError> {
     let raw = raw.trim();
     let raw = if raw.is_empty() { default_base } else { raw };
-    let mut u =
-        url::Url::parse(raw).map_err(|_| SsrfError::BadScheme)?;
+    let mut u = url::Url::parse(raw).map_err(|_| SsrfError::BadScheme)?;
     u.set_path("");
     u.set_query(None);
     u.set_fragment(None);
@@ -222,14 +223,21 @@ async fn body_limited(res: reqwest::Response, max: usize) -> Result<Vec<u8>, Ssr
 async fn test_tmdb(state: &AppState, cfg: &TMDBConfig) -> ProviderTestResult {
     let api_key_raw = cfg.apiKey.trim().to_string();
     let using_fallback = api_key_raw.is_empty();
-    let api_key =
-        if using_fallback { FALLBACK_TMDB_API_KEY.to_string() } else { api_key_raw };
+    let api_key = if using_fallback {
+        FALLBACK_TMDB_API_KEY.to_string()
+    } else {
+        api_key_raw
+    };
 
     let origin = match base_origin(&cfg.baseUrl, "https://api.themoviedb.org") {
         Ok(o) => o,
         Err(e) => return ProviderTestResult::fail(&e.to_string()),
     };
-    let url = join_url(&origin, "/3/configuration", Some(&format!("api_key={}", api_key)));
+    let url = join_url(
+        &origin,
+        "/3/configuration",
+        Some(&format!("api_key={}", api_key)),
+    );
 
     match ssrf::get_validated(&url, state.policy, PROBE_TIMEOUT, 3).await {
         Err(_) => ProviderTestResult::fail("connect_failed"),
@@ -328,7 +336,10 @@ async fn validate_metadata(
     state: &AppState,
     req: &SetupMetadataValidateRequest,
 ) -> SetupMetadataValidateResponse {
-    let mut resp = SetupMetadataValidateResponse { ok: true, ..Default::default() };
+    let mut resp = SetupMetadataValidateResponse {
+        ok: true,
+        ..Default::default()
+    };
 
     if req.tmdb.is_none() && req.tvdb.is_none() {
         resp.ok = false;
@@ -407,7 +418,6 @@ async fn validate_metadata(
 mod tests {
     use super::*;
 
-    use std::sync::Arc;
     use crate::httpapi::middleware::auth::{csrf, load_session};
     use crate::metrics::Metrics;
     use crate::security::secrets::SecretBox;
@@ -417,6 +427,7 @@ mod tests {
     use axum::extract::Request;
     use axum::http::StatusCode;
     use axum::middleware;
+    use std::sync::Arc;
     use tower::ServiceExt;
 
     async fn app_state() -> (tempfile::TempDir, AppState) {
@@ -483,10 +494,18 @@ mod tests {
             .layer(middleware::from_fn(csrf))
             .layer(middleware::from_fn_with_state(state.clone(), load_session))
             .with_state(state);
-        let resp = app.oneshot(b.body(Body::from(body.to_string())).unwrap()).await.unwrap();
+        let resp = app
+            .oneshot(b.body(Body::from(body.to_string())).unwrap())
+            .await
+            .unwrap();
         let status = resp.status();
-        let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
-        (status, serde_json::from_slice(&bytes).unwrap_or(serde_json::Value::Null))
+        let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        (
+            status,
+            serde_json::from_slice(&bytes).unwrap_or(serde_json::Value::Null),
+        )
     }
 
     #[tokio::test]
@@ -525,11 +544,9 @@ mod tests {
         Mock::given(method("GET"))
             .and(path("/3/configuration"))
             .and(query_param("api_key", "good-tmdb-key"))
-            .respond_with(
-                ResponseTemplate::new(200).set_body_json(
-                    serde_json::json!({"images": {"base_url": "http://image.themoviedb.org/t/p/"}}),
-                ),
-            )
+            .respond_with(ResponseTemplate::new(200).set_body_json(
+                serde_json::json!({"images": {"base_url": "http://image.themoviedb.org/t/p/"}}),
+            ))
             .mount(&server)
             .await;
         Mock::given(method("GET"))
@@ -539,7 +556,9 @@ mod tests {
             .await;
         Mock::given(method("POST"))
             .and(path("/v4/login"))
-            .and(wiremock::matchers::body_json(serde_json::json!({"apikey": "good-tvdb-key"})))
+            .and(wiremock::matchers::body_json(
+                serde_json::json!({"apikey": "good-tvdb-key"}),
+            ))
             .respond_with(
                 ResponseTemplate::new(200)
                     .set_body_json(serde_json::json!({"data": {"token": "tok123"}})),
@@ -566,7 +585,10 @@ mod tests {
         )
         .await;
         assert_eq!(v["tmdb"]["ok"], true);
-        assert_eq!(v["tmdb"]["details"]["imagesBaseUrl"], "http://image.themoviedb.org/t/p/");
+        assert_eq!(
+            v["tmdb"]["details"]["imagesBaseUrl"],
+            "http://image.themoviedb.org/t/p/"
+        );
         assert_eq!(v["tvdb"]["ok"], false);
         assert_eq!(v["tvdb"]["error"], "invalid_api_key");
 
@@ -590,8 +612,14 @@ mod tests {
             .await
             .unwrap()
             .unwrap();
-        assert!(!stored.contains("good-tmdb-key"), "TMDB key stored in cleartext!");
-        assert!(!stored.contains("good-tvdb-key"), "TVDB key stored in cleartext!");
+        assert!(
+            !stored.contains("good-tmdb-key"),
+            "TMDB key stored in cleartext!"
+        );
+        assert!(
+            !stored.contains("good-tvdb-key"),
+            "TVDB key stored in cleartext!"
+        );
         let parsed: serde_json::Value = serde_json::from_str(&stored).unwrap();
         let dec = state
             .secret_box
@@ -613,9 +641,8 @@ mod tests {
             .and(path("/3/configuration"))
             .and(query_param("api_key", FALLBACK_TMDB_API_KEY))
             .respond_with(
-                ResponseTemplate::new(200).set_body_json(
-                    serde_json::json!({"images": {"base_url": "http://img/"}}),
-                ),
+                ResponseTemplate::new(200)
+                    .set_body_json(serde_json::json!({"images": {"base_url": "http://img/"}})),
             )
             .mount(&server)
             .await;

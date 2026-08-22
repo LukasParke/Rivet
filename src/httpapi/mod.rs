@@ -27,6 +27,8 @@ pub fn build_router(state: AppState, gate: std::sync::Arc<setup_gate::SetupGate>
         .merge(routes::setup_config::router())
         .merge(routes::targets_search::router())
         .merge(routes::acquisitions::router())
+        .merge(routes::library::router())
+        .merge(routes::history::router())
         .merge(routes::diagnostics::router())
         .merge(routes::calendar::router())
         .merge(routes::wanted::router())
@@ -43,7 +45,10 @@ pub fn build_router(state: AppState, gate: std::sync::Arc<setup_gate::SetupGate>
         .nest("/api/v1", api)
         // Layer order (last added = outermost): gate → session → CSRF.
         .layer(axum::middleware::from_fn(auth::csrf))
-        .layer(axum::middleware::from_fn_with_state(state.clone(), auth::load_session))
+        .layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            auth::load_session,
+        ))
         .layer(gate.middleware())
         .with_state(state)
 }

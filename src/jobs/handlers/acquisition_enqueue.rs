@@ -61,11 +61,7 @@ pub async fn handle(state: &AppState, job: &Job) -> Result<(), String> {
         return Err("candidate_missing_url".to_string());
     }
 
-    if a.client_kind != "qbittorrent" && a.client_kind != "dryrun" {
-        return Err("unsupported_client_kind".to_string());
-    }
-
-    let cli = load_torrent_client(state).await?;
+    let cli = load_torrent_client(state, &a.client_kind).await?;
 
     // Prefer a hash extracted from the magnet so tracking is exact.
     let magnet_hash = extract_btih(url);

@@ -126,9 +126,11 @@ async fn health_snapshot(state: &AppState) -> Result<serde_json::Value, sqlx::Er
     let queued: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM jobs WHERE state = 'queued'")
         .fetch_one(&state.db)
         .await?;
-    let running: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM jobs WHERE state = 'queued' AND lease_owner IS NOT NULL")
-        .fetch_one(&state.db)
-        .await?;
+    let running: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM jobs WHERE state = 'queued' AND lease_owner IS NOT NULL",
+    )
+    .fetch_one(&state.db)
+    .await?;
     let failed: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM jobs WHERE state = 'failed'")
         .fetch_one(&state.db)
         .await?;

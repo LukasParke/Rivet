@@ -22,11 +22,11 @@ use serde_json::json;
 use crate::httpapi::middleware::auth::Operator;
 use crate::jobs::SearchRunPayload;
 use crate::state::AppState;
-use crate::ws::hub::PublishExt;
 use crate::storage::acquisitions;
 use crate::storage::domain::{
     self, Candidate, CandidateWithDecision, Decision, RunLookupError, SearchRun, WantedTarget,
 };
+use crate::ws::hub::PublishExt;
 
 /// Candidate rows returned for one run (review fix: unbounded before).
 const MAX_CANDIDATES: usize = 500;
@@ -83,8 +83,7 @@ impl IntoResponse for ApiError {
 // Wire types (Go JSON key parity)
 // ---------------------------------------------------------------------------
 
-#[derive(serde::Serialize)]
-#[derive(Debug, PartialEq)]
+#[derive(serde::Serialize, Debug, PartialEq)]
 struct TargetWire {
     ID: String,
     Kind: String,
@@ -233,8 +232,7 @@ async fn create_target(
     let external_source = req.external_source.trim();
     let external_id = req.external_id.trim();
     let query = req.query.trim();
-    if kind.is_empty() || external_source.is_empty() || external_id.is_empty() || query.is_empty()
-    {
+    if kind.is_empty() || external_source.is_empty() || external_id.is_empty() || query.is_empty() {
         return Err(ApiError::bad_request("missing_fields"));
     }
 
@@ -249,16 +247,21 @@ async fn create_target(
     );
 
     let payload = json!({ "query": query });
-    let t =
-        domain::create_wanted_target(&state.db, kind, external_source, external_id, Some(&payload))
-            .await
-            .map_err(|e| {
-                state.hub.publish_event(
-                    "test.target.error",
-                    json!({ "error": "create_failed", "message": e.to_string() }),
-                );
-                ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, "create_failed")
-            })?;
+    let t = domain::create_wanted_target(
+        &state.db,
+        kind,
+        external_source,
+        external_id,
+        Some(&payload),
+    )
+    .await
+    .map_err(|e| {
+        state.hub.publish_event(
+            "test.target.error",
+            json!({ "error": "create_failed", "message": e.to_string() }),
+        );
+        ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, "create_failed")
+    })?;
 
     state.hub.publish_event(
         "test.target.created",
@@ -433,8 +436,7 @@ async fn create_candidate_acquisition(
                 .map(|d| d.is_unique_violation())
                 .unwrap_or(false) =>
         {
-            if let Some(existing) = acquisitions::get_by_candidate(&state.db, candidate_id).await?
-            {
+            if let Some(existing) = acquisitions::get_by_candidate(&state.db, candidate_id).await? {
                 return Ok(Json(json!({
                     "ok": true,
                     "acquisitionId": existing.id,
@@ -442,7 +444,10 @@ async fn create_candidate_acquisition(
                 }))
                 .into_response());
             }
-            return Err(ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, "create_failed"));
+            return Err(ApiError::new(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "create_failed",
+            ));
         }
         Err(e) => {
             state.hub.publish_event(
@@ -454,7 +459,10 @@ async fn create_candidate_acquisition(
                     "message": e.to_string(),
                 }),
             );
-            return Err(ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, "create_failed"));
+            return Err(ApiError::new(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "create_failed",
+            ));
         }
     };
 
@@ -600,14 +608,18 @@ mod tests {
     }
 
     async fn body_json(res: axum::http::Response<axum::body::Body>) -> serde_json::Value {
-        let bytes = axum::body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
+        let bytes = axum::body::to_bytes(res.into_body(), usize::MAX)
+            .await
+            .unwrap();
         serde_json::from_slice(&bytes).unwrap()
     }
 
     #[tokio::test]
     async fn list_targets_returns_empty_array() {
         let (state, _dir) = test_state().await;
-        let res = list_targets(operator(), State(state.clone())).await.unwrap();
+        let res = list_targets(operator(), State(state.clone()))
+            .await
+            .unwrap();
         assert_eq!(res.0, Vec::<TargetWire>::new());
     }
 
@@ -666,10 +678,15 @@ mod tests {
         let run_id = v["runId"].as_str().unwrap().to_string();
 
         assert_eq!(
-            state.metrics.jobs_enqueued_total.load(std::sync::atomic::Ordering::Relaxed),
+            state
+                .metrics
+                .jobs_enqueued_total
+                .load(std::sync::atomic::Ordering::Relaxed),
             1
         );
-        let (run, _) = domain::get_run_with_results(&state.db, &run_id).await.unwrap();
+        let (run, _) = domain::get_run_with_results(&state.db, &run_id)
+            .await
+            .unwrap();
         assert_eq!(run.status, "queued");
         assert_eq!(run.target_id, t.id);
     }
@@ -693,9 +710,15 @@ mod tests {
             .unwrap();
         let run = domain::create_search_run(&state.db, &t.id).await.unwrap();
         for i in 0..(MAX_CANDIDATES + 10) {
-            domain::insert_candidate(&state.db, &run.id, "torznab", &format!(r#"{{"i":{i}}}"#), None)
-                .await
-                .unwrap();
+            domain::insert_candidate(
+                &state.db,
+                &run.id,
+                "torznab",
+                &format!(r#"{{"i":{i}}}"#),
+                None,
+            )
+            .await
+            .unwrap();
         }
 
         let res = get_search_run(operator(), State(state), Path(run.id.clone()))
@@ -718,9 +741,10 @@ mod tests {
             .await
             .unwrap();
 
-        let res = create_candidate_acquisition(operator(), State(state.clone()), Path(cand.id.clone()))
-            .await
-            .unwrap();
+        let res =
+            create_candidate_acquisition(operator(), State(state.clone()), Path(cand.id.clone()))
+                .await
+                .unwrap();
         assert_eq!(res.status(), StatusCode::CREATED);
 
         // Second call finds the existing acquisition → 200 existing:true.

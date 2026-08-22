@@ -54,7 +54,11 @@ pub fn pick_best_media_file(root: &str) -> Result<String, String> {
             return;
         }
         let is_sample = is_sample_name(&p.to_string_lossy());
-        let slot = if is_sample { &mut best_sample } else { &mut best };
+        let slot = if is_sample {
+            &mut best_sample
+        } else {
+            &mut best
+        };
         let should_replace = match slot.as_ref() {
             Some((cur, _)) => size > *cur,
             None => true,

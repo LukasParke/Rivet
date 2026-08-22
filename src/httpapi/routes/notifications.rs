@@ -21,15 +21,17 @@ use crate::state::AppState;
 use crate::storage::notifications::{self, NotificationSink};
 
 /// The sink channels [`crate::notify`] knows how to deliver.
-const KINDS: [&str; 3] = ["webhook", "ntfy", "discord"];
+const KINDS: [&str; 7] = [
+    "webhook", "ntfy", "discord", "telegram", "slack", "pushover", "gotify",
+];
 
 pub fn router() -> Router<AppState> {
     Router::new()
+        .route("/notifications", get(list_sinks).post(create_sink))
         .route(
-            "/notifications",
-            get(list_sinks).post(create_sink),
+            "/notifications/{id}",
+            axum::routing::put(update_sink).delete(delete_sink),
         )
-        .route("/notifications/{id}", axum::routing::put(update_sink).delete(delete_sink))
         .route("/notifications/{id}/test", axum::routing::post(test_sink))
 }
 
@@ -99,9 +101,7 @@ impl SinkRequest {
     }
 
     fn events(&self) -> Vec<String> {
-        self.events
-            .clone()
-            .unwrap_or_else(|| vec!["*".to_string()])
+        self.events.clone().unwrap_or_else(|| vec!["*".to_string()])
     }
 }
 
@@ -241,8 +241,7 @@ mod tests {
     }
 
     async fn login(state: &AppState, role: &str, n: usize) -> (String, String) {
-        let hash = crate::security::password::hash_password("correct-horse-battery")
-            .unwrap();
+        let hash = crate::security::password::hash_password("correct-horse-battery").unwrap();
         let email = format!("{role}{n}@notif.test");
         let user = crate::storage::users::create(&state.db, &email, &hash, "viewer")
             .await
@@ -325,19 +324,79 @@ mod tests {
         // anonymous requests are unauthorized.
         let matrix = [
             ("GET", "/api/v1/notifications", "admin", StatusCode::OK),
-            ("GET", "/api/v1/notifications", "operator", StatusCode::FORBIDDEN),
+            (
+                "GET",
+                "/api/v1/notifications",
+                "operator",
+                StatusCode::FORBIDDEN,
+            ),
             ("POST", "/api/v1/notifications", "admin", StatusCode::OK),
-            ("POST", "/api/v1/notifications", "operator", StatusCode::FORBIDDEN),
-            ("POST", "/api/v1/notifications", "viewer", StatusCode::FORBIDDEN),
-            ("PUT", "/api/v1/notifications/x", "admin", StatusCode::NOT_FOUND),
-            ("PUT", "/api/v1/notifications/x", "operator", StatusCode::FORBIDDEN),
-            ("PUT", "/api/v1/notifications/x", "viewer", StatusCode::FORBIDDEN),
-            ("DELETE", "/api/v1/notifications/x", "admin", StatusCode::NOT_FOUND),
-            ("DELETE", "/api/v1/notifications/x", "operator", StatusCode::FORBIDDEN),
-            ("DELETE", "/api/v1/notifications/x", "viewer", StatusCode::FORBIDDEN),
-            ("POST", "/api/v1/notifications/x/test", "admin", StatusCode::NOT_FOUND),
-            ("POST", "/api/v1/notifications/x/test", "operator", StatusCode::FORBIDDEN),
-            ("POST", "/api/v1/notifications/x/test", "viewer", StatusCode::FORBIDDEN),
+            (
+                "POST",
+                "/api/v1/notifications",
+                "operator",
+                StatusCode::FORBIDDEN,
+            ),
+            (
+                "POST",
+                "/api/v1/notifications",
+                "viewer",
+                StatusCode::FORBIDDEN,
+            ),
+            (
+                "PUT",
+                "/api/v1/notifications/x",
+                "admin",
+                StatusCode::NOT_FOUND,
+            ),
+            (
+                "PUT",
+                "/api/v1/notifications/x",
+                "operator",
+                StatusCode::FORBIDDEN,
+            ),
+            (
+                "PUT",
+                "/api/v1/notifications/x",
+                "viewer",
+                StatusCode::FORBIDDEN,
+            ),
+            (
+                "DELETE",
+                "/api/v1/notifications/x",
+                "admin",
+                StatusCode::NOT_FOUND,
+            ),
+            (
+                "DELETE",
+                "/api/v1/notifications/x",
+                "operator",
+                StatusCode::FORBIDDEN,
+            ),
+            (
+                "DELETE",
+                "/api/v1/notifications/x",
+                "viewer",
+                StatusCode::FORBIDDEN,
+            ),
+            (
+                "POST",
+                "/api/v1/notifications/x/test",
+                "admin",
+                StatusCode::NOT_FOUND,
+            ),
+            (
+                "POST",
+                "/api/v1/notifications/x/test",
+                "operator",
+                StatusCode::FORBIDDEN,
+            ),
+            (
+                "POST",
+                "/api/v1/notifications/x/test",
+                "viewer",
+                StatusCode::FORBIDDEN,
+            ),
         ];
         let sink_body = json!({
             "name": "m",
@@ -353,8 +412,7 @@ mod tests {
             ("viewer", &viewer, &viewer_csrf),
         ];
         for (method_name, path, role, expected) in matrix {
-            let (_, sid, csrf) =
-                sessions.iter().find(|s| s.0 == role).unwrap();
+            let (_, sid, csrf) = sessions.iter().find(|s| s.0 == role).unwrap();
             // Allowed mutating rows carry a valid sink body; denied rows are
             // rejected by the Admin extractor before the body is read.
             let body = match (method_name, role) {
@@ -365,11 +423,7 @@ mod tests {
                 .oneshot(req(method_name, path, Some((sid, csrf)), body))
                 .await
                 .unwrap();
-            assert_eq!(
-                res.status(),
-                expected,
-                "{method_name} {path} as {role}"
-            );
+            assert_eq!(res.status(), expected, "{method_name} {path} as {role}");
         }
 
         // Anonymous (no session): unauthorized on every endpoint.
@@ -384,7 +438,11 @@ mod tests {
                 .oneshot(req(method_name, path, None, None))
                 .await
                 .unwrap();
-            assert_eq!(res.status(), StatusCode::UNAUTHORIZED, "{method_name} {path}");
+            assert_eq!(
+                res.status(),
+                StatusCode::UNAUTHORIZED,
+                "{method_name} {path}"
+            );
         }
     }
 
@@ -414,7 +472,9 @@ mod tests {
             .unwrap();
         assert_eq!(res.status(), StatusCode::OK);
         let created: Value = serde_json::from_slice(
-            &axum::body::to_bytes(res.into_body(), usize::MAX).await.unwrap(),
+            &axum::body::to_bytes(res.into_body(), usize::MAX)
+                .await
+                .unwrap(),
         )
         .unwrap();
         assert_eq!(created["kind"], "webhook");
@@ -460,7 +520,9 @@ mod tests {
             .unwrap();
         assert_eq!(res.status(), StatusCode::OK);
         let updated: Value = serde_json::from_slice(
-            &axum::body::to_bytes(res.into_body(), usize::MAX).await.unwrap(),
+            &axum::body::to_bytes(res.into_body(), usize::MAX)
+                .await
+                .unwrap(),
         )
         .unwrap();
         assert_eq!(updated["name"], "hook2");
@@ -474,10 +536,7 @@ mod tests {
                 "PUT",
                 "/api/v1/notifications/missing",
                 Some((&sid, &csrf)),
-                Some(
-                    json!({"name": "n", "kind": "webhook", "config": {}})
-                        .to_string(),
-                ),
+                Some(json!({"name": "n", "kind": "webhook", "config": {}}).to_string()),
             ))
             .await
             .unwrap();
@@ -515,7 +574,9 @@ mod tests {
             .await
             .unwrap();
         let list: Value = serde_json::from_slice(
-            &axum::body::to_bytes(res.into_body(), usize::MAX).await.unwrap(),
+            &axum::body::to_bytes(res.into_body(), usize::MAX)
+                .await
+                .unwrap(),
         )
         .unwrap();
         assert_eq!(list.as_array().unwrap().len(), 0);
@@ -546,7 +607,9 @@ mod tests {
             .await
             .unwrap();
         let created: Value = serde_json::from_slice(
-            &axum::body::to_bytes(res.into_body(), usize::MAX).await.unwrap(),
+            &axum::body::to_bytes(res.into_body(), usize::MAX)
+                .await
+                .unwrap(),
         )
         .unwrap();
         let id = created["id"].as_str().unwrap().to_string();
@@ -562,7 +625,9 @@ mod tests {
             .unwrap();
         assert_eq!(res.status(), StatusCode::OK);
         let body: Value = serde_json::from_slice(
-            &axum::body::to_bytes(res.into_body(), usize::MAX).await.unwrap(),
+            &axum::body::to_bytes(res.into_body(), usize::MAX)
+                .await
+                .unwrap(),
         )
         .unwrap();
         assert_eq!(body["id"], id.as_str());
@@ -607,7 +672,9 @@ mod tests {
             .await
             .unwrap();
         let created: Value = serde_json::from_slice(
-            &axum::body::to_bytes(res.into_body(), usize::MAX).await.unwrap(),
+            &axum::body::to_bytes(res.into_body(), usize::MAX)
+                .await
+                .unwrap(),
         )
         .unwrap();
         let live_id = created["id"].as_str().unwrap().to_string();
@@ -621,7 +688,9 @@ mod tests {
             .await
             .unwrap();
         let body: Value = serde_json::from_slice(
-            &axum::body::to_bytes(res.into_body(), usize::MAX).await.unwrap(),
+            &axum::body::to_bytes(res.into_body(), usize::MAX)
+                .await
+                .unwrap(),
         )
         .unwrap();
         assert_eq!(body["ok"], true, "{body}");

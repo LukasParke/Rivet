@@ -50,7 +50,11 @@ fn validate(
     match_value: &str,
 ) -> Result<(String, Option<String>, String, String), BlacklistError> {
     let scope = normalize(scope);
-    let scope = if scope.is_empty() { "target".to_string() } else { scope };
+    let scope = if scope.is_empty() {
+        "target".to_string()
+    } else {
+        scope
+    };
     if scope != "global" && scope != "target" {
         return Err(BlacklistError::InvalidScope);
     }
@@ -83,7 +87,9 @@ fn validate(
 }
 
 fn trim_opt(v: Option<&str>) -> Option<String> {
-    v.map(str::trim).filter(|s| !s.is_empty()).map(str::to_string)
+    v.map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_string)
 }
 
 /// Inserts an entry, ignoring duplicates against the unique index. Returns the
@@ -193,7 +199,11 @@ pub async fn matches_exist(
 }
 
 pub async fn list(pool: &SqlitePool, limit: i64) -> Result<Vec<BlacklistEntry>, sqlx::Error> {
-    let limit = if limit <= 0 || limit > 500 { 100 } else { limit };
+    let limit = if limit <= 0 || limit > 500 {
+        100
+    } else {
+        limit
+    };
     sqlx::query_as::<_, BlacklistEntry>(
         "SELECT * FROM blacklist_entries ORDER BY created_at DESC LIMIT ?",
     )
@@ -255,10 +265,17 @@ mod tests {
     #[tokio::test]
     async fn insert_dedupes_on_unique_index() {
         let (_d, p) = pool().await;
-        let (e, created) =
-            insert(&p, "global", None, "hash", "ABC123", Some("bad rip"), Some("u1"))
-                .await
-                .unwrap();
+        let (e, created) = insert(
+            &p,
+            "global",
+            None,
+            "hash",
+            "ABC123",
+            Some("bad rip"),
+            Some("u1"),
+        )
+        .await
+        .unwrap();
         assert!(created);
         assert_eq!(e.match_value, "abc123", "value normalized");
         assert_eq!(e.scope, "global");
@@ -270,7 +287,11 @@ mod tests {
             .unwrap();
         assert!(!created2);
         assert_eq!(e2.id, e.id, "returns the pre-existing row");
-        assert_eq!(e2.reason.as_deref(), Some("bad rip"), "original reason untouched");
+        assert_eq!(
+            e2.reason.as_deref(),
+            Some("bad rip"),
+            "original reason untouched"
+        );
 
         let all = list(&p, 10).await.unwrap();
         assert_eq!(all.len(), 1);
@@ -283,14 +304,24 @@ mod tests {
         let (g, _) = insert(&p, "global", None, "url", "https://x/dl", None, None)
             .await
             .unwrap();
-        let (t, _) = insert(&p, "target", Some("tgt-1"), "url", "https://x/dl", None, None)
-            .await
-            .unwrap();
+        let (t, _) = insert(
+            &p,
+            "target",
+            Some("tgt-1"),
+            "url",
+            "https://x/dl",
+            None,
+            None,
+        )
+        .await
+        .unwrap();
         assert_ne!(g.id, t.id);
         assert_eq!(list(&p, 10).await.unwrap().len(), 2);
 
         // Blank scope defaults to "target"; without a target id that is invalid.
-        let err = insert(&p, "", None, "hash", "h", None, None).await.unwrap_err();
+        let err = insert(&p, "", None, "hash", "h", None, None)
+            .await
+            .unwrap_err();
         assert!(matches!(err, BlacklistError::TargetIdRequired));
     }
 
@@ -299,14 +330,40 @@ mod tests {
         let (_d, p) = pool().await;
         let cases: Vec<(&str, Option<&str>, &str, &str, BlacklistError)> = vec![
             ("bogus", None, "hash", "v", BlacklistError::InvalidScope),
-            ("target", None, "hash", "v", BlacklistError::TargetIdRequired),
-            ("target", Some("  "), "hash", "v", BlacklistError::TargetIdRequired),
+            (
+                "target",
+                None,
+                "hash",
+                "v",
+                BlacklistError::TargetIdRequired,
+            ),
+            (
+                "target",
+                Some("  "),
+                "hash",
+                "v",
+                BlacklistError::TargetIdRequired,
+            ),
             ("global", None, "", "v", BlacklistError::MatchTypeRequired),
-            ("global", None, "imdb", "v", BlacklistError::InvalidMatchType),
-            ("global", None, "hash", "   ", BlacklistError::MatchValueRequired),
+            (
+                "global",
+                None,
+                "imdb",
+                "v",
+                BlacklistError::InvalidMatchType,
+            ),
+            (
+                "global",
+                None,
+                "hash",
+                "   ",
+                BlacklistError::MatchValueRequired,
+            ),
         ];
         for (scope, tid, mt, mv, want) in cases {
-            let err = insert(&p, scope, tid, mt, mv, None, None).await.unwrap_err();
+            let err = insert(&p, scope, tid, mt, mv, None, None)
+                .await
+                .unwrap_err();
             assert!(
                 std::mem::discriminant(&err) == std::mem::discriminant(&want),
                 "scope={scope} mt={mt}: got {err:?}, want {:?}",
@@ -325,46 +382,86 @@ mod tests {
     #[tokio::test]
     async fn matches_exist_global_and_target_scope() {
         let (_d, p) = pool().await;
-        insert(&p, "global", None, "hash", "deadbeef", None, None).await.unwrap();
-        insert(&p, "target", Some("tgt-9"), "title", "cam rip", None, None).await.unwrap();
+        insert(&p, "global", None, "hash", "deadbeef", None, None)
+            .await
+            .unwrap();
+        insert(&p, "target", Some("tgt-9"), "title", "cam rip", None, None)
+            .await
+            .unwrap();
 
         // Global hit, normalization applied to probe value.
-        assert!(matches_exist(&p, Some("other"), Some("DEADBEEF"), None, None).await.unwrap());
+        assert!(
+            matches_exist(&p, Some("other"), Some("DEADBEEF"), None, None)
+                .await
+                .unwrap()
+        );
         // Target-scoped hit only for that target.
-        assert!(matches_exist(&p, Some("tgt-9"), None, None, Some(" Cam Rip ")).await.unwrap());
+        assert!(
+            matches_exist(&p, Some("tgt-9"), None, None, Some(" Cam Rip "))
+                .await
+                .unwrap()
+        );
         // Not visible to other targets…
-        assert!(!matches_exist(&p, Some("tgt-8"), None, None, Some("cam rip")).await.unwrap());
+        assert!(
+            !matches_exist(&p, Some("tgt-8"), None, None, Some("cam rip"))
+                .await
+                .unwrap()
+        );
         // …nor without a target context.
-        assert!(!matches_exist(&p, None, None, None, Some("cam rip")).await.unwrap());
+        assert!(!matches_exist(&p, None, None, None, Some("cam rip"))
+            .await
+            .unwrap());
         // Misses.
-        assert!(!matches_exist(&p, Some("tgt-9"), Some("cafe"), Some("z"), None).await.unwrap());
+        assert!(
+            !matches_exist(&p, Some("tgt-9"), Some("cafe"), Some("z"), None)
+                .await
+                .unwrap()
+        );
         // All-blank probe short-circuits to false.
-        assert!(!matches_exist(&p, Some("tgt-9"), Some(""), None, None).await.unwrap());
+        assert!(!matches_exist(&p, Some("tgt-9"), Some(""), None, None)
+            .await
+            .unwrap());
     }
 
     #[tokio::test]
     async fn list_and_delete_roundtrip() {
         let (_d, p) = pool().await;
-        let (e, _) = insert(&p, "global", None, "url", "u1", None, None).await.unwrap();
-        insert(&p, "global", None, "url", "u2", None, None).await.unwrap();
+        let (e, _) = insert(&p, "global", None, "url", "u1", None, None)
+            .await
+            .unwrap();
+        insert(&p, "global", None, "url", "u2", None, None)
+            .await
+            .unwrap();
 
         let listed = list(&p, 1).await.unwrap();
         assert_eq!(listed.len(), 1);
 
         assert!(delete(&p, &e.id).await.unwrap());
-        assert!(!delete(&p, &e.id).await.unwrap(), "second delete reports false");
+        assert!(
+            !delete(&p, &e.id).await.unwrap(),
+            "second delete reports false"
+        );
         assert!(!delete(&p, "missing").await.unwrap());
     }
 
     #[tokio::test]
     async fn load_set_groups_by_match_type() {
         let (_d, p) = pool().await;
-        insert(&p, "global", None, "hash", "H1", None, None).await.unwrap();
-        insert(&p, "global", None, "url", "https://x/1", None, None).await.unwrap();
-        insert(&p, "target", Some("t1"), "title", " Cam Rip ", None, None).await.unwrap();
+        insert(&p, "global", None, "hash", "H1", None, None)
+            .await
+            .unwrap();
+        insert(&p, "global", None, "url", "https://x/1", None, None)
+            .await
+            .unwrap();
+        insert(&p, "target", Some("t1"), "title", " Cam Rip ", None, None)
+            .await
+            .unwrap();
 
         let set = load_set(&p, "t1").await.unwrap();
-        assert_eq!(set.get("hash").unwrap(), &["h1".to_string()].into_iter().collect());
+        assert_eq!(
+            set.get("hash").unwrap(),
+            &["h1".to_string()].into_iter().collect()
+        );
         assert!(set.get("url").unwrap().contains("https://x/1"));
         assert!(set.get("title").unwrap().contains("cam rip"));
 

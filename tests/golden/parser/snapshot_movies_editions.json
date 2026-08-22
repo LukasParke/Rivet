@@ -19,8 +19,8 @@
     "edition": null,
     "audio": [
       {
-        "codec": "TrueHD 7",
-        "channels": null
+        "codec": "TrueHD",
+        "channels": 7.1
       },
       {
         "codec": "Atmos",
@@ -82,8 +82,8 @@
     "edition": null,
     "audio": [
       {
-        "codec": "DDP5 1",
-        "channels": null
+        "codec": "DDP",
+        "channels": 5.1
       }
     ],
     "releaseGroup": "GRP",

@@ -190,7 +190,9 @@ pub async fn upsert_series(
         .bind(&existing.id)
         .execute(pool)
         .await?;
-        let updated = get_series(pool, &existing.id).await?.expect("row just updated");
+        let updated = get_series(pool, &existing.id)
+            .await?
+            .expect("row just updated");
         Ok((updated, false))
     } else {
         let id = input
@@ -282,7 +284,10 @@ pub async fn upsert_season(
             .bind(&existing.id)
             .execute(pool)
             .await?;
-        Ok(Season { monitored, ..existing })
+        Ok(Season {
+            monitored,
+            ..existing
+        })
     } else {
         let id = uuid::Uuid::new_v4().to_string();
         sqlx::query("INSERT INTO seasons (id, series_id, number, monitored) VALUES (?, ?, ?, ?)")
@@ -662,7 +667,9 @@ mod tests {
     #[tokio::test]
     async fn series_path_is_unique() {
         let (_d, p) = pool().await;
-        upsert_series(&p, &series_input("A", "/tv/a")).await.unwrap();
+        upsert_series(&p, &series_input("A", "/tv/a"))
+            .await
+            .unwrap();
 
         // A direct INSERT with a duplicate path must violate UNIQUE(path).
         let err = sqlx::query(
@@ -691,7 +698,9 @@ mod tests {
         a.monitored = false;
         upsert_series(&p, &z).await.unwrap();
         upsert_series(&p, &a).await.unwrap();
-        upsert_series(&p, &series_input("Mango", "/tv/m")).await.unwrap();
+        upsert_series(&p, &series_input("Mango", "/tv/m"))
+            .await
+            .unwrap();
 
         let all = list_series(&p, None).await.unwrap();
         let titles: Vec<&str> = all.iter().map(|s| s.title.as_str()).collect();
@@ -709,7 +718,9 @@ mod tests {
     #[tokio::test]
     async fn delete_series_cascades_seasons_episodes_files() {
         let (_d, p) = pool().await;
-        let (s, _) = upsert_series(&p, &series_input("Show", "/tv/show")).await.unwrap();
+        let (s, _) = upsert_series(&p, &series_input("Show", "/tv/show"))
+            .await
+            .unwrap();
         upsert_season(&p, &s.id, 1, true).await.unwrap();
         bulk_upsert_episodes(&p, &s.id, &[episode_input(1, 1, None)])
             .await
@@ -734,12 +745,18 @@ mod tests {
         .unwrap();
 
         assert!(delete_series(&p, &s.id).await.unwrap());
-        assert!(!delete_series(&p, &s.id).await.unwrap(), "second delete reports false");
+        assert!(
+            !delete_series(&p, &s.id).await.unwrap(),
+            "second delete reports false"
+        );
         assert!(get_series(&p, &s.id).await.unwrap().is_none());
         assert!(list_seasons(&p, &s.id).await.unwrap().is_empty());
         assert!(list_episodes_by_series(&p, &s.id).await.unwrap().is_empty());
         assert!(
-            get_episode_file_by_episode(&p, &eps[0].id).await.unwrap().is_none(),
+            get_episode_file_by_episode(&p, &eps[0].id)
+                .await
+                .unwrap()
+                .is_none(),
             "episode file died with the series"
         );
     }
@@ -747,7 +764,9 @@ mod tests {
     #[tokio::test]
     async fn seasons_upsert_on_series_and_number() {
         let (_d, p) = pool().await;
-        let (s, _) = upsert_series(&p, &series_input("Show", "/tv/show")).await.unwrap();
+        let (s, _) = upsert_series(&p, &series_input("Show", "/tv/show"))
+            .await
+            .unwrap();
         let s1 = upsert_season(&p, &s.id, 1, true).await.unwrap();
         let s1b = upsert_season(&p, &s.id, 1, false).await.unwrap();
         assert_eq!(s1b.id, s1.id, "same (series, number) updates in place");
@@ -764,7 +783,9 @@ mod tests {
     #[tokio::test]
     async fn bulk_upsert_is_idempotent_and_preserves_file_state() {
         let (_d, p) = pool().await;
-        let (s, _) = upsert_series(&p, &series_input("Show", "/tv/show")).await.unwrap();
+        let (s, _) = upsert_series(&p, &series_input("Show", "/tv/show"))
+            .await
+            .unwrap();
         let batch = vec![
             episode_input(1, 1, Some("2026-01-01T00:00:00Z")),
             episode_input(1, 2, Some("2026-01-08T00:00:00Z")),
@@ -806,14 +827,21 @@ mod tests {
         let eps3 = list_episodes_by_series(&p, &s.id).await.unwrap();
         assert_eq!(eps3.len(), 2);
         assert_eq!(eps3[1].title.as_deref(), Some("Renamed"));
-        assert_eq!(eps3[1].air_date_utc.as_deref(), Some("2026-01-09T00:00:00Z"));
+        assert_eq!(
+            eps3[1].air_date_utc.as_deref(),
+            Some("2026-01-09T00:00:00Z")
+        );
     }
 
     #[tokio::test]
     async fn episode_unique_constraint_across_series() {
         let (_d, p) = pool().await;
-        let (a, _) = upsert_series(&p, &series_input("A", "/tv/a")).await.unwrap();
-        let (b, _) = upsert_series(&p, &series_input("B", "/tv/b")).await.unwrap();
+        let (a, _) = upsert_series(&p, &series_input("A", "/tv/a"))
+            .await
+            .unwrap();
+        let (b, _) = upsert_series(&p, &series_input("B", "/tv/b"))
+            .await
+            .unwrap();
         bulk_upsert_episodes(&p, &a.id, &[episode_input(1, 1, None)])
             .await
             .unwrap();
@@ -837,8 +865,8 @@ mod tests {
 
         let past = |d: &str| format!("2026-01-{d}T00:00:00Z");
         let mut batch = vec![
-            episode_input(1, 1, Some(&past("01"))),            // aired, missing -> wanted
-            episode_input(1, 2, Some(&past("05"))),            // aired, has file
+            episode_input(1, 1, Some(&past("01"))), // aired, missing -> wanted
+            episode_input(1, 2, Some(&past("05"))), // aired, has file
             episode_input(1, 3, Some("2030-01-01T00:00:00Z")), // unaired, unmonitored
         ];
         batch[2].monitored = false;
@@ -868,11 +896,14 @@ mod tests {
 
         // Air-date range: inclusive bounds, all aired episodes in window —
         // calendar parity shows unmonitored series too (greyed client-side).
-        let in_range =
-            list_episodes_by_air_date_range(&p, &past("01"), &past("05")).await.unwrap();
+        let in_range = list_episodes_by_air_date_range(&p, &past("01"), &past("05"))
+            .await
+            .unwrap();
         assert_eq!(in_range.len(), 3);
         assert_eq!(in_range[0].episode_number, 1);
-        let narrow = list_episodes_by_air_date_range(&p, &past("02"), &past("04")).await.unwrap();
+        let narrow = list_episodes_by_air_date_range(&p, &past("02"), &past("04"))
+            .await
+            .unwrap();
         assert_eq!(narrow.len(), 1);
 
         // Missing: aired, monitored (episode + series), no file.
@@ -884,12 +915,20 @@ mod tests {
         // Cutoffs before/after the aired dates flip membership. Boundary is
         // inclusive: ep1 aired exactly at the 2026-01-01 cutoff counts.
         assert_eq!(
-            list_missing_episodes(&p, "2026-01-01T00:00:00Z").await.unwrap().len(),
+            list_missing_episodes(&p, "2026-01-01T00:00:00Z")
+                .await
+                .unwrap()
+                .len(),
             1,
             "ep1 aired at the cutoff is missing"
         );
-        assert!(list_missing_episodes(&p, "2025-12-31T23:59:59Z").await.unwrap().is_empty());
-        let after = list_missing_episodes(&p, "2099-01-01T00:00:00Z").await.unwrap();
+        assert!(list_missing_episodes(&p, "2025-12-31T23:59:59Z")
+            .await
+            .unwrap()
+            .is_empty());
+        let after = list_missing_episodes(&p, "2099-01-01T00:00:00Z")
+            .await
+            .unwrap();
         assert_eq!(after.len(), 1, "unmonitored-series copy excluded");
         assert_eq!(after[0].series_id, ms.id);
     }
@@ -897,7 +936,9 @@ mod tests {
     #[tokio::test]
     async fn monitored_cascade_semantics() {
         let (_d, p) = pool().await;
-        let (s, _) = upsert_series(&p, &series_input("Show", "/tv/show")).await.unwrap();
+        let (s, _) = upsert_series(&p, &series_input("Show", "/tv/show"))
+            .await
+            .unwrap();
         upsert_season(&p, &s.id, 1, true).await.unwrap();
         upsert_season(&p, &s.id, 2, true).await.unwrap();
         bulk_upsert_episodes(
@@ -910,9 +951,21 @@ mod tests {
 
         // Unmonitoring the series cascades to seasons and episodes.
         assert!(set_series_monitored(&p, &s.id, false).await.unwrap());
-        assert!(!list_series(&p, Some(true)).await.unwrap().iter().any(|x| x.id == s.id));
-        assert!(list_seasons(&p, &s.id).await.unwrap().iter().all(|x| !x.monitored));
-        assert!(list_episodes_by_series(&p, &s.id).await.unwrap().iter().all(|x| !x.monitored));
+        assert!(!list_series(&p, Some(true))
+            .await
+            .unwrap()
+            .iter()
+            .any(|x| x.id == s.id));
+        assert!(list_seasons(&p, &s.id)
+            .await
+            .unwrap()
+            .iter()
+            .all(|x| !x.monitored));
+        assert!(list_episodes_by_series(&p, &s.id)
+            .await
+            .unwrap()
+            .iter()
+            .all(|x| !x.monitored));
         assert!(!set_series_monitored(&p, "nope", true).await.unwrap());
 
         // Monitoring season 2 re-monitors the series and its episodes,
@@ -943,7 +996,9 @@ mod tests {
     #[tokio::test]
     async fn episode_file_insert_get_delete_clears_has_file() {
         let (_d, p) = pool().await;
-        let (s, _) = upsert_series(&p, &series_input("Show", "/tv/show")).await.unwrap();
+        let (s, _) = upsert_series(&p, &series_input("Show", "/tv/show"))
+            .await
+            .unwrap();
         bulk_upsert_episodes(
             &p,
             &s.id,
@@ -974,27 +1029,42 @@ mod tests {
         assert_eq!(file.languages_json.as_deref(), Some("[\"eng\",\"deu\"]"));
 
         let eps = list_episodes_by_series(&p, &s.id).await.unwrap();
-        assert!(
-            eps.iter()
-                .all(|e| e.has_file && e.episode_file_id.as_deref() == Some("file-1"))
-        );
+        assert!(eps
+            .iter()
+            .all(|e| e.has_file && e.episode_file_id.as_deref() == Some("file-1")));
         for e in &eps {
-            let got = get_episode_file_by_episode(&p, &e.id).await.unwrap().unwrap();
+            let got = get_episode_file_by_episode(&p, &e.id)
+                .await
+                .unwrap()
+                .unwrap();
             assert_eq!(got.id, "file-1");
             assert_eq!(got.relative_path, "S01E01-E02.mkv");
         }
 
         // An episode not covered by the file resolves to no file.
-        bulk_upsert_episodes(&p, &s.id, &[episode_input(2, 1, None)]).await.unwrap();
+        bulk_upsert_episodes(&p, &s.id, &[episode_input(2, 1, None)])
+            .await
+            .unwrap();
         let eps = list_episodes_by_series(&p, &s.id).await.unwrap();
         let s2e1 = eps.iter().find(|e| e.season_number == 2).unwrap();
-        assert!(get_episode_file_by_episode(&p, &s2e1.id).await.unwrap().is_none());
+        assert!(get_episode_file_by_episode(&p, &s2e1.id)
+            .await
+            .unwrap()
+            .is_none());
 
         // Delete clears flags on every covered episode.
         assert!(delete_episode_file(&p, "file-1").await.unwrap());
-        assert!(!delete_episode_file(&p, "file-1").await.unwrap(), "second delete false");
+        assert!(
+            !delete_episode_file(&p, "file-1").await.unwrap(),
+            "second delete false"
+        );
         let eps = list_episodes_by_series(&p, &s.id).await.unwrap();
-        assert!(eps.iter().all(|e| !e.has_file && e.episode_file_id.is_none()));
-        assert!(get_episode_file_by_episode(&p, &eps[0].id).await.unwrap().is_none());
+        assert!(eps
+            .iter()
+            .all(|e| !e.has_file && e.episode_file_id.is_none()));
+        assert!(get_episode_file_by_episode(&p, &eps[0].id)
+            .await
+            .unwrap()
+            .is_none());
     }
 }

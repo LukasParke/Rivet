@@ -34,7 +34,8 @@ mod tests {
     #[test]
     fn lexicographic_order_matches_chronological() {
         let a = fmt(Utc.with_ymd_and_hms(2026, 1, 1, 12, 0, 0).unwrap());
-        let b = fmt(Utc.with_ymd_and_hms(2026, 1, 1, 12, 0, 0).unwrap() + chrono::Duration::milliseconds(500));
+        let b = fmt(Utc.with_ymd_and_hms(2026, 1, 1, 12, 0, 0).unwrap()
+            + chrono::Duration::milliseconds(500));
         let c = fmt(Utc.with_ymd_and_hms(2026, 1, 1, 12, 0, 1).unwrap());
         assert!(a < b && b < c, "a={a} b={b} c={c}");
     }

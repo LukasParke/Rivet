@@ -39,9 +39,6 @@ pub async fn handle(state: &AppState, job: &Job) -> Result<(), String> {
         .map_err(|e| e.to_string())?
         .ok_or("acquisition_not_found")?;
 
-    if a.client_kind != "qbittorrent" && a.client_kind != "dryrun" {
-        return Err("unsupported_client_kind".to_string());
-    }
     let external_id = a
         .external_id
         .clone()
@@ -73,7 +70,7 @@ pub async fn handle(state: &AppState, job: &Job) -> Result<(), String> {
         return rescout(state, &a.target_id, &a.id).await;
     }
 
-    let cli = load_torrent_client(state).await?;
+    let cli = load_torrent_client(state, &a.client_kind).await?;
     let info = match cli.get_info(&external_id).await {
         Ok(Some(info)) => info,
         Ok(None) => {

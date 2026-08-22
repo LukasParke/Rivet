@@ -140,7 +140,13 @@ pub fn is_completed(info: &TorrentInfo) -> bool {
     info.progress >= 0.999
         || matches!(
             info.state.as_str(),
-            "uploading" | "stalledup" | "pausedup" | "stoppedup" | "checkingup" | "forcedup" | "completed"
+            "uploading"
+                | "stalledup"
+                | "pausedup"
+                | "stoppedup"
+                | "checkingup"
+                | "forcedup"
+                | "completed"
         )
 }
 

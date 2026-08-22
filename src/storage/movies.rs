@@ -110,7 +110,9 @@ pub async fn upsert_movie(
         .bind(&existing.id)
         .execute(pool)
         .await?;
-        let updated = get_movie(pool, &existing.id).await?.expect("row just updated");
+        let updated = get_movie(pool, &existing.id)
+            .await?
+            .expect("row just updated");
         Ok((updated, false))
     } else {
         let id = input
@@ -260,7 +262,9 @@ mod tests {
     #[tokio::test]
     async fn movie_path_is_unique() {
         let (_d, p) = pool().await;
-        upsert_movie(&p, &movie_input("A", "/movies/a")).await.unwrap();
+        upsert_movie(&p, &movie_input("A", "/movies/a"))
+            .await
+            .unwrap();
 
         // A direct INSERT with a duplicate path must violate UNIQUE(path).
         let err = sqlx::query(
@@ -283,7 +287,9 @@ mod tests {
         a.monitored = false;
         upsert_movie(&p, &z).await.unwrap();
         upsert_movie(&p, &a).await.unwrap();
-        upsert_movie(&p, &movie_input("Mango", "/movies/m")).await.unwrap();
+        upsert_movie(&p, &movie_input("Mango", "/movies/m"))
+            .await
+            .unwrap();
 
         let all = list_movies(&p, None).await.unwrap();
         let titles: Vec<&str> = all.iter().map(|m| m.title.as_str()).collect();
@@ -298,7 +304,9 @@ mod tests {
     #[tokio::test]
     async fn get_delete_and_set_monitored_roundtrip() {
         let (_d, p) = pool().await;
-        let (m, _) = upsert_movie(&p, &movie_input("Movie", "/movies/m")).await.unwrap();
+        let (m, _) = upsert_movie(&p, &movie_input("Movie", "/movies/m"))
+            .await
+            .unwrap();
 
         assert!(get_movie(&p, &m.id).await.unwrap().is_some());
         assert!(get_movie(&p, "nope").await.unwrap().is_none());
@@ -309,7 +317,10 @@ mod tests {
         assert!(!set_movie_monitored(&p, "nope", true).await.unwrap());
 
         assert!(delete_movie(&p, &m.id).await.unwrap());
-        assert!(!delete_movie(&p, &m.id).await.unwrap(), "second delete reports false");
+        assert!(
+            !delete_movie(&p, &m.id).await.unwrap(),
+            "second delete reports false"
+        );
         assert!(get_movie(&p, &m.id).await.unwrap().is_none());
     }
 
@@ -340,7 +351,9 @@ mod tests {
         )
         .await
         .unwrap();
-        let (m, created) = upsert_movie(&p, &movie_input("Movie", "/library/thing")).await.unwrap();
+        let (m, created) = upsert_movie(&p, &movie_input("Movie", "/library/thing"))
+            .await
+            .unwrap();
         assert!(created);
         assert_eq!(list_movies(&p, None).await.unwrap().len(), 1);
         drop(m);

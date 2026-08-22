@@ -73,3 +73,10 @@ pub struct RescoutPayload {
     /// Acquisition id whose failure triggered this rescout.
     pub failed_acquisition_id: Option<String>,
 }
+
+/// Payload for `enrich_series`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EnrichSeriesPayload {
+    pub target_id: String,
+}

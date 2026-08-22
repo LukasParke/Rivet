@@ -92,13 +92,21 @@ async fn drain_queue(state: &AppState, max_jobs: usize) {
             Err(e) => {
                 // Retry once immediately by re-queueing without backoff so the
                 // test observes the failure mode directly if persistent.
-                let _ = queue::fail_and_retry(&state.db, &job.id, &opts.lease_owner, job.attempt + 1, &e).await;
+                let _ = queue::fail_and_retry(
+                    &state.db,
+                    &job.id,
+                    &opts.lease_owner,
+                    job.attempt + 1,
+                    &e,
+                )
+                .await;
                 // If the job went to backoff, fast-forward it.
-                let _ = sqlx::query("UPDATE jobs SET run_after = ? WHERE id = ? AND state = 'queued'")
-                    .bind(rivet::timeutil::now())
-                    .bind(&job.id)
-                    .execute(&state.db)
-                    .await;
+                let _ =
+                    sqlx::query("UPDATE jobs SET run_after = ? WHERE id = ? AND state = 'queued'")
+                        .bind(rivet::timeutil::now())
+                        .bind(&job.id)
+                        .execute(&state.db)
+                        .await;
             }
         }
     }
@@ -153,11 +161,16 @@ async fn search_picks_best_candidate_and_creates_single_acquisition() {
     )
     .await
     .unwrap();
-    let run = rivet::storage::domain::create_search_run(&state.db, &target.id).await.unwrap();
+    let run = rivet::storage::domain::create_search_run(&state.db, &target.id)
+        .await
+        .unwrap();
     queue::enqueue(
         &state.db,
         "search_run",
-        Some(&jobs::SearchRunPayload { run_id: run.id.clone(), target_id: target.id.clone() }),
+        Some(&jobs::SearchRunPayload {
+            run_id: run.id.clone(),
+            target_id: target.id.clone(),
+        }),
         None,
     )
     .await
@@ -170,10 +183,18 @@ async fn search_picks_best_candidate_and_creates_single_acquisition() {
     let run_row = rivet::storage::domain::get_search_run(&state.db, &run.id)
         .await
         .expect("run lookup ok");
-    assert_eq!(run_row.status, "completed", "run error: {:?}", run_row.error);
+    assert_eq!(
+        run_row.status, "completed",
+        "run error: {:?}",
+        run_row.error
+    );
 
-    let cands: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM release_candidates WHERE search_run_id = ?")
-        .bind(&run.id).fetch_one(&state.db).await.unwrap();
+    let cands: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM release_candidates WHERE search_run_id = ?")
+            .bind(&run.id)
+            .fetch_one(&state.db)
+            .await
+            .unwrap();
     eprintln!("DEBUG candidates={cands}");
     let decs: Vec<(Option<i64>,)> = sqlx::query_as(
         "SELECT d.accepted FROM decisions d JOIN release_candidates rc ON rc.id = d.candidate_id WHERE rc.search_run_id = ?")
@@ -191,7 +212,11 @@ async fn search_picks_best_candidate_and_creates_single_acquisition() {
         .into_iter()
         .map(|(id, c, s, e)| json!({"id": id, "candidate": c, "status": s, "ext": e}))
         .collect();
-    assert_eq!(acquisitions.len(), 1, "one acquisition per run: {acquisitions:?}");
+    assert_eq!(
+        acquisitions.len(),
+        1,
+        "one acquisition per run: {acquisitions:?}"
+    );
 
     // The chosen acquisition's candidate is the 2160p release.
     let best: (String,) = sqlx::query_as(
@@ -201,15 +226,18 @@ async fn search_picks_best_candidate_and_creates_single_acquisition() {
     .fetch_one(&state.db)
     .await
     .unwrap();
-    assert!(best.0.contains("2160p"), "best candidate chosen, got: {}", best.0);
+    assert!(
+        best.0.contains("2160p"),
+        "best candidate chosen, got: {}",
+        best.0
+    );
 
     // Acquisition advanced into the download pipeline (dry-run client).
-    let jobs_dbg: Vec<(String, String, i64, Option<String>)> = sqlx::query_as(
-        "SELECT kind, state, attempt, last_error FROM jobs ORDER BY created_at",
-    )
-    .fetch_all(&state.db)
-    .await
-    .unwrap();
+    let jobs_dbg: Vec<(String, String, i64, Option<String>)> =
+        sqlx::query_as("SELECT kind, state, attempt, last_error FROM jobs ORDER BY created_at")
+            .fetch_all(&state.db)
+            .await
+            .unwrap();
     eprintln!("DEBUG jobs={jobs_dbg:?}");
     let status: String = sqlx::query_scalar("SELECT status FROM acquisitions WHERE target_id = ?")
         .bind(&target.id)
@@ -234,11 +262,17 @@ async fn enqueue_requires_identifiable_torrent() {
     let state = test_state(&dsn).await;
 
     let target = rivet::storage::domain::create_wanted_target(
-        &state.db, "series", "tmdb", "1", Some(&json!({"query": "x"})),
+        &state.db,
+        "series",
+        "tmdb",
+        "1",
+        Some(&json!({"query": "x"})),
     )
     .await
     .unwrap();
-    let run = rivet::storage::domain::create_search_run(&state.db, &target.id).await.unwrap();
+    let run = rivet::storage::domain::create_search_run(&state.db, &target.id)
+        .await
+        .unwrap();
     let cand = rivet::storage::domain::insert_candidate(
         &state.db,
         &run.id,
@@ -262,14 +296,19 @@ async fn enqueue_requires_identifiable_torrent() {
     let job = queue::enqueue(
         &state.db,
         "acquisition_enqueue",
-        Some(&jobs::EnqueuePayload { acquisition_id: acq.id.clone() }),
+        Some(&jobs::EnqueuePayload {
+            acquisition_id: acq.id.clone(),
+        }),
         None,
     )
     .await
     .unwrap();
     drain_queue(&state, 4).await;
 
-    let row = rivet::storage::acquisitions::get(&state.db, &acq.id).await.unwrap().unwrap();
+    let row = rivet::storage::acquisitions::get(&state.db, &acq.id)
+        .await
+        .unwrap()
+        .unwrap();
     // The dry-run client returns a synthetic id for .torrent URLs, so the
     // enqueue succeeds with an external_id; assert the chain did not guess a
     // hash from unrelated torrents (external_id must come from the client).
@@ -293,21 +332,36 @@ async fn rescout_respects_depth_cap_per_target() {
     let state = test_state(&dsn).await;
 
     let target = rivet::storage::domain::create_wanted_target(
-        &state.db, "series", "tmdb", "2", Some(&json!({"query": "y"})),
+        &state.db,
+        "series",
+        "tmdb",
+        "2",
+        Some(&json!({"query": "y"})),
     )
     .await
     .unwrap();
 
     // Seed 5 acquisitions created within the last day (the cap).
     for _ in 0..5 {
-        let run = rivet::storage::domain::create_search_run(&state.db, &target.id).await.unwrap();
+        let run = rivet::storage::domain::create_search_run(&state.db, &target.id)
+            .await
+            .unwrap();
         let cand = rivet::storage::domain::insert_candidate(
-            &state.db, &run.id, "mock", r#"{"title": "X.S01"}"#, None,
+            &state.db,
+            &run.id,
+            "mock",
+            r#"{"title": "X.S01"}"#,
+            None,
         )
         .await
         .unwrap();
         rivet::storage::acquisitions::create_acquisition(
-            &state.db, &cand.id, &target.id, "torrent", "qbittorrent", "default",
+            &state.db,
+            &cand.id,
+            &target.id,
+            "torrent",
+            "qbittorrent",
+            "default",
         )
         .await
         .unwrap();
@@ -347,7 +401,9 @@ fn _router_typecheck(_r: axum::Router<AppState>) {
 // Body helper kept for future HTTP-level pipeline assertions.
 #[allow(dead_code)]
 async fn body_json(res: axum::response::Response) -> Value {
-    let bytes = axum::body::to_bytes(res.into_body(), 1 << 20).await.unwrap();
+    let bytes = axum::body::to_bytes(res.into_body(), 1 << 20)
+        .await
+        .unwrap();
     serde_json::from_slice(&bytes).unwrap_or(Value::Null)
 }
 
@@ -365,7 +421,8 @@ async fn probe_indexer_direct() {
         .respond_with(ResponseTemplate::new(200).set_body_string(CAPS_XML))
         .mount(&server)
         .await;
-    let cfg = serde_json::json!({"kind": "torznab", "name": "mock", "url": server.uri(), "api_key": "K"});
+    let cfg =
+        serde_json::json!({"kind": "torznab", "name": "mock", "url": server.uri(), "api_key": "K"});
     let ix = rivet::adapters::indexers::build_indexer(&cfg, OutboundPolicy::dev()).unwrap();
     let rels = ix
         .search(&rivet::adapters::SearchQuery {

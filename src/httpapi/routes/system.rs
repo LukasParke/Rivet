@@ -3,13 +3,13 @@
 //!
 //! Role split: `/system/status`, `/system/health`, `/system/backups` and
 //! `GET /system/backup` are readable by any authenticated user (read-only
-//! operational visibility); backup creation and remote-path-mapping
-//! mutations are admin-only.
+//! operational visibility); backup creation, backup download/restore and
+//! remote-path-mapping mutations are admin-only.
 
 use std::path::PathBuf;
 
 use axum::extract::{Path as AxumPath, State};
-use axum::routing::{get, put};
+use axum::routing::{get, post, put};
 use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
 
@@ -17,24 +17,24 @@ use crate::error::{ApiResult, AppError};
 use crate::httpapi::middleware::auth::{Admin, AuthenticatedUser};
 use crate::state::AppState;
 use crate::storage::audit::{self, AuditEvent};
-use crate::storage::system_ops::{
-    self, BackupFile, Issue, RemotePathMapping,
-};
+use crate::storage::system_ops::{self, BackupFile, Issue, RemotePathMapping};
 
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/system/status", get(system_status))
         .route("/system/health", get(system_health))
-        .route(
-            "/system/backup",
-            get(latest_backup).post(create_backup),
-        )
+        .route("/system/backup", get(latest_backup).post(create_backup))
         .route("/system/backups", get(list_backups_handler))
+        .route("/system/backups/{name}/download", get(download_backup))
+        .route("/system/backups/{name}/restore", post(restore_backup))
         .route(
             "/remotepathmappings",
             get(list_mappings_handler).post(create_mapping),
         )
-        .route("/remotepathmappings/{id}", put(update_mapping_handler).delete(delete_mapping_handler))
+        .route(
+            "/remotepathmappings/{id}",
+            put(update_mapping_handler).delete(delete_mapping_handler),
+        )
 }
 
 // ---------------------------------------------------------------------------
@@ -67,7 +67,12 @@ fn backup_dir(config: &AppState) -> Result<PathBuf, AppError> {
         .unwrap_or_else(|| PathBuf::from("backups")))
 }
 
-async fn record_audit(state: &AppState, actor: Option<String>, action: &str, target: Option<String>) {
+async fn record_audit(
+    state: &AppState,
+    actor: Option<String>,
+    action: &str,
+    target: Option<String>,
+) {
     let _ = audit::insert(
         &state.db,
         AuditEvent {
@@ -165,7 +170,11 @@ async fn create_backup(
         &state,
         Some(user.user.id),
         "system.backup_created",
-        Some(path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default()),
+        Some(
+            path.file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .unwrap_or_default(),
+        ),
     )
     .await;
     let filename = path
@@ -187,6 +196,106 @@ async fn list_backups_handler(
 ) -> ApiResult<Json<Vec<BackupFile>>> {
     let dir = backup_dir(&state)?;
     Ok(Json(system_ops::list_backups(&dir)))
+}
+
+/// Traversal guard for backup filename path parameters: only names produced
+/// by [`system_ops::backup_database`] pass — the timestamped prefix, a
+/// `.db` suffix, at least one character between them, and no separators or
+/// dot segments anywhere. Rejecting early keeps every downstream join on
+/// `backup_dir` traversal-proof.
+fn valid_backup_name(name: &str) -> bool {
+    name.starts_with(system_ops::BACKUP_PREFIX)
+        && name.ends_with(".db")
+        && name.len() > system_ops::BACKUP_PREFIX.len() + 3
+        && !name.contains(['/', '\\'])
+        && !name.contains("..")
+}
+
+fn resolve_backup(state: &AppState, name: &str) -> Result<PathBuf, AppError> {
+    if !valid_backup_name(name) {
+        return Err(AppError::BadRequest("invalid backup name".to_string()));
+    }
+    Ok(backup_dir(state)?.join(name))
+}
+
+/// GET /system/backups/{name}/download — streams a backup file to the
+/// operator as an attachment download. Admin-only: a backup contains every
+/// user record and encrypted credential blob.
+async fn download_backup(
+    Admin(user): Admin,
+    State(state): State<AppState>,
+    AxumPath(name): AxumPath<String>,
+) -> ApiResult<axum::response::Response> {
+    let path = resolve_backup(&state, &name)?;
+    let bytes = tokio::fs::read(&path)
+        .await
+        .map_err(|_| AppError::NotFoundCode("backup_not_found".to_string()))?;
+    record_audit(
+        &state,
+        Some(user.user.id),
+        "system.backup_downloaded",
+        Some(name.clone()),
+    )
+    .await;
+    let response = axum::response::Response::builder()
+        .status(axum::http::StatusCode::OK)
+        .header(
+            axum::http::header::CONTENT_DISPOSITION,
+            format!("attachment; filename=\"{name}\""),
+        )
+        .header(axum::http::header::CONTENT_TYPE, "application/octet-stream")
+        .body(axum::body::Body::from(bytes))
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+    Ok(response)
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RestoreStaged {
+    /// Absolute path of the staged copy (`<db>.restore.pending`).
+    staged_path: String,
+    /// Always true: the swap happens outside this process.
+    restart_required: bool,
+}
+
+/// POST /system/backups/{name}/restore — stages a backup for restore.
+///
+/// Honest semantics: SQLite cannot overwrite its own live database file
+/// while this process's connection pool holds it open, so an in-place hot
+/// restore from inside the running service is impossible. This endpoint
+/// therefore copies the chosen backup next to the live database as
+/// `<db>.restore.pending`, surfaces a `pending_restore` health issue (see
+/// [`system_ops::health_issues`]), and leaves the final swap to the
+/// operator: stop the service, move the pending file over the live db,
+/// restart. The response's `stagedPath` names the file; `restartRequired`
+/// is always true.
+async fn restore_backup(
+    Admin(user): Admin,
+    State(state): State<AppState>,
+    AxumPath(name): AxumPath<String>,
+) -> ApiResult<Json<RestoreStaged>> {
+    let src = resolve_backup(&state, &name)?;
+    if !src.is_file() {
+        return Err(AppError::NotFoundCode("backup_not_found".to_string()));
+    }
+    let db_path = database_path(&state).ok_or_else(|| {
+        AppError::BadRequest("restore requires a file-backed database".to_string())
+    })?;
+    let pending = PathBuf::from(format!("{}.restore.pending", db_path.display()));
+    tokio::fs::copy(&src, &pending)
+        .await
+        .map_err(|e| AppError::Internal(format!("restore staging failed: {e}")))?;
+    record_audit(
+        &state,
+        Some(user.user.id),
+        "system.backup_restore_staged",
+        Some(name),
+    )
+    .await;
+    Ok(Json(RestoreStaged {
+        staged_path: pending.to_string_lossy().into_owned(),
+        restart_required: true,
+    }))
 }
 
 // ---------------------------------------------------------------------------
@@ -244,13 +353,12 @@ async fn update_mapping_handler(
     validate_mapping(&req)?;
     // Upsert keyed on client_path; only report success when the row with the
     // requested id actually exists afterwards.
-    let existing = sqlx::query_scalar::<_, String>(
-        "SELECT id FROM remote_path_mappings WHERE id = ?",
-    )
-    .bind(&id)
-    .fetch_optional(&state.db)
-    .await?
-    .ok_or(AppError::NotFound)?;
+    let existing =
+        sqlx::query_scalar::<_, String>("SELECT id FROM remote_path_mappings WHERE id = ?")
+            .bind(&id)
+            .fetch_optional(&state.db)
+            .await?
+            .ok_or(AppError::NotFound)?;
     let mapping =
         system_ops::upsert_mapping(&state.db, req.client_path.trim(), req.local_path.trim())
             .await?;
@@ -384,8 +492,9 @@ mod tests {
     /// Seeds a `role` user plus a live session; returns the session id.
     async fn seed_user_with_session(state: &AppState, email: &str, role: &str) -> String {
         let hash = crate::security::password::hash_password("correct-horse-battery").unwrap();
-        let user =
-            crate::storage::users::create(&state.db, email, &hash, "viewer").await.unwrap();
+        let user = crate::storage::users::create(&state.db, email, &hash, "viewer")
+            .await
+            .unwrap();
         sqlx::query("UPDATE users SET role = ? WHERE id = ?")
             .bind(role)
             .bind(&user.id)
@@ -419,9 +528,7 @@ mod tests {
         csrf: Option<&str>,
         json: Option<String>,
     ) -> axum::http::Request<axum::body::Body> {
-        let mut b = axum::http::Request::builder()
-            .method(method)
-            .uri(uri);
+        let mut b = axum::http::Request::builder().method(method).uri(uri);
         if let Some(sid) = sid {
             b = b.header("cookie", format!("rivet_session={sid}"));
         }
@@ -451,7 +558,9 @@ mod tests {
 
         let app: axum::Router = Router::new()
             .merge(router())
-            .layer(axum::middleware::from_fn(crate::httpapi::middleware::auth::csrf))
+            .layer(axum::middleware::from_fn(
+                crate::httpapi::middleware::auth::csrf,
+            ))
             .layer(axum::middleware::from_fn_with_state(
                 state.clone(),
                 crate::httpapi::middleware::auth::load_session,
@@ -475,13 +584,16 @@ mod tests {
                     uri,
                     Some(&viewer_sid),
                     Some(&viewer_csrf),
-                    (uri != "/system/backup").then(|| {
-                        r#"{"clientPath": "/a", "localPath": "/b"}"#.to_string()
-                    }),
+                    (uri != "/system/backup")
+                        .then(|| r#"{"clientPath": "/a", "localPath": "/b"}"#.to_string()),
                 ))
                 .await
                 .unwrap();
-            assert_eq!(res.status(), axum::http::StatusCode::FORBIDDEN, "POST {uri}");
+            assert_eq!(
+                res.status(),
+                axum::http::StatusCode::FORBIDDEN,
+                "POST {uri}"
+            );
         }
 
         // Admin passes both.
@@ -559,8 +671,7 @@ mod tests {
         assert_eq!(listed.0.len(), 1);
         assert_eq!(listed.0[0].client_path, "/mnt/remote/data");
 
-        let translated =
-            system_ops::translate(&listed.0, "/mnt/remote/data/movies/x.mkv").unwrap();
+        let translated = system_ops::translate(&listed.0, "/mnt/remote/data/movies/x.mkv").unwrap();
         assert_eq!(translated, "/srv/media/movies/x.mkv");
 
         let updated = update_mapping_handler(
@@ -576,11 +687,14 @@ mod tests {
         .unwrap();
         assert_eq!(updated.1.local_path, "/data2");
         assert_eq!(updated.1.id, id);
-        assert_eq!(list_mappings_handler(Admin(principal("admin")), State(state.clone()))
-            .await
-            .unwrap()
-            .0
-            .len(), 1);
+        assert_eq!(
+            list_mappings_handler(Admin(principal("admin")), State(state.clone()))
+                .await
+                .unwrap()
+                .0
+                .len(),
+            1
+        );
 
         let status = delete_mapping_handler(
             Admin(principal("admin")),
@@ -590,11 +704,13 @@ mod tests {
         .await
         .unwrap();
         assert_eq!(status, axum::http::StatusCode::NO_CONTENT);
-        assert!(list_mappings_handler(Admin(principal("admin")), State(state))
-            .await
-            .unwrap()
-            .0
-            .is_empty());
+        assert!(
+            list_mappings_handler(Admin(principal("admin")), State(state))
+                .await
+                .unwrap()
+                .0
+                .is_empty()
+        );
     }
 
     #[tokio::test]
@@ -603,7 +719,10 @@ mod tests {
         let err = create_mapping(
             Admin(principal("admin")),
             State(state.clone()),
-            Json(MappingRequest { client_path: " ".into(), local_path: "/x".into() }),
+            Json(MappingRequest {
+                client_path: " ".into(),
+                local_path: "/x".into(),
+            }),
         )
         .await
         .expect_err("blank client_path must be rejected");
@@ -612,10 +731,133 @@ mod tests {
             Admin(principal("admin")),
             State(state.clone()),
             AxumPath("missing".into()),
-            Json(MappingRequest { client_path: "/a".into(), local_path: "/b".into() }),
+            Json(MappingRequest {
+                client_path: "/a".into(),
+                local_path: "/b".into(),
+            }),
         )
         .await
         .expect_err("unknown id must 404");
         assert_eq!(err.code().1, axum::http::StatusCode::NOT_FOUND);
+    }
+    #[tokio::test]
+    async fn backup_download_streams_bytes_with_attachment_header() {
+        let (state, _dir) = test_state().await;
+        let created = create_backup(Admin(principal("admin")), State(state.clone()))
+            .await
+            .unwrap();
+        let name = created.1.filename.clone();
+
+        let res = download_backup(
+            Admin(principal("admin")),
+            State(state.clone()),
+            AxumPath(name.clone()),
+        )
+        .await
+        .unwrap();
+        assert_eq!(res.status(), axum::http::StatusCode::OK);
+        assert_eq!(
+            res.headers()
+                .get(axum::http::header::CONTENT_DISPOSITION)
+                .unwrap()
+                .to_str()
+                .unwrap(),
+            format!("attachment; filename=\"{name}\"")
+        );
+        let body = axum::body::to_bytes(res.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let expected = std::fs::read(backup_dir(&state).unwrap().join(&name)).unwrap();
+        assert_eq!(body.as_ref(), expected.as_slice());
+    }
+
+    #[tokio::test]
+    async fn backup_download_rejects_traversal_and_missing_files() {
+        let (state, _dir) = test_state().await;
+        for bad in [
+            "../t.db",
+            "sub/rivet-backup-x.db",
+            "rivet-backup-../../etc/passwd",
+            "unrelated.db",
+            "rivet-backup-x.txt",
+            "rivet-backup-.db",
+        ] {
+            let err = download_backup(
+                Admin(principal("admin")),
+                State(state.clone()),
+                AxumPath(bad.to_string()),
+            )
+            .await
+            .err()
+            .unwrap_or_else(|| panic!("{bad} must be rejected"));
+            assert_eq!(err.code().1, axum::http::StatusCode::BAD_REQUEST, "{bad}");
+        }
+        assert!(valid_backup_name("rivet-backup-20260101T000000Z.db"));
+
+        // Well-formed name that does not exist on disk → 404.
+        let err = download_backup(
+            Admin(principal("admin")),
+            State(state),
+            AxumPath("rivet-backup-20260101T000000Z.db".to_string()),
+        )
+        .await
+        .err()
+        .expect("missing backup must 404");
+        assert_eq!(err.code().1, axum::http::StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn restore_stages_pending_marker_and_surfaces_in_health() {
+        let (state, dir) = test_state().await;
+        let created = create_backup(Admin(principal("admin")), State(state.clone()))
+            .await
+            .unwrap();
+
+        let res = restore_backup(
+            Admin(principal("admin")),
+            State(state.clone()),
+            AxumPath(created.1.filename.clone()),
+        )
+        .await
+        .unwrap();
+        assert!(res.0.restart_required);
+        let staged = PathBuf::from(&res.0.staged_path);
+        assert_eq!(
+            staged.file_name().and_then(|n| n.to_str()),
+            Some("t.db.restore.pending")
+        );
+        assert_eq!(
+            staged.parent().map(|p| p.to_path_buf()),
+            Some(dir.path().to_path_buf())
+        );
+        assert!(staged.is_file());
+
+        // The staged marker is exactly what the health check reports.
+        let issues = system_ops::health_issues(&state.db).await;
+        let issue = issues
+            .iter()
+            .find(|i| i.source == "pending_restore")
+            .expect("pending_restore issue");
+        assert_eq!(issue.severity, "warning");
+
+        // Restoring an unknown but well-formed name → 404; traversal → 400.
+        let err = restore_backup(
+            Admin(principal("admin")),
+            State(state.clone()),
+            AxumPath("rivet-backup-19990101T000000Z.db".to_string()),
+        )
+        .await
+        .err()
+        .unwrap();
+        assert_eq!(err.code().1, axum::http::StatusCode::NOT_FOUND);
+        let err = restore_backup(
+            Admin(principal("admin")),
+            State(state),
+            AxumPath("../evil.db".to_string()),
+        )
+        .await
+        .err()
+        .unwrap();
+        assert_eq!(err.code().1, axum::http::StatusCode::BAD_REQUEST);
     }
 }

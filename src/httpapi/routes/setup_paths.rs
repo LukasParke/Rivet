@@ -16,8 +16,8 @@ use serde_json::json;
 use crate::error::AppError;
 use crate::httpapi::middleware::auth::Admin;
 use crate::state::AppState;
-use crate::ws::hub::PublishExt;
 use crate::storage::audit::{insert as insert_audit, AuditEvent};
+use crate::ws::hub::PublishExt;
 
 const SETTING_KEY: &str = "setup.paths";
 
@@ -108,7 +108,10 @@ async fn save(
     }
 
     let payload = serde_json::to_string(&req).expect("serializable request");
-    if crate::storage::settings::upsert(&state.db, SETTING_KEY, &payload).await.is_err() {
+    if crate::storage::settings::upsert(&state.db, SETTING_KEY, &payload)
+        .await
+        .is_err()
+    {
         return (
             StatusCode::INTERNAL_SERVER_ERROR,
             axum::Json(json!({"error": "save_failed"})),
@@ -118,10 +121,17 @@ async fn save(
 
     let _ = insert_audit(
         &state.db,
-        AuditEvent { action: "setup.paths_saved".into(), actor_user_id: Some(actor.clone()), ..Default::default() },
+        AuditEvent {
+            action: "setup.paths_saved".into(),
+            actor_user_id: Some(actor.clone()),
+            ..Default::default()
+        },
     )
     .await;
-    state.hub.publish_event("audit.event", json!({"action": "setup.paths_saved", "actorUserId": actor}));
+    state.hub.publish_event(
+        "audit.event",
+        json!({"action": "setup.paths_saved", "actorUserId": actor}),
+    );
     axum::Json(SaveResponse { saved: true }).into_response()
 }
 
@@ -203,17 +213,20 @@ fn filesystem_id(_path: &Path) -> String {
 }
 
 fn check_dir_rw(path: &str, dry_run: bool) -> PathCheck {
-    let mut pc = PathCheck { path: path.to_string(), ..Default::default() };
+    let mut pc = PathCheck {
+        path: path.to_string(),
+        ..Default::default()
+    };
     let md = std::fs::metadata(path);
     let Some(md) = md.ok() else {
         pc.exists = false;
         if dry_run {
             pc.warnings.push(
-                "Path does not exist (will be validated when actually used in dry run mode)"
-                    .into(),
+                "Path does not exist (will be validated when actually used in dry run mode)".into(),
             );
         } else {
-            pc.errors.push(format!("stat {path}: no such file or directory"));
+            pc.errors
+                .push(format!("stat {path}: no such file or directory"));
         }
         return pc;
     };
@@ -221,27 +234,46 @@ fn check_dir_rw(path: &str, dry_run: bool) -> PathCheck {
     pc.isDir = md.is_dir();
     if !pc.isDir {
         if dry_run {
-            pc.warnings.push("Path exists but is not a directory".into());
+            pc.warnings
+                .push("Path exists but is not a directory".into());
         } else {
             pc.errors.push("not a directory".into());
         }
         return pc;
     }
     pc.readable = can_read_dir(Path::new(path));
-    pc.writable = if dry_run { stat_only_writable(&md) } else { can_write_dir_probe(Path::new(path)) };
-    let bucket = if dry_run { &mut pc.warnings } else { &mut pc.errors };
+    pc.writable = if dry_run {
+        stat_only_writable(&md)
+    } else {
+        can_write_dir_probe(Path::new(path))
+    };
+    let bucket = if dry_run {
+        &mut pc.warnings
+    } else {
+        &mut pc.errors
+    };
     if !pc.readable {
-        bucket.push(if dry_run { "Directory exists but is not readable".into() } else { "not readable".into() });
+        bucket.push(if dry_run {
+            "Directory exists but is not readable".into()
+        } else {
+            "not readable".into()
+        });
     }
     if !pc.writable {
-        bucket.push(if dry_run { "Directory exists but is not writable".into() } else { "not writable".into() });
+        bucket.push(if dry_run {
+            "Directory exists but is not writable".into()
+        } else {
+            "not writable".into()
+        });
     }
     pc.filesystemId = filesystem_id(Path::new(path));
     pc
 }
 
 fn all_paths_ok(roots: &[PathCheck]) -> bool {
-    roots.iter().all(|r| r.exists && r.isDir && r.readable && r.writable)
+    roots
+        .iter()
+        .all(|r| r.exists && r.isDir && r.readable && r.writable)
 }
 
 async fn validate_paths(
@@ -285,7 +317,10 @@ async fn validate_paths(
     for r in &req.libraryRoots {
         let rp = clean_path(r);
         if rp.is_empty() {
-            let mut pc = PathCheck { path: r.clone(), ..Default::default() };
+            let mut pc = PathCheck {
+                path: r.clone(),
+                ..Default::default()
+            };
             pc.errors.push("empty path".into());
             roots.push(pc);
             continue;
@@ -299,7 +334,8 @@ async fn validate_paths(
             root.hardlinkViable =
                 !dl_check.filesystemId.is_empty() && dl_check.filesystemId == root.filesystemId;
             if !root.hardlinkViable {
-                root.warnings.push("hardlink not viable (different filesystem)".into());
+                root.warnings
+                    .push("hardlink not viable (different filesystem)".into());
             }
         }
     }
@@ -332,14 +368,18 @@ async fn validate_paths(
         }),
     );
 
-    Ok(ValidateResponse { ok, downloadsCompleted: dl_check, libraryRoots: roots, quarantine: q_check })
+    Ok(ValidateResponse {
+        ok,
+        downloadsCompleted: dl_check,
+        libraryRoots: roots,
+        quarantine: q_check,
+    })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    use std::sync::Arc;
     use crate::httpapi::middleware::auth::{csrf, load_session};
     use crate::metrics::Metrics;
     use crate::security::secrets::SecretBox;
@@ -349,6 +389,7 @@ mod tests {
     use axum::extract::Request;
     use axum::http::StatusCode;
     use axum::middleware;
+    use std::sync::Arc;
     use tower::ServiceExt;
 
     async fn app_state(dry_run: bool) -> (tempfile::TempDir, AppState) {
@@ -423,8 +464,13 @@ mod tests {
             .await
             .unwrap();
         let status = resp.status();
-        let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
-        (status, serde_json::from_slice(&bytes).unwrap_or(serde_json::Value::Null))
+        let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        (
+            status,
+            serde_json::from_slice(&bytes).unwrap_or(serde_json::Value::Null),
+        )
     }
 
     #[tokio::test]
@@ -455,13 +501,22 @@ mod tests {
         })
         .to_string();
 
-        let (s, v) = post(state.clone(), "/api/v1/setup/paths/validate", &body, Some(&sess)).await;
+        let (s, v) = post(
+            state.clone(),
+            "/api/v1/setup/paths/validate",
+            &body,
+            Some(&sess),
+        )
+        .await;
         assert_eq!(s, StatusCode::OK);
         assert_eq!(v["ok"], false, "missing quarantine fails live validation");
         assert_eq!(v["downloadsCompleted"]["exists"], true);
         assert_eq!(v["downloadsCompleted"]["writable"], true);
         assert!(
-            v["downloadsCompleted"]["filesystemId"].as_str().unwrap_or("").starts_with("dev:"),
+            v["downloadsCompleted"]["filesystemId"]
+                .as_str()
+                .unwrap_or("")
+                .starts_with("dev:"),
             "filesystem id computed"
         );
         assert_eq!(v["hardlinksNote"], serde_json::Value::Null);
@@ -490,11 +545,18 @@ mod tests {
         assert_eq!(s, StatusCode::OK);
         assert_eq!(v["ok"], true, "dry run tolerates missing paths");
         assert_eq!(v["downloadsCompleted"]["exists"], false);
-        assert!(v["downloadsCompleted"]["warnings"].as_array().unwrap().iter().any(|w| w.as_str().unwrap().contains("does not exist")));
+        assert!(v["downloadsCompleted"]["warnings"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|w| w.as_str().unwrap().contains("does not exist")));
 
         // THE FIX: no probe files anywhere under either directory.
         for p in [&ghost, &existing] {
-            assert!(!p.join(".rivet_write_test").exists(), "dry run must not write probe files");
+            assert!(
+                !p.join(".rivet_write_test").exists(),
+                "dry run must not write probe files"
+            );
         }
         assert_eq!(std::fs::read_dir(&existing).unwrap().count(), 0);
     }
@@ -514,7 +576,13 @@ mod tests {
         .to_string();
 
         // Live mode would reject unknown paths; dry-run saves anyway.
-        let (s, v) = post(state.clone(), "/api/v1/setup/paths/save", &body, Some(&sess)).await;
+        let (s, v) = post(
+            state.clone(),
+            "/api/v1/setup/paths/save",
+            &body,
+            Some(&sess),
+        )
+        .await;
         assert_eq!(s, StatusCode::OK);
         assert_eq!(v["saved"], true);
 

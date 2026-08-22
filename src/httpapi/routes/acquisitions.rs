@@ -28,27 +28,36 @@ use serde_json::json;
 use crate::adapters::Downloader;
 use crate::httpapi::middleware::auth::{Admin, Operator};
 use crate::state::AppState;
-use crate::ws::hub::PublishExt;
 use crate::storage::acquisitions::{self, Acquisition};
 use crate::storage::audit::{self, AuditEvent};
 use crate::storage::settings;
+use crate::ws::hub::PublishExt;
 
 /// Settings key holding the wizard-persisted download-client credentials.
 const CLIENTS_SETTING: &str = "setup.clients";
 
 pub fn router() -> Router<AppState> {
     Router::new()
-        .route(
-            "/acquisitions",
-            get(list_acquisitions_handler),
-        )
+        .route("/acquisitions", get(list_acquisitions_handler))
         .route("/acquisitions/{id}", get(get_acquisition))
         .route("/acquisitions/{id}/actions/pause", post(pause_acquisition))
-        .route("/acquisitions/{id}/actions/resume", post(resume_acquisition))
+        .route(
+            "/acquisitions/{id}/actions/resume",
+            post(resume_acquisition),
+        )
         .route("/acquisitions/{id}/actions/retry", post(retry_acquisition))
-        .route("/acquisitions/{id}/actions/remove", post(remove_acquisition))
-        .route("/acquisitions/{id}/actions/reverify", post(reverify_acquisition))
-        .route("/acquisitions/{id}/actions/reimport", post(reimport_acquisition))
+        .route(
+            "/acquisitions/{id}/actions/remove",
+            post(remove_acquisition),
+        )
+        .route(
+            "/acquisitions/{id}/actions/reverify",
+            post(reverify_acquisition),
+        )
+        .route(
+            "/acquisitions/{id}/actions/reimport",
+            post(reimport_acquisition),
+        )
         .route(
             "/acquisitions/{id}/actions/accept_verified",
             post(accept_verified),
@@ -112,8 +121,7 @@ impl IntoResponse for ApiError {
 // Wire type (Go JSON key parity for storage.Acquisition)
 // ---------------------------------------------------------------------------
 
-#[derive(serde::Serialize)]
-#[derive(Debug)]
+#[derive(serde::Serialize, Debug)]
 struct AcquisitionWire {
     ID: String,
     CandidateID: String,
@@ -193,7 +201,10 @@ async fn list_acquisitions_handler(
     Query(params): Query<HashMap<String, String>>,
 ) -> Result<Json<Vec<AcquisitionWire>>, ApiError> {
     let limit = clamp_limit(params.get("limit").map(String::as_str));
-    let status = params.get("status").map(|s| s.trim()).filter(|s| !s.is_empty());
+    let status = params
+        .get("status")
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty());
     let items = acquisitions::list(&state.db, status, limit).await?;
     Ok(Json(items.into_iter().map(AcquisitionWire::from).collect()))
 }
@@ -228,15 +239,12 @@ fn actor_id(user: &crate::httpapi::middleware::auth::AuthenticatedUser) -> Optio
 /// Loads the persisted client config for `kind` from `setup.clients`,
 /// decrypting `passwordEnc` in place so the adapter receives usable
 /// credentials. Returns the enriched config JSON.
-async fn load_client_config(
-    state: &AppState,
-    kind: &str,
-) -> Result<serde_json::Value, ApiError> {
+async fn load_client_config(state: &AppState, kind: &str) -> Result<serde_json::Value, ApiError> {
     let raw = settings::get(&state.db, CLIENTS_SETTING)
         .await?
         .ok_or_else(|| ApiError::bad_request("no_clients_configured"))?;
-    let mut cfg: serde_json::Value = serde_json::from_str(&raw)
-        .map_err(|_| ApiError::bad_request("invalid_clients_config"))?;
+    let mut cfg: serde_json::Value =
+        serde_json::from_str(&raw).map_err(|_| ApiError::bad_request("invalid_clients_config"))?;
     let entry = cfg
         .get_mut(kind)
         .and_then(|v| v.as_object_mut())
@@ -258,8 +266,8 @@ async fn load_client_config(
             .secret_box
             .decrypt_string(enc)
             .map_err(|_| ApiError::bad_request("decrypt_failed"))?;
-        let plain = String::from_utf8(plain)
-            .map_err(|_| ApiError::bad_request("decrypt_failed"))?;
+        let plain =
+            String::from_utf8(plain).map_err(|_| ApiError::bad_request("decrypt_failed"))?;
         entry.insert("password".to_string(), json!(plain));
         entry.remove("passwordEnc");
     }
@@ -284,10 +292,7 @@ async fn build_client(
 }
 
 /// Loads the acquisition or maps absence to 404.
-async fn require_acquisition(
-    state: &AppState,
-    id: &str,
-) -> Result<Acquisition, ApiError> {
+async fn require_acquisition(state: &AppState, id: &str) -> Result<Acquisition, ApiError> {
     acquisitions::get(&state.db, id)
         .await?
         .ok_or_else(|| ApiError::new(StatusCode::NOT_FOUND, "not_found"))
@@ -550,12 +555,17 @@ async fn accept_verified(
         .unwrap_or_default();
 
     // Best available local path wins (admin should know what they're doing).
-    let verified_path = [Some(requested), a.quarantined_path.clone(), a.verified_path.clone(), a.content_path.clone()]
-        .into_iter()
-        .flatten()
-        .map(|p| p.trim().to_string())
-        .find(|p| !p.is_empty())
-        .ok_or_else(|| ApiError::bad_request("missing_verified_path"))?;
+    let verified_path = [
+        Some(requested),
+        a.quarantined_path.clone(),
+        a.verified_path.clone(),
+        a.content_path.clone(),
+    ]
+    .into_iter()
+    .flatten()
+    .map(|p| p.trim().to_string())
+    .find(|p| !p.is_empty())
+    .ok_or_else(|| ApiError::bad_request("missing_verified_path"))?;
 
     acquisitions::admin_accept_verified(&state.db, &a.id, &verified_path)
         .await
@@ -580,10 +590,7 @@ async fn accept_verified(
         actor.clone(),
         "acquisition.accept_verified",
         &a.id,
-        Some(
-            json!({ "verifiedPath": verified_path, "jobId": job.id })
-                .to_string(),
-        ),
+        Some(json!({ "verifiedPath": verified_path, "jobId": job.id }).to_string()),
     )
     .await;
     state.hub.publish_event(
@@ -622,8 +629,8 @@ async fn override_imported(
     if id.is_empty() {
         return Err(ApiError::bad_request("invalid_id"));
     }
-    let req: OverrideImportedRequest = serde_json::from_slice(&body)
-        .map_err(|_| ApiError::bad_request("invalid_json"))?;
+    let req: OverrideImportedRequest =
+        serde_json::from_slice(&body).map_err(|_| ApiError::bad_request("invalid_json"))?;
     let imported_path = req.imported_path.trim();
     if imported_path.is_empty() {
         return Err(ApiError::bad_request("missing_imported_path"));
@@ -704,7 +711,11 @@ async fn blacklist_action(
         }
     };
     let reason = req.reason.trim();
-    let reason_opt = if reason.is_empty() { None } else { Some(reason) };
+    let reason_opt = if reason.is_empty() {
+        None
+    } else {
+        Some(reason)
+    };
 
     // Resolve candidate URL/title for extra matching.
     let (cand_url, cand_title) = load_candidate_url_and_title(&state.db, &a.candidate_id).await;
@@ -813,7 +824,10 @@ async fn blacklist_action(
 
 /// Reads `enclosureUrl` (falling back to `link`) and `title` from the
 /// candidate's raw JSON. Missing candidate or malformed JSON yields empties.
-async fn load_candidate_url_and_title(pool: &sqlx::SqlitePool, candidate_id: &str) -> (String, String) {
+async fn load_candidate_url_and_title(
+    pool: &sqlx::SqlitePool,
+    candidate_id: &str,
+) -> (String, String) {
     let candidate_id = candidate_id.trim();
     if candidate_id.is_empty() {
         return (String::new(), String::new());
@@ -883,7 +897,6 @@ async fn record_audit(
     )
     .await;
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -972,7 +985,9 @@ mod tests {
     }
 
     async fn body_json(res: axum::http::Response<axum::body::Body>) -> serde_json::Value {
-        let bytes = axum::body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
+        let bytes = axum::body::to_bytes(res.into_body(), usize::MAX)
+            .await
+            .unwrap();
         serde_json::from_slice(&bytes).unwrap()
     }
 
@@ -1026,9 +1041,13 @@ mod tests {
     #[tokio::test]
     async fn get_acquisition_404_for_missing() {
         let (state, _dir) = test_state().await;
-        let err = get_acquisition(Operator(principal("operator")), State(state), Path("ghost".into()))
-            .await
-            .unwrap_err();
+        let err = get_acquisition(
+            Operator(principal("operator")),
+            State(state),
+            Path("ghost".into()),
+        )
+        .await
+        .unwrap_err();
         assert_eq!(err.status, StatusCode::NOT_FOUND);
     }
 
@@ -1087,9 +1106,10 @@ mod tests {
     #[tokio::test]
     async fn accept_verified_broken_db_returns_clean_500() {
         let dir = tempfile::tempdir().unwrap();
-        let pool = crate::storage::open(&format!("file://{}", dir.path().join("gone.db").display()))
-            .await
-            .unwrap();
+        let pool =
+            crate::storage::open(&format!("file://{}", dir.path().join("gone.db").display()))
+                .await
+                .unwrap();
         pool.close().await;
         let state = AppState {
             db: pool,
@@ -1196,16 +1216,15 @@ mod tests {
             .unwrap_err();
         assert_eq!(err.code, "no_match_to_blacklist");
 
-        let entries = crate::storage::blacklist::list(&state.db, 100).await.unwrap();
+        let entries = crate::storage::blacklist::list(&state.db, 100)
+            .await
+            .unwrap();
         assert_eq!(entries.len(), 3, "duplicates must not accumulate");
     }
 
     #[test]
     fn btih_extraction_matches_go() {
-        assert_eq!(
-            extract_btih("magnet:?xt=urn:btih:ABC123&dn=name"),
-            "ABC123"
-        );
+        assert_eq!(extract_btih("magnet:?xt=urn:btih:ABC123&dn=name"), "ABC123");
         assert_eq!(extract_btih("magnet:?xt=urn:btih:ABC123"), "ABC123");
         assert_eq!(extract_btih("MAGNET:?XT=URN:BTIH:UPPER"), "UPPER");
         assert_eq!(extract_btih("https://example.com/file.torrent"), "");
@@ -1220,9 +1239,7 @@ mod tests {
             Admin(principal("admin")),
             State(state.clone()),
             Path(a.id.clone()),
-            axum::body::Bytes::from(
-                json!({ "importedPath": "/library/Movie.mkv" }).to_string(),
-            ),
+            axum::body::Bytes::from(json!({ "importedPath": "/library/Movie.mkv" }).to_string()),
         )
         .await
         .unwrap();

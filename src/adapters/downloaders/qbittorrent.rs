@@ -46,7 +46,10 @@ impl QbittorrentClient {
     /// Builds a client from a config object `{url, username, password}`.
     /// SSRF validation and the pinned HTTP client are established lazily on
     /// the first request (constructors must stay sync).
-    pub fn new(cfg_json: &Value, policy: OutboundPolicy) -> Result<Arc<dyn Downloader>, AdapterError> {
+    pub fn new(
+        cfg_json: &Value,
+        policy: OutboundPolicy,
+    ) -> Result<Arc<dyn Downloader>, AdapterError> {
         let get_str = |key: &str| -> Result<String, AdapterError> {
             cfg_json
                 .get(key)
@@ -71,7 +74,11 @@ impl QbittorrentClient {
 
     /// Absolute API URL, preserving any configured sub-path prefix.
     fn api(&self, path: &str) -> String {
-        format!("{}/{}", self.base_url.trim_end_matches('/'), path.trim_start_matches('/'))
+        format!(
+            "{}/{}",
+            self.base_url.trim_end_matches('/'),
+            path.trim_start_matches('/')
+        )
     }
 
     /// Returns the pinned client, validating the base URL (SSRF policy) on
@@ -86,7 +93,12 @@ impl QbittorrentClient {
                 Ok::<_, AdapterError>(ssrf::build_pinned_client(&target, REQUEST_TIMEOUT))
             })
             .await?;
-        if self.sid.read().unwrap_or_else(std::sync::PoisonError::into_inner).is_none() {
+        if self
+            .sid
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .is_none()
+        {
             self.login(client).await?;
         }
         Ok(client)
@@ -96,7 +108,10 @@ impl QbittorrentClient {
     async fn login(&self, client: &reqwest::Client) -> Result<(), AdapterError> {
         let resp = client
             .post(self.api("/api/v2/auth/login"))
-            .form(&[("username", self.username.as_str()), ("password", self.password.as_str())])
+            .form(&[
+                ("username", self.username.as_str()),
+                ("password", self.password.as_str()),
+            ])
             .send()
             .await
             .map_err(|_| AdapterError::Network("connect_failed".into()))?;
@@ -109,12 +124,18 @@ impl QbittorrentClient {
         }
         // Some instances authenticate without issuing SID (e.g. bypass auth
         // for localhost); keep the session empty and let 403 handling retry.
-        *self.sid.write().unwrap_or_else(std::sync::PoisonError::into_inner) = sid;
+        *self
+            .sid
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = sid;
         Ok(())
     }
 
     fn current_sid(&self) -> Option<String> {
-        self.sid.read().unwrap_or_else(std::sync::PoisonError::into_inner).clone()
+        self.sid
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone()
     }
 
     /// Sends an authenticated request, re-logging in once on HTTP 403.
@@ -163,7 +184,6 @@ impl QbittorrentClient {
     }
 }
 
-
 fn with_sid(req: reqwest::RequestBuilder, sid: Option<&str>) -> reqwest::RequestBuilder {
     match sid {
         Some(sid) => req.header(reqwest::header::COOKIE, format!("SID={sid}")),
@@ -192,7 +212,11 @@ fn extract_sid(headers: &reqwest::header::HeaderMap) -> Option<String> {
 async fn read_body_capped(resp: reqwest::Response, cap: usize) -> Result<String, AdapterError> {
     let mut resp = resp;
     let mut buf: Vec<u8> = Vec::new();
-    while let Some(chunk) = resp.chunk().await.map_err(|_| AdapterError::Network("read_failed".into()))? {
+    while let Some(chunk) = resp
+        .chunk()
+        .await
+        .map_err(|_| AdapterError::Network("read_failed".into()))?
+    {
         if buf.len() + chunk.len() > cap {
             return Err(AdapterError::Network("response_too_large".into()));
         }
@@ -236,9 +260,21 @@ impl From<QbTorrent> for TorrentInfo {
             name: t.name,
             progress: t.progress.clamp(0.0, 1.0),
             state: t.state.to_lowercase(),
-            size_bytes: if t.total_size != 0 { t.total_size } else { t.size },
-            downloaded_bytes: if t.completed != 0 { t.completed } else { t.downloaded },
-            content_path: if t.content_path.is_empty() { None } else { Some(t.content_path) },
+            size_bytes: if t.total_size != 0 {
+                t.total_size
+            } else {
+                t.size
+            },
+            downloaded_bytes: if t.completed != 0 {
+                t.completed
+            } else {
+                t.downloaded
+            },
+            content_path: if t.content_path.is_empty() {
+                None
+            } else {
+                Some(t.content_path)
+            },
         }
     }
 }
@@ -278,11 +314,12 @@ impl Downloader for QbittorrentClient {
         if id.is_empty() {
             return Err(AdapterError::InvalidConfig("hash_required".into()));
         }
-        Ok(self
-            .get_all()
-            .await?
-            .into_iter()
-            .find(|t| t.hash.as_deref().map(|h| h.eq_ignore_ascii_case(id)).unwrap_or(false)))
+        Ok(self.get_all().await?.into_iter().find(|t| {
+            t.hash
+                .as_deref()
+                .map(|h| h.eq_ignore_ascii_case(id))
+                .unwrap_or(false)
+        }))
     }
 
     async fn get_all(&self) -> Result<Vec<TorrentInfo>, AdapterError> {
@@ -328,9 +365,10 @@ impl Downloader for QbittorrentClient {
         let id_owned = id.to_string();
         let resp = self
             .send(move |client, sid| {
-                let req = client
-                    .post(self.api("/api/v2/torrents/delete"))
-                    .form(&[("hashes", id_owned.as_str()), ("deleteFiles", if delete_files { "true" } else { "false" })]);
+                let req = client.post(self.api("/api/v2/torrents/delete")).form(&[
+                    ("hashes", id_owned.as_str()),
+                    ("deleteFiles", if delete_files { "true" } else { "false" }),
+                ]);
                 with_sid(req, sid)
             })
             .await?;
@@ -388,7 +426,9 @@ mod tests {
 
     fn policy() -> OutboundPolicy {
         // Tests talk to a loopback wiremock server.
-        OutboundPolicy { allow_internal: true }
+        OutboundPolicy {
+            allow_internal: true,
+        }
     }
 
     fn login_mock() -> Mock {
@@ -420,7 +460,9 @@ mod tests {
         let server = MockServer::start().await;
         Mock::given(method("POST"))
             .and(path("/api/v2/torrents/add"))
-            .and(body_string_contains("urls=magnet%3A%3Fxt%3Durn%3Abtih%3Aabc123"))
+            .and(body_string_contains(
+                "urls=magnet%3A%3Fxt%3Durn%3Abtih%3Aabc123",
+            ))
             .and(body_string_contains("category=rivet"))
             .respond_with(ResponseTemplate::new(200).set_body_string("Ok."))
             .expect(1)
@@ -448,7 +490,11 @@ mod tests {
         login_mock().mount(&server).await;
 
         let client = client_for(&server).await;
-        let err = client.add_url("magnet:?xt=urn:btih:abc123").await.err().expect("expected error");
+        let err = client
+            .add_url("magnet:?xt=urn:btih:abc123")
+            .await
+            .err()
+            .expect("expected error");
         assert!(matches!(err, AdapterError::Network(msg) if msg == "add_failed"));
     }
 
@@ -507,7 +553,11 @@ mod tests {
             .await;
 
         let client = client_for(&server).await;
-        let err = client.add_url("magnet:?xt=urn:btih:abc").await.err().expect("expected error");
+        let err = client
+            .add_url("magnet:?xt=urn:btih:abc")
+            .await
+            .err()
+            .expect("expected error");
         assert!(matches!(err, AdapterError::Auth));
     }
 
@@ -521,7 +571,11 @@ mod tests {
             .await;
 
         let client = client_for(&server).await;
-        let err = client.add_url("magnet:?xt=urn:btih:abc").await.err().expect("expected error");
+        let err = client
+            .add_url("magnet:?xt=urn:btih:abc")
+            .await
+            .err()
+            .expect("expected error");
         assert!(matches!(err, AdapterError::Auth));
     }
 
@@ -573,9 +627,17 @@ mod tests {
         assert_eq!(second.content_path, None);
 
         // Case-insensitive lookup by hash.
-        let info = client.get_info("aaa111").await.expect("get_info").expect("found");
+        let info = client
+            .get_info("aaa111")
+            .await
+            .expect("get_info")
+            .expect("found");
         assert_eq!(info.name, "Ubuntu 24.04");
-        assert!(client.get_info("missing").await.expect("get_info").is_none());
+        assert!(client
+            .get_info("missing")
+            .await
+            .expect("get_info")
+            .is_none());
 
         server.verify().await;
     }
@@ -640,20 +702,29 @@ mod tests {
 
     #[tokio::test]
     async fn new_rejects_missing_fields() {
-        let err = QbittorrentClient::new(&serde_json::json!({"url": "http://x"}), policy()).err().expect("expected error");
+        let err = QbittorrentClient::new(&serde_json::json!({"url": "http://x"}), policy())
+            .err()
+            .expect("expected error");
         assert!(matches!(err, AdapterError::InvalidConfig(_)));
         let err = QbittorrentClient::new(
             &serde_json::json!({"url": "http://x", "username": "  ", "password": "p"}),
             policy(),
         )
-        .err().expect("expected error");
+        .err()
+        .expect("expected error");
         assert!(matches!(err, AdapterError::InvalidConfig(msg) if msg.contains("username")));
     }
 
     #[test]
     fn extract_btih_matches_go_semantics() {
-        assert_eq!(extract_btih("magnet:?xt=urn:btih:ABC&dn=x"), Some("ABC".into()));
-        assert_eq!(extract_btih("  magnet:?dn=x&xt=urn:btih:ff#frag"), Some("ff".into()));
+        assert_eq!(
+            extract_btih("magnet:?xt=urn:btih:ABC&dn=x"),
+            Some("ABC".into())
+        );
+        assert_eq!(
+            extract_btih("  magnet:?dn=x&xt=urn:btih:ff#frag"),
+            Some("ff".into())
+        );
         assert_eq!(extract_btih("magnet:?dn=only"), None);
         assert_eq!(extract_btih("http://example.com/file.torrent"), None);
         assert_eq!(extract_btih("magnet:?xt=urn:btih:"), None);

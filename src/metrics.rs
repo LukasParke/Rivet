@@ -25,10 +25,12 @@ impl Metrics {
         self.jobs_completed_total.fetch_add(1, Ordering::Relaxed);
     }
     pub fn inc_jobs_retried(&self) {
-        self.jobs_retry_scheduled_total.fetch_add(1, Ordering::Relaxed);
+        self.jobs_retry_scheduled_total
+            .fetch_add(1, Ordering::Relaxed);
     }
     pub fn inc_ws_events(&self) {
-        self.ws_events_published_total.fetch_add(1, Ordering::Relaxed);
+        self.ws_events_published_total
+            .fetch_add(1, Ordering::Relaxed);
     }
 
     pub fn set_queue_depth(&self, state: &str, v: i64) {

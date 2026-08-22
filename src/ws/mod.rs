@@ -80,9 +80,15 @@ mod tests {
     #[test]
     fn channel_mapping_matches_original() {
         assert_eq!(channels_for_type("job.claimed"), &["activity", "jobs"]);
-        assert_eq!(channels_for_type("search.run.started"), &["activity", "jobs"]);
+        assert_eq!(
+            channels_for_type("search.run.started"),
+            &["activity", "jobs"]
+        );
         assert_eq!(channels_for_type("audit.login"), &["audit"]);
-        assert_eq!(channels_for_type("health.snapshot"), &["activity", "health"]);
+        assert_eq!(
+            channels_for_type("health.snapshot"),
+            &["activity", "health"]
+        );
         assert_eq!(channels_for_type("verify.completed"), &["imports"]);
         assert_eq!(channels_for_type("import.completed"), &["imports"]);
         assert_eq!(channels_for_type("download.progress"), &["downloads"]);

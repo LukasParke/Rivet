@@ -65,9 +65,10 @@ pub async fn enqueue<T: serde::Serialize>(
     let run_after = timeutil::fmt(run_after.unwrap_or(now));
     let payload_json = match payload {
         None => None,
-        Some(p) => Some(serde_json::to_string(p).map_err(|e| {
-            QueueError::Db(sqlx::Error::Configuration(Box::new(e)))
-        })?),
+        Some(p) => Some(
+            serde_json::to_string(p)
+                .map_err(|e| QueueError::Db(sqlx::Error::Configuration(Box::new(e))))?,
+        ),
     };
     let id = uuid::Uuid::new_v4().to_string();
     sqlx::query(
@@ -264,12 +265,11 @@ pub async fn release_expired_leases(pool: &SqlitePool) -> Result<u64, sqlx::Erro
 /// Retention prune: completed/failed jobs older than `older_than`.
 pub async fn prune_finished(pool: &SqlitePool, older_than: Duration) -> Result<u64, sqlx::Error> {
     let cutoff = timeutil::fmt(Utc::now() - older_than);
-    let res = sqlx::query(
-        "DELETE FROM jobs WHERE state IN ('completed','failed') AND updated_at < ?",
-    )
-    .bind(cutoff)
-    .execute(pool)
-    .await?;
+    let res =
+        sqlx::query("DELETE FROM jobs WHERE state IN ('completed','failed') AND updated_at < ?")
+            .bind(cutoff)
+            .execute(pool)
+            .await?;
     Ok(res.rows_affected())
 }
 
@@ -288,13 +288,18 @@ mod tests {
     }
 
     fn opts(owner: &str) -> ClaimOpts {
-        ClaimOpts { lease_owner: owner.to_string(), lease_duration: Duration::seconds(30) }
+        ClaimOpts {
+            lease_owner: owner.to_string(),
+            lease_duration: Duration::seconds(30),
+        }
     }
 
     #[tokio::test]
     async fn enqueue_claim_complete_lifecycle() {
         let (_d, p) = pool().await;
-        let j = enqueue(&p, "search_run", Some(&json!({"targetId": "t1"})), None).await.unwrap();
+        let j = enqueue(&p, "search_run", Some(&json!({"targetId": "t1"})), None)
+            .await
+            .unwrap();
         assert_eq!(j.state, "queued");
         assert!(j.payload_json.as_deref().unwrap().contains("t1"));
 
@@ -303,7 +308,10 @@ mod tests {
         assert_eq!(claimed.lease_owner.as_deref(), Some("w1"));
 
         // Second claimer finds nothing (single job, actively leased).
-        assert!(matches!(claim_one(&p, &opts("w2")).await, Err(QueueError::NoJob)));
+        assert!(matches!(
+            claim_one(&p, &opts("w2")).await,
+            Err(QueueError::NoJob)
+        ));
 
         complete(&p, &j.id, "w1").await.unwrap();
         let done = get(&p, &j.id).await.unwrap().unwrap();
@@ -313,11 +321,16 @@ mod tests {
     #[tokio::test]
     async fn terminal_writes_are_owner_guarded() {
         let (_d, p) = pool().await;
-        let j = enqueue::<serde_json::Value>(&p, "search_run", None, None).await.unwrap();
+        let j = enqueue::<serde_json::Value>(&p, "search_run", None, None)
+            .await
+            .unwrap();
         claim_one(&p, &opts("w1")).await.unwrap();
 
         // A different owner cannot complete it.
-        assert!(matches!(complete(&p, &j.id, "w2").await, Err(QueueError::NotOwner)));
+        assert!(matches!(
+            complete(&p, &j.id, "w2").await,
+            Err(QueueError::NotOwner)
+        ));
         assert!(matches!(
             fail_final(&p, &j.id, "w2", 1, "err").await,
             Err(QueueError::NotOwner)
@@ -334,19 +347,30 @@ mod tests {
     #[tokio::test]
     async fn retries_cap_at_max_attempts() {
         let (_d, p) = pool().await;
-        let j = enqueue::<serde_json::Value>(&p, "search_run", None, None).await.unwrap();
+        let j = enqueue::<serde_json::Value>(&p, "search_run", None, None)
+            .await
+            .unwrap();
         claim_one(&p, &opts("w1")).await.unwrap();
-        fail_and_retry(&p, &j.id, "w1", MAX_ATTEMPTS, "last").await.unwrap();
+        fail_and_retry(&p, &j.id, "w1", MAX_ATTEMPTS, "last")
+            .await
+            .unwrap();
         let j2 = get(&p, &j.id).await.unwrap().unwrap();
-        assert_eq!(j2.state, "failed", "attempt >= MAX_ATTEMPTS must fail finally");
+        assert_eq!(
+            j2.state, "failed",
+            "attempt >= MAX_ATTEMPTS must fail finally"
+        );
     }
 
     #[tokio::test]
     async fn lease_renewal_requires_ownership() {
         let (_d, p) = pool().await;
-        let j = enqueue::<serde_json::Value>(&p, "search_run", None, None).await.unwrap();
+        let j = enqueue::<serde_json::Value>(&p, "search_run", None, None)
+            .await
+            .unwrap();
         claim_one(&p, &opts("w1")).await.unwrap();
-        assert!(renew_lease(&p, &j.id, "w1", Duration::seconds(30)).await.is_ok());
+        assert!(renew_lease(&p, &j.id, "w1", Duration::seconds(30))
+            .await
+            .is_ok());
         assert!(matches!(
             renew_lease(&p, &j.id, "w2", Duration::seconds(30)).await,
             Err(QueueError::NotOwner)
@@ -356,9 +380,14 @@ mod tests {
     #[tokio::test]
     async fn expired_lease_is_reclaimable() {
         let (_d, p) = pool().await;
-        let j = enqueue::<serde_json::Value>(&p, "search_run", None, None).await.unwrap();
+        let j = enqueue::<serde_json::Value>(&p, "search_run", None, None)
+            .await
+            .unwrap();
         // Claim with a tiny lease, then let it lapse.
-        let short = ClaimOpts { lease_owner: "w1".into(), lease_duration: Duration::milliseconds(5) };
+        let short = ClaimOpts {
+            lease_owner: "w1".into(),
+            lease_duration: Duration::milliseconds(5),
+        };
         claim_one(&p, &short).await.unwrap();
         tokio::time::sleep(std::time::Duration::from_millis(20)).await;
         release_expired_leases(&p).await.unwrap();
@@ -369,9 +398,18 @@ mod tests {
     #[tokio::test]
     async fn future_jobs_not_claimed_early() {
         let (_d, p) = pool().await;
-        enqueue(&p, "search_run", Option::<&serde_json::Value>::None,
-                Some(Utc::now() + Duration::hours(1))).await.unwrap();
-        assert!(matches!(claim_one(&p, &opts("w1")).await, Err(QueueError::NoJob)));
+        enqueue(
+            &p,
+            "search_run",
+            Option::<&serde_json::Value>::None,
+            Some(Utc::now() + Duration::hours(1)),
+        )
+        .await
+        .unwrap();
+        assert!(matches!(
+            claim_one(&p, &opts("w1")).await,
+            Err(QueueError::NoJob)
+        ));
     }
 
     #[test]
@@ -380,7 +418,10 @@ mod tests {
         for attempt in [1, 2, 3, 10, 100] {
             let next = next_backoff(attempt, now);
             let delta = (next - now).num_seconds();
-            assert!((1..=60 + 31).contains(&delta), "attempt {attempt} → {delta}s");
+            assert!(
+                (1..=60 + 31).contains(&delta),
+                "attempt {attempt} → {delta}s"
+            );
         }
     }
 }

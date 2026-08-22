@@ -74,7 +74,10 @@ impl FromRequestParts<AppState> for AuthenticatedUser {
             .extensions
             .get::<AuthContext>()
             .cloned()
-            .map(|ctx| AuthenticatedUser { user: ctx.user, session: ctx.session })
+            .map(|ctx| AuthenticatedUser {
+                user: ctx.user,
+                session: ctx.session,
+            })
             .ok_or(AppError::Unauthorized)
     }
 }
@@ -147,11 +150,7 @@ pub fn client_ip(headers: &HeaderMap) -> String {
 /// failures must never fail closed here, matching the original behaviour.
 ///
 /// Attach with `axum::middleware::from_fn_with_state(state.clone(), load_session)`.
-pub async fn load_session(
-    State(state): State<AppState>,
-    mut req: Request,
-    next: Next,
-) -> Response {
+pub async fn load_session(State(state): State<AppState>, mut req: Request, next: Next) -> Response {
     let Some(sid) = cookie_value(req.headers(), &state.config.session_cookie_name)
         .map(|v| v.trim().to_string())
         .filter(|v| !v.is_empty())
@@ -229,8 +228,12 @@ pub async fn require_role(min_role: &'static str, req: Request, next: Next) -> R
     let Some(ctx) = req.extensions().get::<AuthContext>().cloned() else {
         return AppError::Unauthorized.into_response();
     };
-    let min_rank = crate::state::Role::parse(min_role).map(|r| r.rank()).unwrap_or(0);
-    let rank = crate::state::Role::parse(&ctx.user.role).map(|r| r.rank()).unwrap_or(0);
+    let min_rank = crate::state::Role::parse(min_role)
+        .map(|r| r.rank())
+        .unwrap_or(0);
+    let rank = crate::state::Role::parse(&ctx.user.role)
+        .map(|r| r.rank())
+        .unwrap_or(0);
     if rank < min_rank {
         return AppError::Forbidden.into_response();
     }
@@ -256,18 +259,17 @@ pub fn dummy_password_hash() -> &'static str {
     &DUMMY_HASH
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     use std::sync::Arc;
 
-    use axum::extract::Request;
-    use axum::http::StatusCode;
     use crate::security::secrets::SecretBox;
     use crate::ws::hub::Hub;
     use axum::body::Body;
+    use axum::extract::Request;
+    use axum::http::StatusCode;
     use axum::routing::post;
     use axum::Router;
     use tower::ServiceExt;
@@ -307,8 +309,9 @@ mod tests {
     /// Creates a `role` user + a live session, returning the session id.
     async fn seed_user_with_session(state: &AppState, email: &str, role: &str) -> String {
         let hash = crate::security::password::hash_password("correct-horse-battery").unwrap();
-        let user =
-            crate::storage::users::create(&state.db, email, &hash, "viewer").await.unwrap();
+        let user = crate::storage::users::create(&state.db, email, &hash, "viewer")
+            .await
+            .unwrap();
         let stored_role = if role == "weird" { "superuser" } else { role };
         sqlx::query("UPDATE users SET role = ? WHERE id = ?")
             .bind(stored_role)
@@ -377,25 +380,61 @@ mod tests {
             expected: StatusCode,
         }
         let matrix = [
-            Row { role: "viewer", min: "viewer", expected: StatusCode::OK },
-            Row { role: "operator", min: "viewer", expected: StatusCode::OK },
-            Row { role: "admin", min: "viewer", expected: StatusCode::OK },
-            Row { role: "viewer", min: "operator", expected: StatusCode::FORBIDDEN },
-            Row { role: "operator", min: "operator", expected: StatusCode::OK },
-            Row { role: "admin", min: "operator", expected: StatusCode::OK },
-            Row { role: "viewer", min: "admin", expected: StatusCode::FORBIDDEN },
-            Row { role: "operator", min: "admin", expected: StatusCode::FORBIDDEN },
-            Row { role: "admin", min: "admin", expected: StatusCode::OK },
+            Row {
+                role: "viewer",
+                min: "viewer",
+                expected: StatusCode::OK,
+            },
+            Row {
+                role: "operator",
+                min: "viewer",
+                expected: StatusCode::OK,
+            },
+            Row {
+                role: "admin",
+                min: "viewer",
+                expected: StatusCode::OK,
+            },
+            Row {
+                role: "viewer",
+                min: "operator",
+                expected: StatusCode::FORBIDDEN,
+            },
+            Row {
+                role: "operator",
+                min: "operator",
+                expected: StatusCode::OK,
+            },
+            Row {
+                role: "admin",
+                min: "operator",
+                expected: StatusCode::OK,
+            },
+            Row {
+                role: "viewer",
+                min: "admin",
+                expected: StatusCode::FORBIDDEN,
+            },
+            Row {
+                role: "operator",
+                min: "admin",
+                expected: StatusCode::FORBIDDEN,
+            },
+            Row {
+                role: "admin",
+                min: "admin",
+                expected: StatusCode::OK,
+            },
             // Unknown stored role: denied even for the lowest requirement.
-            Row { role: "weird", min: "viewer", expected: StatusCode::FORBIDDEN },
+            Row {
+                role: "weird",
+                min: "viewer",
+                expected: StatusCode::FORBIDDEN,
+            },
         ];
         for (i, row) in matrix.iter().enumerate() {
-            let sid = seed_user_with_session(
-                &state,
-                &format!("{}{i}@x.test", row.role),
-                row.role,
-            )
-            .await;
+            let sid =
+                seed_user_with_session(&state, &format!("{}{i}@x.test", row.role), row.role).await;
             let token = csrf_of(&state, &sid).await;
             let resp = probe_router(state.clone(), row.min)
                 .oneshot(authed_req("/probe", &sid, &token))
@@ -425,7 +464,9 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
-        let body = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+        let body = axum::body::to_bytes(resp.into_body(), usize::MAX)
+            .await
+            .unwrap();
         assert_eq!(
             serde_json::from_slice::<serde_json::Value>(&body).unwrap()["error"],
             "unauthorized"
@@ -448,15 +489,25 @@ mod tests {
             .oneshot(authed_req("/probe", &sid, ""))
             .await
             .unwrap();
-        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED, "expired session must be anonymous");
+        assert_eq!(
+            resp.status(),
+            StatusCode::UNAUTHORIZED,
+            "expired session must be anonymous"
+        );
 
         let sid2 = seed_user_with_session(&state, "revoked@x.test", "viewer").await;
-        crate::storage::sessions::revoke(&state.db, &sid2).await.unwrap();
+        crate::storage::sessions::revoke(&state.db, &sid2)
+            .await
+            .unwrap();
         let resp = probe_router(state.clone(), "viewer")
             .oneshot(authed_req("/probe", &sid2, ""))
             .await
             .unwrap();
-        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED, "revoked session must be anonymous");
+        assert_eq!(
+            resp.status(),
+            StatusCode::UNAUTHORIZED,
+            "revoked session must be anonymous"
+        );
     }
 
     #[tokio::test]
@@ -467,20 +518,34 @@ mod tests {
         let app = probe_router(state, "viewer");
 
         // Missing token on mutation -> 403 csrf_required.
-        let resp = app.clone().oneshot(authed_req("/probe", &sid, "")).await.unwrap();
+        let resp = app
+            .clone()
+            .oneshot(authed_req("/probe", &sid, ""))
+            .await
+            .unwrap();
         assert_eq!(resp.status(), StatusCode::FORBIDDEN);
-        let body = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+        let body = axum::body::to_bytes(resp.into_body(), usize::MAX)
+            .await
+            .unwrap();
         assert_eq!(
             serde_json::from_slice::<serde_json::Value>(&body).unwrap()["error"],
             "csrf_required"
         );
 
         // Wrong token -> 403 as well.
-        let resp = app.clone().oneshot(authed_req("/probe", &sid, "nope")).await.unwrap();
+        let resp = app
+            .clone()
+            .oneshot(authed_req("/probe", &sid, "nope"))
+            .await
+            .unwrap();
         assert_eq!(resp.status(), StatusCode::FORBIDDEN);
 
         // Correct token -> through to the handler.
-        let resp = app.clone().oneshot(authed_req("/probe", &sid, &token)).await.unwrap();
+        let resp = app
+            .clone()
+            .oneshot(authed_req("/probe", &sid, &token))
+            .await
+            .unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
 
         // Safe methods are exempt from the CSRF gate entirely.
@@ -507,7 +572,11 @@ mod tests {
             )
             .await
             .unwrap();
-        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED, "require_role fires, not csrf");
+        assert_eq!(
+            resp.status(),
+            StatusCode::UNAUTHORIZED,
+            "require_role fires, not csrf"
+        );
     }
 
     #[test]
@@ -538,7 +607,15 @@ mod tests {
 
     #[test]
     fn dummy_hash_verifies_and_rejects() {
-        assert!(crate::security::password::verify_password("rivet-timing-equalizer", dummy_password_hash()).unwrap());
-        assert!(!crate::security::password::verify_password("something-else-long-enough", dummy_password_hash()).unwrap());
+        assert!(crate::security::password::verify_password(
+            "rivet-timing-equalizer",
+            dummy_password_hash()
+        )
+        .unwrap());
+        assert!(!crate::security::password::verify_password(
+            "something-else-long-enough",
+            dummy_password_hash()
+        )
+        .unwrap());
     }
 }

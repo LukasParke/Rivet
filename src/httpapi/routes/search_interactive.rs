@@ -27,13 +27,13 @@ use crate::adapters::{Indexer, ReleaseKind, SearchQuery};
 use crate::domain::formats::{total_score, CustomFormat};
 use crate::error::AppError;
 use crate::httpapi::middleware::auth::Operator;
-use crate::jobs::EnqueuePayload;
 use crate::jobs::handlers::{publish, search_common::load_indexers};
+use crate::jobs::EnqueuePayload;
 use crate::state::AppState;
-use crate::storage::{acquisitions, domain};
 use crate::storage::audit::{self, AuditEvent};
 use crate::storage::jobs;
 use crate::storage::settings;
+use crate::storage::{acquisitions, domain};
 
 /// Hard cap on merged results (releases + error items) returned to the client.
 const MAX_RESULTS: usize = 200;
@@ -41,6 +41,9 @@ const MAX_RESULTS: usize = 200;
 /// Per-indexer result cap. Indexers themselves are clamped to 100 by the
 /// adapter; this keeps the intent explicit for the interactive path.
 const PER_INDEXER_LIMIT: i64 = 100;
+
+/// Settings key holding the wizard-persisted download-client credentials.
+const CLIENTS_SETTING: &str = "setup.clients";
 
 pub fn router() -> Router<AppState> {
     Router::new()
@@ -74,22 +77,33 @@ async fn interactive_search(
         .as_deref()
         .map(str::trim)
         .filter(|s| !s.is_empty())
-        .or_else(|| params.movie_id.as_deref().map(str::trim).filter(|s| !s.is_empty()))
+        .or_else(|| {
+            params
+                .movie_id
+                .as_deref()
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+        })
         .unwrap_or("");
 
     let formats = load_custom_formats(&state.db).await?;
 
     // No indexers configured is an honest empty result. Any other loader
     // failure (e.g. unreadable settings) is a real 500.
-    let indexers: Vec<Arc<dyn Indexer>> = match load_indexers(&state, "interactive", target_id).await {
-        Ok(ix) => ix,
-        Err(e) if e == "no_indexers_configured" => return Ok(Json(Value::Array(Vec::new()))),
-        Err(e) => return Err(AppError::Internal(format!("indexer_load_failed: {e}"))),
-    };
+    let indexers: Vec<Arc<dyn Indexer>> =
+        match load_indexers(&state, "interactive", target_id).await {
+            Ok(ix) => ix,
+            Err(e) if e == "no_indexers_configured" => return Ok(Json(Value::Array(Vec::new()))),
+            Err(e) => return Err(AppError::Internal(format!("indexer_load_failed: {e}"))),
+        };
 
     let searches = indexers.iter().map(|ix| {
         let ix = Arc::clone(ix);
-        let q = SearchQuery { query: query.to_string(), categories: vec![], limit: PER_INDEXER_LIMIT };
+        let q = SearchQuery {
+            query: query.to_string(),
+            categories: vec![],
+            limit: PER_INDEXER_LIMIT,
+        };
         async move { (ix.name().to_string(), ix.search(&q).await) }
     });
     let results = futures_util::future::join_all(searches).await;
@@ -249,7 +263,8 @@ async fn interactive_grab(
         "kind": kind,
         "source": "interactive_search",
     });
-    let cand = domain::insert_candidate(&state.db, &run.id, "interactive", &raw.to_string(), None).await?;
+    let cand =
+        domain::insert_candidate(&state.db, &run.id, "interactive", &raw.to_string(), None).await?;
     domain::set_completed(&state.db, &run.id).await?;
 
     let acq = acquisitions::create_acquisition(
@@ -257,12 +272,11 @@ async fn interactive_grab(
         &cand.id,
         &target_id,
         &kind,
-        "qbittorrent", // pipeline-supported client; enqueue applies dry-run/config
+        &pick_client_kind(&state, &kind).await,
         "manual",
     )
     .await
     .map_err(|e| AppError::Internal(format!("create_failed: {e}")))?;
-
 
     audit::insert(
         &state.db,
@@ -300,7 +314,16 @@ async fn interactive_grab(
         }),
     );
 
-    match jobs::enqueue(&state.db, "acquisition_enqueue", Some(&EnqueuePayload { acquisition_id: acq.id.clone() }), None).await {
+    match jobs::enqueue(
+        &state.db,
+        "acquisition_enqueue",
+        Some(&EnqueuePayload {
+            acquisition_id: acq.id.clone(),
+        }),
+        None,
+    )
+    .await
+    {
         Err(e) => {
             // Acquisition row exists; enqueue failed. Surface the warning
             // honestly instead of pretending the download started.
@@ -343,6 +366,39 @@ async fn interactive_grab(
                 .into_response())
         }
     }
+}
+
+/// Picks the client kind recorded on a grabbed acquisition from the
+/// wizard-persisted `setup.clients` setting: the FIRST configured client among
+/// the pipeline-supported kinds — torrents `qbittorrent|deluge|transmission`,
+/// usenet `nzbget|sabnzbd`. When the setting is absent or malformed — or the
+/// process runs dry-run, where no credentials are needed and the enqueue
+/// pipeline simulates anyway — the historical `qbittorrent` / `nzbget`
+/// fallbacks are kept so a grab never fails on missing client config.
+async fn pick_client_kind(state: &AppState, release_kind: &str) -> String {
+    const TORRENT_ORDER: [&str; 3] = ["qbittorrent", "deluge", "transmission"];
+    const USENET_ORDER: [&str; 2] = ["nzbget", "sabnzbd"];
+    let candidates: &[&str] = if release_kind == "usenet" {
+        &USENET_ORDER
+    } else {
+        &TORRENT_ORDER
+    };
+    let fallback = candidates[0];
+    if state.config.dry_run {
+        return fallback.to_string();
+    }
+    let raw = match settings::get(&state.db, CLIENTS_SETTING).await {
+        Ok(Some(raw)) => raw,
+        _ => return fallback.to_string(),
+    };
+    let Ok(cfg) = serde_json::from_str::<Value>(&raw) else {
+        return fallback.to_string();
+    };
+    candidates
+        .iter()
+        .find(|k| cfg.get(*k).is_some_and(Value::is_object))
+        .map(|k| (*k).to_string())
+        .unwrap_or_else(|| fallback.to_string())
 }
 
 // ---------------------------------------------------------------------------
@@ -428,7 +484,9 @@ mod tests {
     }
 
     async fn body_json(res: axum::http::Response<axum::body::Body>) -> Value {
-        let bytes = axum::body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
+        let bytes = axum::body::to_bytes(res.into_body(), usize::MAX)
+            .await
+            .unwrap();
         serde_json::from_slice(&bytes).unwrap()
     }
 
@@ -519,7 +577,11 @@ mod tests {
         let res = interactive_search(
             operator_user(),
             State(state.clone()),
-            Query(InteractiveSearchParams { query: "dune".into(), series_id: None, movie_id: None }),
+            Query(InteractiveSearchParams {
+                query: "dune".into(),
+                series_id: None,
+                movie_id: None,
+            }),
         )
         .await
         .unwrap();
@@ -540,7 +602,11 @@ mod tests {
         let res = interactive_search(
             operator_user(),
             State(state.clone()),
-            Query(InteractiveSearchParams { query: "x".into(), series_id: None, movie_id: None }),
+            Query(InteractiveSearchParams {
+                query: "x".into(),
+                series_id: None,
+                movie_id: None,
+            }),
         )
         .await
         .unwrap();
@@ -548,7 +614,10 @@ mod tests {
         let items = res.0.as_array().unwrap();
         assert_eq!(items.len(), 1);
         assert_eq!(items[0]["indexer"], "stub");
-        assert!(items[0]["error"].as_str().is_some(), "error surfaced as an item");
+        assert!(
+            items[0]["error"].as_str().is_some(),
+            "error surfaced as an item"
+        );
     }
 
     #[tokio::test]
@@ -580,9 +649,14 @@ mod tests {
         let acq_id = v["acquisitionId"].as_str().unwrap();
         assert!(v["jobId"].as_str().is_some());
 
-        let acq = acquisitions::get(&state.db, acq_id).await.unwrap().expect("row persisted");
+        let acq = acquisitions::get(&state.db, acq_id)
+            .await
+            .unwrap()
+            .expect("row persisted");
         assert_eq!(acq.target_id, t.id);
         assert_eq!(acq.kind, "torrent");
+        // No `setup.clients` seeded: the grab falls back to qbittorrent.
+        assert_eq!(acq.client_kind, "qbittorrent");
 
         // The grab left real provenance: a completed one-candidate run.
         let (raw_json, run_id): (String, String) =
@@ -591,6 +665,7 @@ mod tests {
                 .fetch_one(&state.db)
                 .await
                 .unwrap();
+
         let raw: Value = serde_json::from_str(&raw_json).unwrap();
         assert_eq!(raw["downloadUrl"], "https://example.com/download/high");
         let run = domain::get_search_run(&state.db, &run_id).await.unwrap();
@@ -598,11 +673,12 @@ mod tests {
         assert_eq!(run.target_id, t.id);
 
         // Exactly one queued job wired to the acquisition.
-        let queued =
-            sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM jobs WHERE kind = 'acquisition_enqueue' AND state = 'queued'")
-                .fetch_one(&state.db)
-                .await
-                .unwrap();
+        let queued = sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(*) FROM jobs WHERE kind = 'acquisition_enqueue' AND state = 'queued'",
+        )
+        .fetch_one(&state.db)
+        .await
+        .unwrap();
         assert_eq!(queued, 1);
         let payload: String =
             sqlx::query_scalar("SELECT payload_json FROM jobs WHERE kind = 'acquisition_enqueue'")
@@ -620,6 +696,81 @@ mod tests {
                 .await
                 .unwrap();
         assert_eq!(audits, 1);
+    }
+
+    #[tokio::test]
+    async fn grab_uses_first_configured_client_kind() {
+        let (state, _dir) = test_state().await;
+        seed_operator_user(&state).await;
+        // Only deluge configured: the grab must record it, not the hardcoded
+        // qbittorrent default.
+        let clients = json!({ "deluge": { "url": "http://deluge:8112" } });
+        settings::upsert(&state.db, CLIENTS_SETTING, &clients.to_string())
+            .await
+            .unwrap();
+        let t = domain::create_wanted_target(&state.db, "series", "tvdb", "42", None)
+            .await
+            .unwrap();
+
+        let res = interactive_grab(
+            operator_user(),
+            State(state.clone()),
+            Json(InteractiveGrabRequest {
+                release_title: "Show.Name.S01E05.1080p.WEB-DL.x265".into(),
+                download_url: "magnet:?xt=urn:btih:abc".into(),
+                kind: "torrent".into(),
+                series_id: Some(t.id),
+                movie_id: None,
+                season: None,
+                episodes: None,
+            }),
+        )
+        .await
+        .unwrap();
+        assert_eq!(res.status(), StatusCode::CREATED);
+        let acq_id = body_json(res).await["acquisitionId"]
+            .as_str()
+            .unwrap()
+            .to_string();
+        let acq = acquisitions::get(&state.db, &acq_id)
+            .await
+            .unwrap()
+            .expect("row persisted");
+        assert_eq!(acq.client_kind, "deluge");
+
+        // Usenet grabs pick the first configured usenet client the same way.
+        let usenet = json!({
+            "sabnzbd": { "url": "http://sab:8080" },
+            "nzbget": { "url": "http://nzb:6789" },
+        });
+        settings::upsert(&state.db, CLIENTS_SETTING, &usenet.to_string())
+            .await
+            .unwrap();
+        let res = interactive_grab(
+            operator_user(),
+            State(state.clone()),
+            Json(InteractiveGrabRequest {
+                release_title: "Show.Name.S01E05.NZB".into(),
+                download_url: "https://example.com/nzb".into(),
+                kind: "usenet".into(),
+                series_id: None,
+                movie_id: None,
+                season: None,
+                episodes: None,
+            }),
+        )
+        .await
+        .unwrap();
+        assert_eq!(res.status(), StatusCode::CREATED);
+        let acq_id = body_json(res).await["acquisitionId"]
+            .as_str()
+            .unwrap()
+            .to_string();
+        let acq = acquisitions::get(&state.db, &acq_id)
+            .await
+            .unwrap()
+            .expect("row persisted");
+        assert_eq!(acq.client_kind, "nzbget");
     }
 
     #[tokio::test]
@@ -752,12 +903,13 @@ mod tests {
             .unwrap();
         let (mut parts, _) = req.into_parts();
         parts.extensions.insert(viewer_ctx());
-        let rejection = <Operator as axum::extract::FromRequestParts<AppState>>::from_request_parts(
-            &mut parts, &state,
-        )
-        .await
-        .err()
-        .expect("operator guard must reject viewers");
+        let rejection =
+            <Operator as axum::extract::FromRequestParts<AppState>>::from_request_parts(
+                &mut parts, &state,
+            )
+            .await
+            .err()
+            .expect("operator guard must reject viewers");
         let (code, status) = rejection.code();
         assert_eq!(status, StatusCode::FORBIDDEN);
         assert_eq!(code.to_string(), "forbidden");
@@ -770,11 +922,12 @@ mod tests {
             .unwrap();
         let (mut parts, _) = req.into_parts();
         parts.extensions.insert(viewer_ctx());
-        assert!(<Viewer as axum::extract::FromRequestParts<AppState>>::from_request_parts(
-            &mut parts, &state,
-        )
-        .await
-        .is_ok());
+        assert!(
+            <Viewer as axum::extract::FromRequestParts<AppState>>::from_request_parts(
+                &mut parts, &state,
+            )
+            .await
+            .is_ok()
+        );
     }
-
 }

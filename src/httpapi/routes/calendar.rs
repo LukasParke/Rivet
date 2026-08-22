@@ -113,7 +113,6 @@ async fn calendar_missing(
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
     use super::*;
     use crate::httpapi::middleware::auth::{csrf, load_session};
     use crate::security::secrets::SecretBox;
@@ -123,6 +122,7 @@ mod tests {
     use axum::body::Body;
     use axum::extract::Request;
     use axum::middleware;
+    use std::sync::Arc;
     use tower::ServiceExt;
 
     async fn test_state() -> (AppState, tempfile::TempDir) {
@@ -181,7 +181,9 @@ mod tests {
     }
 
     async fn body_json(res: axum::http::Response<Body>) -> serde_json::Value {
-        let bytes = axum::body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
+        let bytes = axum::body::to_bytes(res.into_body(), usize::MAX)
+            .await
+            .unwrap();
         serde_json::from_slice(&bytes).unwrap()
     }
 
@@ -198,7 +200,13 @@ mod tests {
             ("in_range", 1, "2026-08-23T05:00:00Z", true, false),
             ("out_of_range", 2, "2020-01-05T05:00:00Z", true, false),
             ("aired_missing", 3, "2026-08-20T05:00:00Z", true, false),
-            ("unmonitored_missing", 4, "2026-08-19T05:00:00Z", false, false),
+            (
+                "unmonitored_missing",
+                4,
+                "2026-08-19T05:00:00Z",
+                false,
+                false,
+            ),
         ] {
             sqlx::query(
                 "INSERT INTO episodes (id, series_id, season_number, episode_number, title, \
@@ -271,10 +279,7 @@ mod tests {
             .unwrap();
         assert_eq!(res.status(), StatusCode::OK);
         let items = body_json(res).await.as_array().unwrap().clone();
-        let ids: Vec<&str> = items
-            .iter()
-            .map(|e| e["id"].as_str().unwrap())
-            .collect();
+        let ids: Vec<&str> = items.iter().map(|e| e["id"].as_str().unwrap()).collect();
         // Both are monitored + aired + without file; newest air date first.
         assert_eq!(ids, ["aired_missing", "out_of_range"]);
     }

@@ -59,14 +59,24 @@ fn hotp(key: &[u8], counter: u64, digits: u32) -> String {
     mac.update(&counter.to_be_bytes());
     let digest = mac.finalize().into_bytes();
     let off = (digest[19] & 0x0f) as usize;
-    let code = (u32::from_be_bytes([digest[off], digest[off + 1], digest[off + 2], digest[off + 3]])
-        & 0x7fff_ffff) as u64;
+    let code = (u32::from_be_bytes([
+        digest[off],
+        digest[off + 1],
+        digest[off + 2],
+        digest[off + 3],
+    ]) & 0x7fff_ffff) as u64;
     let modulus = 10u64.pow(digits);
     format!("{:0width$}", code % modulus, width = digits as usize)
 }
 
 /// TOTP for an explicit instant (`now` seconds since `t0`, in `step` buckets).
-pub fn totp_at(secret_b32: &str, digits: u32, step: u64, t0: u64, now: u64) -> Result<String, String> {
+pub fn totp_at(
+    secret_b32: &str,
+    digits: u32,
+    step: u64,
+    t0: u64,
+    now: u64,
+) -> Result<String, String> {
     if step == 0 || !(1..=10).contains(&digits) {
         return Err("invalid totp parameters".into());
     }
@@ -80,10 +90,16 @@ pub fn totp_at(secret_b32: &str, digits: u32, step: u64, t0: u64, now: u64) -> R
 
 /// Current-time convenience wrapper (T0=0, step=30 defaults live at callers).
 pub fn totp_now(secret_b32: &str, digits: u32, step: u64, t0: u64) -> Result<String, String> {
-    totp_at(secret_b32, digits, step, t0, std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map_err(|_| "system clock before unix epoch".to_string())?
-        .as_secs())
+    totp_at(
+        secret_b32,
+        digits,
+        step,
+        t0,
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_err(|_| "system clock before unix epoch".to_string())?
+            .as_secs(),
+    )
 }
 
 /// Verifies `code` against the current or ±`window` adjacent steps
@@ -118,12 +134,20 @@ pub fn verify_at(secret_b32: &str, code: &str, window: u64, now: u64) -> Result<
         return Ok(true);
     }
     for drift in 1..=window {
-        let Some(past) = now.checked_sub(drift * STEP) else { break };
+        let Some(past) = now.checked_sub(drift * STEP) else {
+            break;
+        };
         if subtle_eq(&totp_at(secret_b32, digits, STEP, 0, past)?, code) {
             return Ok(true);
         }
         if subtle_eq(
-            &totp_at(secret_b32, digits, STEP, 0, now.saturating_add(drift * STEP))?,
+            &totp_at(
+                secret_b32,
+                digits,
+                STEP,
+                0,
+                now.saturating_add(drift * STEP),
+            )?,
             code,
         ) {
             return Ok(true);
@@ -147,9 +171,7 @@ fn subtle_eq(a: &str, b: &str) -> bool {
 /// otpauth URI for authenticator provisioning (QR-encodable).
 pub fn otpauth_uri(label_email: &str, secret_b32: &str) -> String {
     let label = label_email.replace(':', "");
-    format!(
-        "otpauth://totp/Rivet:{label}?secret={secret_b32}&issuer=Rivet&digits=6&period=30"
-    )
+    format!("otpauth://totp/Rivet:{label}?secret={secret_b32}&issuer=Rivet&digits=6&period=30")
 }
 
 #[cfg(test)]
@@ -181,11 +203,7 @@ mod tests {
     #[test]
     fn rfc4226_hotp_vectors_via_totp_at() {
         // HOTP vectors expressed as TOTP with one giant step (T=counter*30).
-        let hotp_cases: &[(u64, &str)] = &[
-            (0, "755224"),
-            (1, "287082"),
-            (9, "520489"),
-        ];
+        let hotp_cases: &[(u64, &str)] = &[(0, "755224"), (1, "287082"), (9, "520489")];
         for &(counter, expected) in hotp_cases {
             // Use raw counter via step trick: counter = t/30 with step 30 →
             // instead call hotp directly through totp math by scaling time.
@@ -214,7 +232,10 @@ mod tests {
     fn bad_base32_rejected() {
         assert!(base32_decode("abc1!").is_err());
         assert!(totp_now("not!!valid", 6, 30, 0).is_err());
-        assert!(verify_at("", "123456", 1, 100).is_err(), "empty secret errors");
+        assert!(
+            verify_at("", "123456", 1, 100).is_err(),
+            "empty secret errors"
+        );
     }
 
     #[test]
@@ -233,7 +254,10 @@ mod tests {
             assert_eq!(base32_decode(&enc).unwrap(), data, "roundtrip len={len}");
         }
         assert_eq!(base32_decode("gezd gnbv").unwrap(), b"12345".to_vec());
-        assert_eq!(base32_decode("GEZDGNBV").unwrap(), base32_decode("gezdgnbv").unwrap());
+        assert_eq!(
+            base32_decode("GEZDGNBV").unwrap(),
+            base32_decode("gezdgnbv").unwrap()
+        );
     }
 
     #[test]
@@ -253,13 +277,22 @@ mod tests {
             uri,
             "otpauth://totp/Rivet:user@example.com?secret=JBSWY3DPEHPK3PXP&issuer=Rivet&digits=6&period=30"
         );
-        assert_eq!(otpauth_uri("we:ird", "ABC"), "otpauth://totp/Rivet:weird?secret=ABC&issuer=Rivet&digits=6&period=30");
+        assert_eq!(
+            otpauth_uri("we:ird", "ABC"),
+            "otpauth://totp/Rivet:weird?secret=ABC&issuer=Rivet&digits=6&period=30"
+        );
     }
 
     #[test]
     fn invalid_parameters_rejected() {
         assert!(totp_at(RFC_SECRET, 6, 0, 0, 59).is_err(), "step 0 invalid");
-        assert!(totp_at(RFC_SECRET, 0, 30, 0, 59).is_err(), "digits 0 invalid");
-        assert!(totp_at(RFC_SECRET, 11, 30, 0, 59).is_err(), "digits >10 invalid");
+        assert!(
+            totp_at(RFC_SECRET, 0, 30, 0, 59).is_err(),
+            "digits 0 invalid"
+        );
+        assert!(
+            totp_at(RFC_SECRET, 11, 30, 0, 59).is_err(),
+            "digits >10 invalid"
+        );
     }
 }

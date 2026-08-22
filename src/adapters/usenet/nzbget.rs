@@ -66,7 +66,9 @@ impl NzbGetClient {
         let cfg: NzbGetConfig = serde_json::from_value(cfg_json.clone())
             .map_err(|e| AdapterError::InvalidConfig(e.to_string()))?;
         if cfg.url.trim().is_empty() {
-            return Err(AdapterError::InvalidConfig("nzbget: url is required".into()));
+            return Err(AdapterError::InvalidConfig(
+                "nzbget: url is required".into(),
+            ));
         }
         let base_url = cfg.url.trim_end_matches('/').to_string();
         let target = validate_url(&base_url, policy)
@@ -141,7 +143,9 @@ impl NzbGetClient {
     }
 
     async fn edit(&self, command: &str, nzb_id: i64) -> Result<(), AdapterError> {
-        let result = self.rpc("editqueue", json!([command, "", [nzb_id]])).await?;
+        let result = self
+            .rpc("editqueue", json!([command, "", [nzb_id]]))
+            .await?;
         if result.as_bool() == Some(true) {
             Ok(())
         } else {
@@ -169,7 +173,9 @@ impl NzbGetClient {
         if result.as_str().is_some_and(|v| !v.is_empty()) {
             Ok(())
         } else {
-            Err(AdapterError::Parse("nzbget version: expected string".into()))
+            Err(AdapterError::Parse(
+                "nzbget version: expected string".into(),
+            ))
         }
     }
 }
@@ -368,7 +374,11 @@ fn pinned_client(target: &ValidatedTarget) -> reqwest::Client {
     let port = target
         .url
         .port_or_known_default()
-        .unwrap_or(if target.url.scheme() == "https" { 443 } else { 80 });
+        .unwrap_or(if target.url.scheme() == "https" {
+            443
+        } else {
+            80
+        });
     let resolver = Arc::new(PinnedResolver {
         host: target.url.host_str().unwrap_or_default().to_string(),
         ips: target.ips.clone(),
@@ -404,7 +414,8 @@ impl Resolve for PinnedResolver {
                 Err(Box::new(std::io::Error::new(
                     std::io::ErrorKind::PermissionDenied,
                     "hostname not pinned by SSRF policy",
-                )) as Box<dyn std::error::Error + Send + Sync>)
+                ))
+                    as Box<dyn std::error::Error + Send + Sync>)
             }
         })
     }
@@ -446,7 +457,9 @@ mod tests {
             .mount(&server)
             .await;
         let client = client(&server.uri()).await;
-        crate::adapters::UsenetDownloader::test(&client).await.expect("version check passes");
+        crate::adapters::UsenetDownloader::test(&client)
+            .await
+            .expect("version check passes");
         server.verify().await;
 
         let body = &received_bodies(&server).await[0];
@@ -462,7 +475,10 @@ mod tests {
             .mount(&server)
             .await;
         let client = client(&server.uri()).await;
-        assert!(matches!(crate::adapters::UsenetDownloader::test(&client).await, Err(AdapterError::Auth)));
+        assert!(matches!(
+            crate::adapters::UsenetDownloader::test(&client).await,
+            Err(AdapterError::Auth)
+        ));
     }
 
     #[tokio::test]
@@ -470,14 +486,15 @@ mod tests {
         let server = MockServer::start().await;
         Mock::given(method("POST"))
             .respond_with(
-                ResponseTemplate::new(200).set_body_json(
-                    json!({"error": {"code": 2, "message": "Invalid parameter"}}),
-                ),
+                ResponseTemplate::new(200)
+                    .set_body_json(json!({"error": {"code": 2, "message": "Invalid parameter"}})),
             )
             .mount(&server)
             .await;
         let client = client(&server.uri()).await;
-        let err = crate::adapters::UsenetDownloader::test(&client).await.unwrap_err();
+        let err = crate::adapters::UsenetDownloader::test(&client)
+            .await
+            .unwrap_err();
         assert!(matches!(err, AdapterError::Network(_)));
     }
 
@@ -515,7 +532,10 @@ mod tests {
             .mount(&server)
             .await;
         let client = client(&server.uri()).await;
-        let err = client.add("http://idx.example/a.nzb", None).await.unwrap_err();
+        let err = client
+            .add("http://idx.example/a.nzb", None)
+            .await
+            .unwrap_err();
         assert!(matches!(err, AdapterError::Network(_)));
 
         let body = &received_bodies(&server).await[0];
@@ -527,24 +547,22 @@ mod tests {
         let server = MockServer::start().await;
         Mock::given(method("POST"))
             .and(body_partial_json(json!({"method": "listgroups"})))
-            .respond_with(
-                ResponseTemplate::new(200).set_body_json(json!({
-                    "result": [
-                        {
-                            "NZBID": 1, "NZBName": "Paused.Show", "Status": "PAUSED",
-                            "FileSizeMB": 100, "RemainingSizeMB": 60, "DestDir": "/data/p"
-                        },
-                        {
-                            "NZBID": 2, "NZBName": "Active.Show", "Status": "DOWNLOADING",
-                            "FileSizeMB": 200, "RemainingSizeMB": 50
-                        },
-                        {
-                            "NZBID": 7, "NZBName": "Done.Show", "Status": "PP_FINISHED",
-                            "FileSizeMB": 300, "RemainingSizeMB": 0
-                        }
-                    ]
-                })),
-            )
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "result": [
+                    {
+                        "NZBID": 1, "NZBName": "Paused.Show", "Status": "PAUSED",
+                        "FileSizeMB": 100, "RemainingSizeMB": 60, "DestDir": "/data/p"
+                    },
+                    {
+                        "NZBID": 2, "NZBName": "Active.Show", "Status": "DOWNLOADING",
+                        "FileSizeMB": 200, "RemainingSizeMB": 50
+                    },
+                    {
+                        "NZBID": 7, "NZBName": "Done.Show", "Status": "PP_FINISHED",
+                        "FileSizeMB": 300, "RemainingSizeMB": 0
+                    }
+                ]
+            })))
             .mount(&server)
             .await;
         let client = client(&server.uri()).await;
@@ -574,12 +592,10 @@ mod tests {
     async fn get_info_filters_by_nzbid() {
         let server = MockServer::start().await;
         Mock::given(method("POST"))
-            .respond_with(
-                ResponseTemplate::new(200).set_body_json(json!({
-                    "result": [{"NZBID": 9, "NZBName": "X", "Status": "QUEUED",
-                                "FileSizeMB": 10, "RemainingSizeMB": 10}]
-                })),
-            )
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "result": [{"NZBID": 9, "NZBName": "X", "Status": "QUEUED",
+                            "FileSizeMB": 10, "RemainingSizeMB": 10}]
+            })))
             .mount(&server)
             .await;
         let client = client(&server.uri()).await;
@@ -598,7 +614,9 @@ mod tests {
             .expect(1u64)
             .mount(&server)
             .await;
-        crate::adapters::UsenetDownloader::resume(&client(&server.uri()).await, "5").await.expect("resume ok");
+        crate::adapters::UsenetDownloader::resume(&client(&server.uri()).await, "5")
+            .await
+            .expect("resume ok");
         server.verify().await;
 
         let body = &received_bodies(&server).await[0];
@@ -616,7 +634,9 @@ mod tests {
             .expect(1u64)
             .mount(&server)
             .await;
-        crate::adapters::UsenetDownloader::pause(&client(&server.uri()).await, "6").await.expect("pause ok");
+        crate::adapters::UsenetDownloader::pause(&client(&server.uri()).await, "6")
+            .await
+            .expect("pause ok");
 
         let body = &received_bodies(&server).await[0];
         assert_eq!(body["params"][0], "GroupPause");

@@ -88,8 +88,12 @@ fn parse_encoded(encoded: &str) -> Result<Parsed, PasswordError> {
         }
     }
 
-    let salt = B64.decode(salt_b64).map_err(|_| PasswordError::InvalidEncoding)?;
-    let hash = B64.decode(hash_b64).map_err(|_| PasswordError::InvalidEncoding)?;
+    let salt = B64
+        .decode(salt_b64)
+        .map_err(|_| PasswordError::InvalidEncoding)?;
+    let hash = B64
+        .decode(hash_b64)
+        .map_err(|_| PasswordError::InvalidEncoding)?;
     if salt.len() < 8 || hash.is_empty() {
         return Err(PasswordError::InvalidEncoding);
     }

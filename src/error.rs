@@ -56,9 +56,10 @@ impl AppError {
             AppError::CsrfRequired => (CowCode::Static("csrf_required"), StatusCode::FORBIDDEN),
             AppError::Conflict(c) => (CowCode::Owned(c.clone()), StatusCode::CONFLICT),
             AppError::Upstream(_) => (CowCode::Static("upstream_error"), StatusCode::BAD_GATEWAY),
-            AppError::Db(_) | AppError::Internal(_) => {
-                (CowCode::Static("internal_error"), StatusCode::INTERNAL_SERVER_ERROR)
-            }
+            AppError::Db(_) | AppError::Internal(_) => (
+                CowCode::Static("internal_error"),
+                StatusCode::INTERNAL_SERVER_ERROR,
+            ),
         }
     }
 }

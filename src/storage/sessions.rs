@@ -125,8 +125,12 @@ mod tests {
     #[tokio::test]
     async fn create_get_revoke() {
         let (_d, p) = pool().await;
-        let u = crate::storage::users::create(&p, "a@b.c", "argon2id$hash", "admin").await.unwrap();
-        let s = create(&p, &u.id, Duration::hours(1), None, None).await.unwrap();
+        let u = crate::storage::users::create(&p, "a@b.c", "argon2id$hash", "admin")
+            .await
+            .unwrap();
+        let s = create(&p, &u.id, Duration::hours(1), None, None)
+            .await
+            .unwrap();
         assert_eq!(s.csrf_token.len(), 43, "32 bytes base64-nopad = 43 chars");
         let got = get(&p, &s.id).await.unwrap().unwrap();
         assert_eq!(got.user_id, u.id);
@@ -138,8 +142,12 @@ mod tests {
     #[tokio::test]
     async fn expired_sessions_purged() {
         let (_d, p) = pool().await;
-        let u = crate::storage::users::create(&p, "a@b.c", "argon2id$hash", "admin").await.unwrap();
-        let s = create(&p, &u.id, Duration::milliseconds(1), None, None).await.unwrap();
+        let u = crate::storage::users::create(&p, "a@b.c", "argon2id$hash", "admin")
+            .await
+            .unwrap();
+        let s = create(&p, &u.id, Duration::milliseconds(1), None, None)
+            .await
+            .unwrap();
         tokio::time::sleep(std::time::Duration::from_millis(10)).await;
         let n = delete_expired(&p, Duration::zero()).await.unwrap();
         assert_eq!(n, 1);

@@ -99,9 +99,10 @@ impl TransmissionClient {
         let target = validate_url(&url, policy)
             .await
             .map_err(|e| AdapterError::InvalidConfig(format!("transmission url rejected: {e}")))?;
-        let rpc_url = target.url.join(RPC_PATH).map_err(|e| {
-            AdapterError::InvalidConfig(format!("transmission url invalid: {e}"))
-        })?;
+        let rpc_url = target
+            .url
+            .join(RPC_PATH)
+            .map_err(|e| AdapterError::InvalidConfig(format!("transmission url invalid: {e}")))?;
 
         Ok(Arc::new(TransmissionClient {
             target,
@@ -175,11 +176,7 @@ impl TransmissionClient {
 
     async fn torrent_get(&self, extra_args: Value) -> Result<Vec<TorrentInfo>, AdapterError> {
         let mut args = json!({"fields": TORRENT_FIELDS});
-        for (k, v) in extra_args
-            .as_object()
-            .into_iter()
-            .flatten()
-        {
+        for (k, v) in extra_args.as_object().into_iter().flatten() {
             args[k] = v.clone();
         }
         let arguments = self.request("torrent-get", args).await?;
@@ -234,10 +231,7 @@ fn torrent_to_info(t: &Value) -> Result<TorrentInfo, AdapterError> {
             .to_string(),
         progress,
         state: map_status(status, progress),
-        size_bytes: obj
-            .get("totalSize")
-            .and_then(Value::as_i64)
-            .unwrap_or(0),
+        size_bytes: obj.get("totalSize").and_then(Value::as_i64).unwrap_or(0),
         downloaded_bytes: obj
             .get("downloadedEver")
             .and_then(Value::as_i64)
@@ -358,7 +352,11 @@ fn build_pinned_client(target: &ValidatedTarget, timeout: Duration) -> reqwest::
     let port = target
         .url
         .port_or_known_default()
-        .unwrap_or(if target.url.scheme() == "https" { 443 } else { 80 });
+        .unwrap_or(if target.url.scheme() == "https" {
+            443
+        } else {
+            80
+        });
     let resolver = Arc::new(PinnedResolver {
         host: target.url.host_str().unwrap_or_default().to_string(),
         ips: target.ips.clone(),
@@ -396,7 +394,8 @@ mod tests {
     }
 
     fn tr_body(arguments: Value) -> ResponseTemplate {
-        ResponseTemplate::new(200).set_body_json(json!({"result": "success", "arguments": arguments}))
+        ResponseTemplate::new(200)
+            .set_body_json(json!({"result": "success", "arguments": arguments}))
     }
 
     fn conflict() -> ResponseTemplate {
@@ -554,7 +553,10 @@ mod tests {
         let client = TransmissionClient::new(&cfg(&server.uri()), OutboundPolicy::dev())
             .await
             .unwrap();
-        let added = client.add_url("https://example.org/debian.torrent").await.unwrap();
+        let added = client
+            .add_url("https://example.org/debian.torrent")
+            .await
+            .unwrap();
         assert_eq!(added.as_deref(), Some("5"));
     }
 

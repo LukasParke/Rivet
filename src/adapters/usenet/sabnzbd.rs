@@ -66,7 +66,9 @@ impl SabNzbdClient {
         let cfg: SabNzbdConfig = serde_json::from_value(cfg_json.clone())
             .map_err(|e| AdapterError::InvalidConfig(e.to_string()))?;
         if cfg.url.trim().is_empty() {
-            return Err(AdapterError::InvalidConfig("sabnzbd: url is required".into()));
+            return Err(AdapterError::InvalidConfig(
+                "sabnzbd: url is required".into(),
+            ));
         }
         let has_api_key = cfg.api_key.as_deref().is_some_and(|k| !k.is_empty());
         let has_basic = cfg.username.as_deref().is_some_and(|u| !u.is_empty())
@@ -120,7 +122,10 @@ impl SabNzbdClient {
         let body = self
             .request(
                 "addurl",
-                &[("name", nzb_url), ("cat", category.unwrap_or(DEFAULT_CATEGORY))],
+                &[
+                    ("name", nzb_url),
+                    ("cat", category.unwrap_or(DEFAULT_CATEGORY)),
+                ],
             )
             .await?;
         if body.get("status").and_then(Value::as_bool) != Some(true) {
@@ -137,7 +142,8 @@ impl SabNzbdClient {
     }
 
     async fn all(&self) -> Result<Vec<TorrentInfo>, AdapterError> {
-        let (queue, history) = tokio::try_join!(self.request("queue", &[]), self.request("history", &[]))?;
+        let (queue, history) =
+            tokio::try_join!(self.request("queue", &[]), self.request("history", &[]))?;
         let mut infos = Vec::new();
         for slot in slots(&queue, "queue") {
             if let Some(info) = queue_slot_to_info(slot) {
@@ -188,10 +194,16 @@ impl SabNzbdClient {
 
     async fn ping(&self) -> Result<(), AdapterError> {
         let body = self.request("version", &[]).await?;
-        if body.get("version").and_then(Value::as_str).is_some_and(|v| !v.is_empty()) {
+        if body
+            .get("version")
+            .and_then(Value::as_str)
+            .is_some_and(|v| !v.is_empty())
+        {
             Ok(())
         } else {
-            Err(AdapterError::Parse("sabnzbd version: expected string".into()))
+            Err(AdapterError::Parse(
+                "sabnzbd version: expected string".into(),
+            ))
         }
     }
 }
@@ -321,7 +333,11 @@ fn queue_slot_to_info(slot: &Value) -> Option<TorrentInfo> {
     }
     let name = {
         let n = str_field(slot, "filename");
-        if n.is_empty() { str_field(slot, "name") } else { n }
+        if n.is_empty() {
+            str_field(slot, "name")
+        } else {
+            n
+        }
     };
     let status = str_field(slot, "status");
     let mb = num_field(slot, "mb");
@@ -387,7 +403,11 @@ fn pinned_client(target: &ValidatedTarget) -> reqwest::Client {
     let port = target
         .url
         .port_or_known_default()
-        .unwrap_or(if target.url.scheme() == "https" { 443 } else { 80 });
+        .unwrap_or(if target.url.scheme() == "https" {
+            443
+        } else {
+            80
+        });
     let resolver = Arc::new(PinnedResolver {
         host: target.url.host_str().unwrap_or_default().to_string(),
         ips: target.ips.clone(),
@@ -423,7 +443,8 @@ impl Resolve for PinnedResolver {
                 Err(Box::new(std::io::Error::new(
                     std::io::ErrorKind::PermissionDenied,
                     "hostname not pinned by SSRF policy",
-                )) as Box<dyn std::error::Error + Send + Sync>)
+                ))
+                    as Box<dyn std::error::Error + Send + Sync>)
             }
         })
     }
@@ -473,13 +494,13 @@ mod tests {
             .and(query_param("mode", "version"))
             .and(query_param("output", "json"))
             .and(query_param("apikey", "secret"))
-            .respond_with(
-                ResponseTemplate::new(200).set_body_json(json!({"version": "4.3.2"})),
-            )
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({"version": "4.3.2"})))
             .expect(1u64)
             .mount(&server)
             .await;
-        crate::adapters::UsenetDownloader::test(&client(&server.uri()).await).await.expect("version ok");
+        crate::adapters::UsenetDownloader::test(&client(&server.uri()).await)
+            .await
+            .expect("version ok");
         server.verify().await;
     }
 
@@ -493,7 +514,10 @@ mod tests {
             .mount(&server)
             .await;
         let client = client(&server.uri()).await;
-        assert!(matches!(crate::adapters::UsenetDownloader::test(&client).await, Err(AdapterError::Auth)));
+        assert!(matches!(
+            crate::adapters::UsenetDownloader::test(&client).await,
+            Err(AdapterError::Auth)
+        ));
     }
 
     #[tokio::test]
@@ -509,7 +533,10 @@ mod tests {
         )
         .await
         .expect("client connects");
-        assert!(matches!(crate::adapters::UsenetDownloader::test(&client).await, Err(AdapterError::Auth)));
+        assert!(matches!(
+            crate::adapters::UsenetDownloader::test(&client).await,
+            Err(AdapterError::Auth)
+        ));
     }
 
     #[tokio::test]
@@ -559,7 +586,10 @@ mod tests {
             .mount(&server)
             .await;
         let client = client(&server.uri()).await;
-        let err = client.add("http://idx.example/a.nzb", None).await.unwrap_err();
+        let err = client
+            .add("http://idx.example/a.nzb", None)
+            .await
+            .unwrap_err();
         assert!(matches!(err, AdapterError::Parse(_)));
     }
 
@@ -571,7 +601,10 @@ mod tests {
             .mount(&server)
             .await;
         let client = client(&server.uri()).await;
-        let err = client.add("http://idx.example/a.nzb", None).await.unwrap_err();
+        let err = client
+            .add("http://idx.example/a.nzb", None)
+            .await
+            .unwrap_err();
         assert!(matches!(err, AdapterError::Network(_)));
     }
 
@@ -580,38 +613,34 @@ mod tests {
         let server = MockServer::start().await;
         Mock::given(method("GET"))
             .and(query_param("mode", "queue"))
-            .respond_with(
-                ResponseTemplate::new(200).set_body_json(json!({
-                    "queue": {"status": "Downloading", "slots": [
-                        {
-                            "nzo_id": "Q1", "filename": "Paused.Show", "status": "Paused",
-                            "mb": 100.0, "mbleft": 100.0
-                        },
-                        {
-                            "nzo_id": "Q2", "filename": "Active.Show", "status": "Downloading",
-                            "mb": 200.0, "mbleft": 50.0
-                        }
-                    ]}
-                })),
-            )
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "queue": {"status": "Downloading", "slots": [
+                    {
+                        "nzo_id": "Q1", "filename": "Paused.Show", "status": "Paused",
+                        "mb": 100.0, "mbleft": 100.0
+                    },
+                    {
+                        "nzo_id": "Q2", "filename": "Active.Show", "status": "Downloading",
+                        "mb": 200.0, "mbleft": 50.0
+                    }
+                ]}
+            })))
             .mount(&server)
             .await;
         Mock::given(method("GET"))
             .and(query_param("mode", "history"))
-            .respond_with(
-                ResponseTemplate::new(200).set_body_json(json!({
-                    "history": {"slots": [
-                        {
-                            "nzo_id": "H1", "name": "Done.Show", "status": "Completed",
-                            "mb": 300.0, "mbleft": 0.0, "storage": "/data/done/Done.Show"
-                        },
-                        {
-                            "nzo_id": "H2", "name": "Broke.Show", "status": "Failed",
-                            "mb": 40.0, "mbleft": 20.0
-                        }
-                    ]}
-                })),
-            )
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "history": {"slots": [
+                    {
+                        "nzo_id": "H1", "name": "Done.Show", "status": "Completed",
+                        "mb": 300.0, "mbleft": 0.0, "storage": "/data/done/Done.Show"
+                    },
+                    {
+                        "nzo_id": "H2", "name": "Broke.Show", "status": "Failed",
+                        "mb": 40.0, "mbleft": 20.0
+                    }
+                ]}
+            })))
             .mount(&server)
             .await;
         let client = client(&server.uri()).await;
@@ -644,14 +673,12 @@ mod tests {
         let server = MockServer::start().await;
         Mock::given(method("GET"))
             .and(query_param("mode", "queue"))
-            .respond_with(
-                ResponseTemplate::new(200).set_body_json(json!({
-                    "queue": {"slots": [
-                        {"nzo_id": "Q9", "filename": "X.Show", "status": "Queued",
-                         "mb": 10.0, "mbleft": 10.0}
-                    ]}
-                })),
-            )
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "queue": {"slots": [
+                    {"nzo_id": "Q9", "filename": "X.Show", "status": "Queued",
+                     "mb": 10.0, "mbleft": 10.0}
+                ]}
+            })))
             .mount(&server)
             .await;
         Mock::given(method("GET"))
@@ -686,8 +713,12 @@ mod tests {
             .mount(&server)
             .await;
         let client = client(&server.uri()).await;
-        crate::adapters::UsenetDownloader::pause(&client, "Q1").await.expect("pause ok");
-        crate::adapters::UsenetDownloader::resume(&client, "Q1").await.expect("resume ok");
+        crate::adapters::UsenetDownloader::pause(&client, "Q1")
+            .await
+            .expect("pause ok");
+        crate::adapters::UsenetDownloader::resume(&client, "Q1")
+            .await
+            .expect("resume ok");
         server.verify().await;
 
         let queries = received_queries(&server).await;

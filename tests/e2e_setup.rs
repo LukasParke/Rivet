@@ -53,7 +53,9 @@ async fn app(state: AppState) -> axum::Router {
 }
 
 async fn body_json(res: axum::response::Response) -> Value {
-    let bytes = axum::body::to_bytes(res.into_body(), 1 << 20).await.unwrap();
+    let bytes = axum::body::to_bytes(res.into_body(), 1 << 20)
+        .await
+        .unwrap();
     serde_json::from_slice(&bytes).unwrap_or(Value::Null)
 }
 
@@ -63,9 +65,8 @@ fn cookie_of(res: &axum::response::Response) -> Option<String> {
         .iter()
         .find_map(|v| {
             let s = v.to_str().ok()?;
-            s.strip_prefix("rivet_session=").map(|rest| {
-                rest.split(';').next().unwrap_or(rest).to_string()
-            })
+            s.strip_prefix("rivet_session=")
+                .map(|rest| rest.split(';').next().unwrap_or(rest).to_string())
         })
 }
 
@@ -77,7 +78,11 @@ async fn first_run_full_wizard_flow() {
     // 1. Setup status is public and reports setup mode.
     let res = app
         .clone()
-        .oneshot(Request::get("/api/v1/setup/status").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/api/v1/setup/status")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::OK);
@@ -88,7 +93,11 @@ async fn first_run_full_wizard_flow() {
     // 2. Non-setup APIs are gated while no users exist.
     let res = app
         .clone()
-        .oneshot(Request::get("/api/v1/acquisitions").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/api/v1/acquisitions")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::FORBIDDEN);
@@ -124,10 +133,17 @@ async fn first_run_full_wizard_flow() {
         )
         .await
         .unwrap();
-    assert_eq!(res.status(), StatusCode::OK, "immediate post-admin login must not race the gate");
+    assert_eq!(
+        res.status(),
+        StatusCode::OK,
+        "immediate post-admin login must not race the gate"
+    );
     let session_cookie = cookie_of(&res).expect("session cookie set");
     let login = body_json(res).await;
-    let csrf = login["token"].as_str().expect("csrf token in login response").to_string();
+    let csrf = login["token"]
+        .as_str()
+        .expect("csrf token in login response")
+        .to_string();
 
     // 5. Second admin creation is a conflict.
     let res = app
@@ -199,7 +215,11 @@ async fn first_run_full_wizard_flow() {
     let probe = std::fs::read_dir("/tmp")
         .unwrap()
         .filter_map(|e| e.ok())
-        .any(|e| e.file_name().to_string_lossy().starts_with(".rivet_write_test"));
+        .any(|e| {
+            e.file_name()
+                .to_string_lossy()
+                .starts_with(".rivet_write_test")
+        });
     assert!(!probe, "dry-run must not write probe files");
 
     let res = app
@@ -245,7 +265,13 @@ async fn first_run_full_wizard_flow() {
         .unwrap();
     assert_eq!(res.status(), StatusCode::OK);
     let acquisitions = body_json(res).await;
-    assert!(acquisitions.is_null() || acquisitions.as_array().map(|a| a.is_empty()).unwrap_or(false));
+    assert!(
+        acquisitions.is_null()
+            || acquisitions
+                .as_array()
+                .map(|a| a.is_empty())
+                .unwrap_or(false)
+    );
 
     // 11. Logout revokes the session.
     let res = app
@@ -269,7 +295,11 @@ async fn first_run_full_wizard_flow() {
         )
         .await
         .unwrap();
-    assert_eq!(res.status(), StatusCode::UNAUTHORIZED, "revoked session rejected");
+    assert_eq!(
+        res.status(),
+        StatusCode::UNAUTHORIZED,
+        "revoked session rejected"
+    );
 }
 
 #[tokio::test]
@@ -280,7 +310,9 @@ async fn weak_admin_password_rejected() {
         .oneshot(
             Request::post("/api/v1/setup/admin")
                 .header("content-type", "application/json")
-                .body(Body::from(json!({"email": "a@b.c", "password": "short"}).to_string()))
+                .body(Body::from(
+                    json!({"email": "a@b.c", "password": "short"}).to_string(),
+                ))
                 .unwrap(),
         )
         .await
@@ -312,7 +344,14 @@ async fn viewer_role_cannot_create_targets() {
     assert_eq!(res.status(), StatusCode::CREATED);
 
     // Promote a viewer directly in storage (no registration endpoint by design).
-    let viewer = rivet::storage::users::create(&state.db, "v@example.com", "argon2id$placeholder-hash-value", "viewer").await.unwrap();
+    let viewer = rivet::storage::users::create(
+        &state.db,
+        "v@example.com",
+        "argon2id$placeholder-hash-value",
+        "viewer",
+    )
+    .await
+    .unwrap();
 
     // Forge a session for the viewer.
     let sess = rivet::storage::sessions::create(
@@ -339,5 +378,9 @@ async fn viewer_role_cannot_create_targets() {
         )
         .await
         .unwrap();
-    assert_eq!(res.status(), StatusCode::FORBIDDEN, "viewer must not create targets");
+    assert_eq!(
+        res.status(),
+        StatusCode::FORBIDDEN,
+        "viewer must not create targets"
+    );
 }

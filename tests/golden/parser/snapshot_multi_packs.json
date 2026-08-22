@@ -46,15 +46,11 @@
     ],
     "episodes": [
       4,
-      5,
       6
     ],
     "absoluteEpisodes": [],
     "fullSeason": false,
-    "episodeRange": [
-      4,
-      6
-    ],
+    "episodeRange": null,
     "daily": false,
     "airDate": null,
     "quality": {
@@ -139,11 +135,21 @@
       1
     ],
     "episodes": [
-      1
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8
     ],
     "absoluteEpisodes": [],
     "fullSeason": false,
-    "episodeRange": null,
+    "episodeRange": [
+      1,
+      8
+    ],
     "daily": false,
     "airDate": null,
     "quality": {

@@ -58,7 +58,10 @@ mod tests {
         assert!(rl.allow("ip1", t0));
         assert!(rl.allow("ip1", t0));
         assert!(rl.allow("ip1", t0));
-        assert!(!rl.allow("ip1", t0), "4th attempt in window must be blocked");
+        assert!(
+            !rl.allow("ip1", t0),
+            "4th attempt in window must be blocked"
+        );
         // Other keys unaffected.
         assert!(rl.allow("ip2", t0));
         // After the window, allowed again.

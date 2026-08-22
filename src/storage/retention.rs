@@ -5,7 +5,6 @@
 //! [`crate::storage::jobs::prune_finished`] so the cutoff semantics stay in
 //! exactly one place per table.
 
-
 use chrono::{Duration, Utc};
 use serde::Serialize;
 use sqlx::SqlitePool;
@@ -157,7 +156,9 @@ mod tests {
         let t = crate::storage::domain::create_wanted_target(p, "movie", "tmdb", "1", None)
             .await
             .unwrap();
-        let run = crate::storage::domain::create_search_run(p, &t.id).await.unwrap();
+        let run = crate::storage::domain::create_search_run(p, &t.id)
+            .await
+            .unwrap();
         let completed_at = completed_days_ago.map(days_ago);
         if let Some(ca) = &completed_at {
             sqlx::query("UPDATE search_runs SET status = ?, completed_at = ? WHERE id = ?")
@@ -175,10 +176,9 @@ mod tests {
                 .await
                 .unwrap();
         }
-        let cand =
-            crate::storage::domain::insert_candidate(p, &run.id, "idx", r#"{}"#, None)
-                .await
-                .unwrap();
+        let cand = crate::storage::domain::insert_candidate(p, &run.id, "idx", r#"{}"#, None)
+            .await
+            .unwrap();
         crate::storage::domain::insert_decision(p, &cand.id, true, 10, &["ok".into()])
             .await
             .unwrap();
@@ -190,7 +190,12 @@ mod tests {
         let (_d, p) = pool().await;
         let counts = run_retention(&p).await.unwrap();
         assert_eq!(
-            (counts.sessions, counts.jobs, counts.audit_events, counts.release_candidates),
+            (
+                counts.sessions,
+                counts.jobs,
+                counts.audit_events,
+                counts.release_candidates
+            ),
             (0, 0, 0, 0)
         );
     }
@@ -206,15 +211,9 @@ mod tests {
         let old_expired = seed_session(&p, &u.id, 8).await;
         let fresh_expired = seed_session(&p, &u.id, 3).await;
         let active = {
-            let s = sessions::create(
-                &p,
-                &u.id,
-                Duration::hours(1),
-                None,
-                None,
-            )
-            .await
-            .unwrap();
+            let s = sessions::create(&p, &u.id, Duration::hours(1), None, None)
+                .await
+                .unwrap();
             s.id
         };
 
@@ -238,7 +237,10 @@ mod tests {
 
         assert!(jobs::get(&p, &dead_job).await.unwrap().is_none());
         assert!(jobs::get(&p, &fresh_done).await.unwrap().is_some());
-        assert!(jobs::get(&p, &queued_old).await.unwrap().is_some(), "queued jobs never pruned");
+        assert!(
+            jobs::get(&p, &queued_old).await.unwrap().is_some(),
+            "queued jobs never pruned"
+        );
     }
 
     #[tokio::test]
@@ -250,7 +252,10 @@ mod tests {
         let (_, running_run, running_cand) = seed_run(&p, "running", None).await;
 
         let counts = run_retention(&p).await.unwrap();
-        assert_eq!(counts.release_candidates, 1, "only the >90d completed run is swept");
+        assert_eq!(
+            counts.release_candidates, 1,
+            "only the >90d completed run is swept"
+        );
 
         for (run_id, cand_id) in [
             (&old_run, &old_cand),

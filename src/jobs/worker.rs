@@ -151,7 +151,15 @@ async fn heartbeat_loop(pool: SqlitePool, job_id: String, owner: String) {
     tick.tick().await; // first tick fires immediately; skip it
     loop {
         tick.tick().await;
-        match jobs::renew_lease(&pool, &job_id, &owner, chrono::Duration::from_std(LEASE_DURATION).unwrap_or_else(|_| chrono::Duration::seconds(30))).await {
+        match jobs::renew_lease(
+            &pool,
+            &job_id,
+            &owner,
+            chrono::Duration::from_std(LEASE_DURATION)
+                .unwrap_or_else(|_| chrono::Duration::seconds(30)),
+        )
+        .await
+        {
             Ok(()) => {}
             Err(jobs::QueueError::NotOwner) => return,
             Err(e) => {
@@ -227,7 +235,8 @@ mod tests {
             &state.db,
             &ClaimOpts {
                 lease_owner: owner.clone(),
-                lease_duration: chrono::Duration::from_std(LEASE_DURATION).unwrap_or_else(|_| chrono::Duration::seconds(30)),
+                lease_duration: chrono::Duration::from_std(LEASE_DURATION)
+                    .unwrap_or_else(|_| chrono::Duration::seconds(30)),
             },
         )
         .await
@@ -278,7 +287,8 @@ mod tests {
                 &state.db,
                 &ClaimOpts {
                     lease_owner: owner.clone(),
-                    lease_duration: chrono::Duration::from_std(LEASE_DURATION).unwrap_or_else(|_| chrono::Duration::seconds(30)),
+                    lease_duration: chrono::Duration::from_std(LEASE_DURATION)
+                        .unwrap_or_else(|_| chrono::Duration::seconds(30)),
                 },
             )
             .await
@@ -307,7 +317,8 @@ mod tests {
             &state.db,
             &ClaimOpts {
                 lease_owner: owner.clone(),
-                lease_duration: chrono::Duration::from_std(LEASE_DURATION).unwrap_or_else(|_| chrono::Duration::seconds(30)),
+                lease_duration: chrono::Duration::from_std(LEASE_DURATION)
+                    .unwrap_or_else(|_| chrono::Duration::seconds(30)),
             },
         )
         .await
@@ -329,7 +340,8 @@ mod tests {
             &state.db,
             &ClaimOpts {
                 lease_owner: owner.clone(),
-                lease_duration: chrono::Duration::from_std(LEASE_DURATION).unwrap_or_else(|_| chrono::Duration::seconds(30)),
+                lease_duration: chrono::Duration::from_std(LEASE_DURATION)
+                    .unwrap_or_else(|_| chrono::Duration::seconds(30)),
             },
         )
         .await;
@@ -352,7 +364,8 @@ mod tests {
             &state.db,
             &ClaimOpts {
                 lease_owner: owner.clone(),
-                lease_duration: chrono::Duration::from_std(LEASE_DURATION).unwrap_or_else(|_| chrono::Duration::seconds(30)),
+                lease_duration: chrono::Duration::from_std(LEASE_DURATION)
+                    .unwrap_or_else(|_| chrono::Duration::seconds(30)),
             },
         )
         .await
@@ -408,7 +421,8 @@ mod tests {
             &state.db,
             &ClaimOpts {
                 lease_owner: fresh_owner,
-                lease_duration: chrono::Duration::from_std(LEASE_DURATION).unwrap_or_else(|_| chrono::Duration::seconds(30)),
+                lease_duration: chrono::Duration::from_std(LEASE_DURATION)
+                    .unwrap_or_else(|_| chrono::Duration::seconds(30)),
             },
         )
         .await
@@ -434,7 +448,8 @@ mod tests {
                 &state.db,
                 &ClaimOpts {
                     lease_owner: (*owner).clone(),
-                    lease_duration: chrono::Duration::from_std(LEASE_DURATION).unwrap_or_else(|_| chrono::Duration::seconds(30)),
+                    lease_duration: chrono::Duration::from_std(LEASE_DURATION)
+                        .unwrap_or_else(|_| chrono::Duration::seconds(30)),
                 },
             )
             .await

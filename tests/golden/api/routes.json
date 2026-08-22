@@ -99,6 +99,26 @@
     },
     {
       "method": "GET",
+      "path": "/api/v1/history"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/movies"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/movies"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/movies/{id}"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/movies/{id}/monitor"
+    },
+    {
+      "method": "GET",
       "path": "/api/v1/notifications"
     },
     {
@@ -116,6 +136,14 @@
     {
       "method": "POST",
       "path": "/api/v1/notifications/{id}/test"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/qualityprofiles"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/qualityprofiles"
     },
     {
       "method": "GET",
@@ -144,6 +172,26 @@
     {
       "method": "GET",
       "path": "/api/v1/search/runs/{id}"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/series"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/series"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/series/{id}"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/series/{id}"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/series/{id}/monitor"
     },
     {
       "method": "POST",
@@ -212,6 +260,14 @@
     {
       "method": "GET",
       "path": "/api/v1/system/backups"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/system/backups/{name}/download"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/system/backups/{name}/restore"
     },
     {
       "method": "GET",

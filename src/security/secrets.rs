@@ -4,8 +4,8 @@
 
 use aes_gcm::aead::{Aead, KeyInit, Payload};
 use aes_gcm::{Aes256Gcm, Nonce};
-use base64::engine::general_purpose::STANDARD_NO_PAD as B64;
 use base64::engine::general_purpose::STANDARD as B64_PAD;
+use base64::engine::general_purpose::STANDARD_NO_PAD as B64;
 use base64::Engine;
 
 #[derive(Debug, thiserror::Error)]
@@ -60,13 +60,21 @@ impl SecretBox {
         rand::rngs::OsRng.fill_bytes(&mut nonce_bytes);
         let nonce = Nonce::from_slice(&nonce_bytes);
         let ct = cipher
-            .encrypt(nonce, Payload { msg: plaintext, aad: &[] })
+            .encrypt(
+                nonce,
+                Payload {
+                    msg: plaintext,
+                    aad: &[],
+                },
+            )
             .map_err(|_| SecretBoxError::Crypto)?;
         Ok(B64.encode([&nonce_bytes[..], ct.as_slice()].concat()))
     }
 
     pub fn decrypt_string(&self, enc: &str) -> Result<Vec<u8>, SecretBoxError> {
-        let buf = B64.decode(enc.trim()).map_err(|_| SecretBoxError::InvalidCiphertext)?;
+        let buf = B64
+            .decode(enc.trim())
+            .map_err(|_| SecretBoxError::InvalidCiphertext)?;
         if buf.len() < 12 {
             return Err(SecretBoxError::InvalidCiphertext);
         }

@@ -1,7 +1,7 @@
 [
   {
     "kind": "series",
-    "title": "[Group] Anime Title [1234] [1080p] [HEVC]",
+    "title": "Anime Title",
     "year": null,
     "seasons": [],
     "episodes": [],
@@ -30,7 +30,7 @@
   },
   {
     "kind": "series",
-    "title": "[SubsHere] Show Name 0048 [1080p][x265]",
+    "title": "Show Name",
     "year": null,
     "seasons": [],
     "episodes": [],
@@ -59,7 +59,7 @@
   },
   {
     "kind": "series",
-    "title": "One Piece [1100]",
+    "title": "One Piece",
     "year": null,
     "seasons": [],
     "episodes": [],

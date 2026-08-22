@@ -4,7 +4,6 @@
 //! the setup gate ([`SetupGate::notify_user_created`]) so the frontend's
 //! immediate login cannot lose the periodic-refresh race.
 
-
 use axum::extract::State;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
@@ -15,8 +14,8 @@ use crate::error::AppError;
 use crate::httpapi::middleware::setup_gate;
 use crate::security::password;
 use crate::state::AppState;
-use crate::ws::hub::PublishExt;
 use crate::storage::audit::{insert as insert_audit, AuditEvent};
+use crate::ws::hub::PublishExt;
 
 #[derive(Debug, serde::Serialize)]
 struct SetupStatusResponse {
@@ -159,12 +158,15 @@ async fn create_admin(
         json!({"action": "setup.admin_created", "actorUserId": user.id}),
     );
 
-    (StatusCode::CREATED, axum::Json(CreateAdminResponse { userId: user.id })).into_response()
+    (
+        StatusCode::CREATED,
+        axum::Json(CreateAdminResponse { userId: user.id }),
+    )
+        .into_response()
 }
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
     use super::*;
     use crate::httpapi::middleware::auth::{csrf, load_session};
     use crate::metrics::Metrics;
@@ -175,6 +177,7 @@ mod tests {
     use axum::extract::Request;
     use axum::http::StatusCode;
     use axum::middleware;
+    use std::sync::Arc;
     use tower::ServiceExt;
 
     async fn app_state(dry_run: bool) -> (tempfile::TempDir, AppState) {
@@ -230,12 +233,20 @@ mod tests {
             b = b.header("content-type", "application/json");
         }
         let resp = full_router(state)
-            .oneshot(b.body(Body::from(body.unwrap_or_default().to_string())).unwrap())
+            .oneshot(
+                b.body(Body::from(body.unwrap_or_default().to_string()))
+                    .unwrap(),
+            )
             .await
             .unwrap();
         let status = resp.status();
-        let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
-        (status, serde_json::from_slice(&bytes).unwrap_or(serde_json::Value::Null))
+        let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        (
+            status,
+            serde_json::from_slice(&bytes).unwrap_or(serde_json::Value::Null),
+        )
     }
 
     #[tokio::test]
@@ -288,12 +299,11 @@ mod tests {
         assert!(v["userId"].is_string());
 
         // First user is admin with a real argon2id hash.
-        let (role, hash): (String, String) = sqlx::query_as(
-            "SELECT role, password_hash FROM users WHERE email = 'a@x.test'",
-        )
-        .fetch_one(&state.db)
-        .await
-        .unwrap();
+        let (role, hash): (String, String) =
+            sqlx::query_as("SELECT role, password_hash FROM users WHERE email = 'a@x.test'")
+                .fetch_one(&state.db)
+                .await
+                .unwrap();
         assert_eq!(role, "admin");
         assert!(hash.starts_with("argon2id$") || hash.starts_with("$argon2id$"));
 

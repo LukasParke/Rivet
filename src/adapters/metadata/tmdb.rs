@@ -45,6 +45,29 @@ pub struct TmdbSearchResult {
     pub year: Option<i32>,
 }
 
+/// One episode of a TMDB season, normalized for series enrichment.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TmdbEpisode {
+    pub episode_number: u32,
+    /// Episode title (`name` in the TMDB payload).
+    pub name: String,
+    /// Air date as `YYYY-MM-DD`, when the API returned a usable one.
+    pub air_date: Option<String>,
+    pub runtime: Option<i64>,
+    pub overview: Option<String>,
+}
+
+/// Normalized `/3/tv/{id}` show details used to enumerate seasons.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct TmdbShow {
+    pub name: Option<String>,
+    pub first_air_date: Option<String>,
+    pub last_air_date: Option<String>,
+    /// Season numbers from `seasons[]` (specials = 0 included), sorted, deduped.
+    pub seasons: Vec<u32>,
+}
+
 /// TMDB v3 API client.
 #[derive(Debug, Clone)]
 pub struct TmdbClient {
@@ -144,6 +167,47 @@ impl TmdbClient {
     pub async fn search_show(&self, query: &str) -> Result<Vec<TmdbSearchResult>, AdapterError> {
         self.search("/3/search/tv", query).await
     }
+
+    /// Fetches one season's episodes (`GET /3/tv/{id}/season/{n}`), parsed
+    /// defensively: malformed entries are skipped, not fatal.
+    pub async fn season_episodes(
+        &self,
+        show_id: &str,
+        season: u32,
+    ) -> Result<Vec<TmdbEpisode>, AdapterError> {
+        let url = self.build_url(&format!("/3/tv/{show_id}/season/{season}"), &[])?;
+        let json = self.get_json(&url).await?;
+        let episodes = json
+            .get("episodes")
+            .and_then(Value::as_array)
+            .ok_or_else(|| AdapterError::Parse("missing episodes array".into()))?;
+        Ok(episodes.iter().filter_map(parse_episode).collect())
+    }
+
+    /// Fetches normalized show details (`GET /3/tv/{id}`): name, air dates and
+    /// the season list that enrichment iterates over.
+    pub async fn show_details(&self, show_id: &str) -> Result<TmdbShow, AdapterError> {
+        let url = self.build_url(&format!("/3/tv/{show_id}"), &[])?;
+        let json = self.get_json(&url).await?;
+        let mut seasons: Vec<u32> = json
+            .get("seasons")
+            .and_then(Value::as_array)
+            .map(|items| {
+                items
+                    .iter()
+                    .filter_map(|s| opt_u32(s, "season_number"))
+                    .collect()
+            })
+            .unwrap_or_default();
+        seasons.sort_unstable();
+        seasons.dedup();
+        Ok(TmdbShow {
+            name: opt_str(&json, "name"),
+            first_air_date: opt_str(&json, "first_air_date"),
+            last_air_date: opt_str(&json, "last_air_date"),
+            seasons,
+        })
+    }
 }
 
 #[async_trait]
@@ -176,6 +240,49 @@ fn parse_result(item: &Value) -> Option<TmdbSearchResult> {
         .unwrap_or("");
     let year = date.get(..4).and_then(|y| y.parse::<i32>().ok());
     Some(TmdbSearchResult { id, title, year })
+}
+
+/// Reads an optional trimmed string field; empty or non-string values are absent.
+fn opt_str(item: &Value, key: &str) -> Option<String> {
+    item.get(key)
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_string)
+}
+
+/// Reads an optional integer field; TMDB tolerates numeric strings in places.
+fn opt_i64(item: &Value, key: &str) -> Option<i64> {
+    match item.get(key) {
+        Some(Value::Number(n)) => n.as_i64(),
+        Some(Value::String(s)) => s.trim().parse().ok(),
+        _ => None,
+    }
+}
+
+/// Reads an optional unsigned field, tolerating numeric strings.
+fn opt_u32(item: &Value, key: &str) -> Option<u32> {
+    match item.get(key) {
+        Some(Value::Number(n)) => n.as_u64().map(|n| n as u32),
+        Some(Value::String(s)) => s.trim().parse().ok(),
+        _ => None,
+    }
+}
+
+/// Maps one TMDB season episode to [`TmdbEpisode`], skipping malformed items
+/// (an episode without a parseable number is dropped).
+fn parse_episode(item: &Value) -> Option<TmdbEpisode> {
+    Some(TmdbEpisode {
+        episode_number: opt_u32(item, "episode_number")?,
+        name: item
+            .get("name")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_string(),
+        air_date: opt_str(item, "air_date"),
+        runtime: opt_i64(item, "runtime"),
+        overview: opt_str(item, "overview"),
+    })
 }
 
 #[cfg(test)]
@@ -334,5 +441,107 @@ mod tests {
             .await;
         let err = client(server.uri()).search_show("x").await.unwrap_err();
         assert!(matches!(err, AdapterError::Network(_)));
+    }
+    fn season_body() -> serde_json::Value {
+        serde_json::json!({
+            "season_number": 1,
+            "episodes": [
+                {
+                    "episode_number": 1,
+                    "name": "Winter Is Coming",
+                    "air_date": "2011-04-17",
+                    "runtime": 62,
+                    "overview": "Ned Stark..."
+                },
+                {
+                    "episode_number": 2,
+                    "name": "The Kingsroad",
+                    "air_date": null,
+                    "runtime": null,
+                    "overview": ""
+                },
+                // Malformed: no parseable episode number -> skipped.
+                {"name": "Broken"}
+            ]
+        })
+    }
+
+    #[tokio::test]
+    async fn season_episodes_parses_defensively() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/3/tv/1399/season/1"))
+            .and(query_param("api_key", "k"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(season_body()))
+            .mount(&server)
+            .await;
+
+        let eps = client(server.uri())
+            .season_episodes("1399", 1)
+            .await
+            .unwrap();
+        assert_eq!(eps.len(), 2, "malformed entries are skipped");
+        assert_eq!(eps[0].episode_number, 1);
+        assert_eq!(eps[0].name, "Winter Is Coming");
+        assert_eq!(eps[0].air_date.as_deref(), Some("2011-04-17"));
+        assert_eq!(eps[0].runtime, Some(62));
+        assert_eq!(eps[0].overview.as_deref(), Some("Ned Stark..."));
+        assert_eq!(eps[1].air_date, None, "null air date is absent");
+        assert_eq!(eps[1].overview, None, "empty overview is absent");
+    }
+
+    #[tokio::test]
+    async fn season_episodes_missing_array_is_parse_error() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({})))
+            .mount(&server)
+            .await;
+        let err = client(server.uri())
+            .season_episodes("1399", 1)
+            .await
+            .unwrap_err();
+        assert!(matches!(err, AdapterError::Parse(_)));
+    }
+
+    #[tokio::test]
+    async fn season_episodes_server_error_maps_to_network() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .respond_with(ResponseTemplate::new(500))
+            .mount(&server)
+            .await;
+        let err = client(server.uri())
+            .season_episodes("1399", 1)
+            .await
+            .unwrap_err();
+        assert!(matches!(err, AdapterError::Network(_)));
+    }
+
+    #[tokio::test]
+    async fn show_details_enumerates_sorted_unique_seasons() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/3/tv/1399"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "name": "Game of Thrones",
+                "first_air_date": "2011-04-17",
+                "last_air_date": "2019-05-19",
+                "seasons": [
+                    {"season_number": 2},
+                    {"season_number": 0},
+                    {"season_number": 1},
+                    {"season_number": 1},
+                    {"broken": true}
+                ]
+            })))
+            .mount(&server)
+            .await;
+
+        let show = client(server.uri()).show_details("1399").await.unwrap();
+        assert_eq!(show.name.as_deref(), Some("Game of Thrones"));
+        assert_eq!(show.first_air_date.as_deref(), Some("2011-04-17"));
+        assert_eq!(show.last_air_date.as_deref(), Some("2019-05-19"));
+        assert_eq!(show.seasons, vec![0, 1, 2]);
     }
 }

@@ -31,9 +31,6 @@ pub async fn handle(state: &AppState, job: &Job) -> Result<(), String> {
         .map_err(|e| e.to_string())?
         .ok_or("acquisition_not_found")?;
 
-    if a.client_kind != "qbittorrent" && a.client_kind != "dryrun" {
-        return Err("unsupported_client_kind".to_string());
-    }
     let external_id = a
         .external_id
         .clone()
@@ -42,7 +39,7 @@ pub async fn handle(state: &AppState, job: &Job) -> Result<(), String> {
 
     // Building the client is infrastructure: failure here must NOT advance
     // the ladder — the job retry will rebuild it.
-    let cli = load_torrent_client(state).await?;
+    let cli = load_torrent_client(state, &a.client_kind).await?;
 
     let ladder_step = a.recovery_attempt + 1;
     let op_result = match ladder_step {

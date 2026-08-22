@@ -76,10 +76,15 @@ mod tests {
             res.headers().get(header::CONTENT_TYPE).unwrap(),
             PROMETHEUS_CONTENT_TYPE
         );
-        let body = axum::body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
+        let body = axum::body::to_bytes(res.into_body(), usize::MAX)
+            .await
+            .unwrap();
         let text = String::from_utf8(body.to_vec()).unwrap();
         assert!(text.contains("rivet_jobs_enqueued_total 2"), "body: {text}");
-        assert!(text.contains("rivet_jobs_completed_total 1"), "body: {text}");
+        assert!(
+            text.contains("rivet_jobs_completed_total 1"),
+            "body: {text}"
+        );
         assert!(
             text.contains("rivet_queue_depth{state=\"queued\"} 3"),
             "body: {text}"

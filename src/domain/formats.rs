@@ -61,7 +61,9 @@ impl CustomFormat {
     /// True when every condition matches the release (empty conditions match
     /// everything, mirroring *arr behavior).
     pub fn matches(&self, release: &ParsedRelease) -> bool {
-        self.conditions.iter().all(|c| condition_matches(c, release))
+        self.conditions
+            .iter()
+            .all(|c| condition_matches(c, release))
     }
 }
 
@@ -83,8 +85,7 @@ pub fn total_score(cfs: &[CustomFormat], release: &ParsedRelease) -> i64 {
 fn condition_matches(c: &FormatCondition, r: &ParsedRelease) -> bool {
     use FormatConditionKind as K;
     let hit = match c.kind {
-        K::Resolution => parse_resolution(&c.value)
-            .is_some_and(|v| v == r.quality.resolution),
+        K::Resolution => parse_resolution(&c.value).is_some_and(|v| v == r.quality.resolution),
         K::Source => parse_source(&c.value).is_some_and(|v| v == r.quality.source),
         K::QualityModifier => {
             parse_quality_modifier(&c.value).is_some_and(|v| v == r.quality.modifier)
@@ -93,9 +94,13 @@ fn condition_matches(c: &FormatCondition, r: &ParsedRelease) -> bool {
         K::Language => r.languages.iter().any(|l| eq_ci(l, &c.value)),
         K::Group => r.release_group.as_ref().is_some_and(|g| eq_ci(g, &c.value)),
         K::Year => year_matches(&c.value, r.year),
-        K::TitleContains => contains_ci(r.title.as_str(), &c.value)
-            || r.edition.as_ref().is_some_and(|e| contains_ci(e, &c.value))
-            || r.release_group.as_ref().is_some_and(|g| contains_ci(g, &c.value)),
+        K::TitleContains => {
+            contains_ci(r.title.as_str(), &c.value)
+                || r.edition.as_ref().is_some_and(|e| contains_ci(e, &c.value))
+                || r.release_group
+                    .as_ref()
+                    .is_some_and(|g| contains_ci(g, &c.value))
+        }
     };
     hit != c.negate
 }
@@ -167,10 +172,7 @@ fn year_matches(value: &str, year: Option<i32>) -> bool {
         return y == year;
     }
     let (lo, hi) = match v.split_once('-') {
-        Some((a, b)) => (
-            a.trim().parse::<i32>().ok(),
-            b.trim().parse::<i32>().ok(),
-        ),
+        Some((a, b)) => (a.trim().parse::<i32>().ok(), b.trim().parse::<i32>().ok()),
         None => (None, None),
     };
     match (lo, hi) {
@@ -211,7 +213,11 @@ pub struct ScoredDecision {
 /// cutoff configured").
 pub fn apply_cutoff(score_total: i64, cutoff_score: i64, d: UpgradeDecision) -> UpgradeDecision {
     if d.grab && cutoff_score != i64::MIN && score_total >= cutoff_score {
-        UpgradeDecision { grab: false, reason: "cutoff_met".into(), upgrade: false }
+        UpgradeDecision {
+            grab: false,
+            reason: "cutoff_met".into(),
+            upgrade: false,
+        }
     } else {
         d
     }
@@ -227,11 +233,19 @@ pub fn decide_with_score(
     score_total: i64,
     cutoff_score: i64,
 ) -> ScoredDecision {
-    let raw = decide_upgrade(candidate, candidate_modifier, current_quality, current_modifier);
+    let raw = decide_upgrade(
+        candidate,
+        candidate_modifier,
+        current_quality,
+        current_modifier,
+    );
     let decision = apply_cutoff(score_total, cutoff_score, raw);
-    let cutoff_met =
-        cutoff_score != i64::MIN && score_total >= cutoff_score;
-    ScoredDecision { decision, score: score_total, cutoff_met }
+    let cutoff_met = cutoff_score != i64::MIN && score_total >= cutoff_score;
+    ScoredDecision {
+        decision,
+        score: score_total,
+        cutoff_met,
+    }
 }
 
 #[cfg(test)]
@@ -261,10 +275,9 @@ mod tests {
 
     #[test]
     fn golden_cases_match_exactly() {
-        let cases: Vec<GoldenCase> = serde_json::from_str(include_str!(
-            "../../tests/golden/formats/cases.json"
-        ))
-        .expect("cases.json is valid");
+        let cases: Vec<GoldenCase> =
+            serde_json::from_str(include_str!("../../tests/golden/formats/cases.json"))
+                .expect("cases.json is valid");
         assert!(cases.len() >= 24, "expected at least 24 golden cases");
         for case in &cases {
             let got = evaluate(&case.format, &release(&case.releaseTitle));
@@ -278,10 +291,9 @@ mod tests {
 
     #[test]
     fn golden_scores_sum_exactly() {
-        let cases: Vec<GoldenScore> = serde_json::from_str(include_str!(
-            "../../tests/golden/formats/scores.json"
-        ))
-        .expect("scores.json is valid");
+        let cases: Vec<GoldenScore> =
+            serde_json::from_str(include_str!("../../tests/golden/formats/scores.json"))
+                .expect("scores.json is valid");
         for case in &cases {
             let got = total_score(&case.formats, &release(&case.releaseTitle));
             assert_eq!(
@@ -294,7 +306,11 @@ mod tests {
 
     #[test]
     fn apply_cutoff_blocks_grab_at_or_above_cutoff() {
-        let d = UpgradeDecision { grab: true, reason: "no_existing_file".into(), upgrade: false };
+        let d = UpgradeDecision {
+            grab: true,
+            reason: "no_existing_file".into(),
+            upgrade: false,
+        };
         let out = apply_cutoff(100, 100, d.clone());
         assert!(!out.grab);
         assert_eq!(out.reason, "cutoff_met");
@@ -319,26 +335,56 @@ mod tests {
 
     #[test]
     fn apply_cutoff_passes_through_non_grabs_and_disabled_cutoff() {
-        let rejected = UpgradeDecision { grab: false, reason: "below_current".into(), upgrade: false };
+        let rejected = UpgradeDecision {
+            grab: false,
+            reason: "below_current".into(),
+            upgrade: false,
+        };
         // Even above cutoff, a non-grab decision keeps its own reason.
         assert_eq!(apply_cutoff(5000, 100, rejected.clone()), rejected);
         // i64::MIN disables the cutoff entirely.
-        let grab = UpgradeDecision { grab: true, reason: "upgrade".into(), upgrade: true };
+        let grab = UpgradeDecision {
+            grab: true,
+            reason: "upgrade".into(),
+            upgrade: true,
+        };
         assert_eq!(apply_cutoff(i64::MAX, i64::MIN, grab.clone()), grab);
     }
 
     #[test]
     fn decide_with_score_combines_quality_and_cutoff() {
-        let cand = Quality { resolution: Resolution::R1080, source: Source::Bluray, modifier: QualityModifier::None };
-        let cur = Quality { resolution: Resolution::R720, source: Source::Hdtv, modifier: QualityModifier::None };
+        let cand = Quality {
+            resolution: Resolution::R1080,
+            source: Source::Bluray,
+            modifier: QualityModifier::None,
+        };
+        let cur = Quality {
+            resolution: Resolution::R720,
+            source: Source::Hdtv,
+            modifier: QualityModifier::None,
+        };
 
-        let up = decide_with_score(&cand, QualityModifier::None, Some(&cur), Some(QualityModifier::None), 150, 150);
+        let up = decide_with_score(
+            &cand,
+            QualityModifier::None,
+            Some(&cur),
+            Some(QualityModifier::None),
+            150,
+            150,
+        );
         assert!(!up.decision.grab);
         assert_eq!(up.decision.reason, "cutoff_met");
         assert!(up.cutoff_met);
         assert_eq!(up.score, 150);
 
-        let kept = decide_with_score(&cand, QualityModifier::None, Some(&cur), Some(QualityModifier::None), 149, 150);
+        let kept = decide_with_score(
+            &cand,
+            QualityModifier::None,
+            Some(&cur),
+            Some(QualityModifier::None),
+            149,
+            150,
+        );
         assert!(kept.decision.reason.starts_with("upgrade_"));
         assert!(!kept.cutoff_met);
 
@@ -356,7 +402,12 @@ mod tests {
             negate: false,
         };
         for v in ["web-dl", "WEB_DL", "WebDL", "webdl"] {
-            let cf = CustomFormat { name: "s".into(), score: 1, conditions: vec![mk(v)], enabled: true };
+            let cf = CustomFormat {
+                name: "s".into(),
+                score: 1,
+                conditions: vec![mk(v)],
+                enabled: true,
+            };
             assert!(evaluate(&cf, &r), "source value `{v}` should match web-dl");
         }
     }

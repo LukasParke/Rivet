@@ -44,7 +44,10 @@ impl NamingContext {
     /// Context with only the primary title set; extend with struct-update
     /// syntax (`..Default::default()` is already applied).
     pub fn new(title: impl Into<String>) -> Self {
-        Self { title: title.into(), ..Self::default() }
+        Self {
+            title: title.into(),
+            ..Self::default()
+        }
     }
 }
 
@@ -97,8 +100,12 @@ fn resolve_token(name: &str, spec: Option<&str>, ctx: &NamingContext) -> Option<
             episode_value(ctx, width)
         }
         "Episode Title" => {
-            let titles: Vec<&str> =
-                ctx.episode_titles.iter().map(|t| t.trim()).filter(|t| !t.is_empty()).collect();
+            let titles: Vec<&str> = ctx
+                .episode_titles
+                .iter()
+                .map(|t| t.trim())
+                .filter(|t| !t.is_empty())
+                .collect();
             (!titles.is_empty()).then(|| titles.join(" "))
         }
         "Quality Full" => (!ctx.quality_label.is_empty()).then(|| ctx.quality_label.clone()),
@@ -118,7 +125,9 @@ fn resolve_token(name: &str, spec: Option<&str>, ctx: &NamingContext) -> Option<
 fn contains_token(template: &str, wanted: &str) -> bool {
     let mut rest = template;
     while let Some(start) = rest.find('{') {
-        let Some(end_rel) = rest[start..].find('}') else { break };
+        let Some(end_rel) = rest[start..].find('}') else {
+            break;
+        };
         let inner = &rest[start + 1..start + end_rel];
         let name = inner.split(':').next().unwrap_or(inner).trim();
         if name == wanted {
@@ -201,9 +210,14 @@ pub fn render_series(
     ctx: &NamingContext,
     safe_for_windows: bool,
 ) -> String {
-    let use_multi =
-        ctx.episodes.len() > 1 && !multi_episode_format.is_empty() && contains_token(standard, "Episode");
-    let template = if use_multi { multi_episode_format } else { standard };
+    let use_multi = ctx.episodes.len() > 1
+        && !multi_episode_format.is_empty()
+        && contains_token(standard, "Episode");
+    let template = if use_multi {
+        multi_episode_format
+    } else {
+        standard
+    };
     render(template, ctx, safe_for_windows)
 }
 
@@ -230,7 +244,11 @@ mod tests {
     fn golden_naming_cases() {
         let cases: Vec<GoldenCase> =
             serde_json::from_str(CASES_JSON).expect("golden cases must parse");
-        assert!(cases.len() >= 40, "expected >=40 golden cases, got {}", cases.len());
+        assert!(
+            cases.len() >= 40,
+            "expected >=40 golden cases, got {}",
+            cases.len()
+        );
         for case in &cases {
             let got = match (&case.standard, &case.multi) {
                 (Some(standard), multi) => render_series(
@@ -240,7 +258,9 @@ mod tests {
                     case.safe,
                 ),
                 _ => render(
-                    case.template.as_deref().expect("case needs template or standard"),
+                    case.template
+                        .as_deref()
+                        .expect("case needs template or standard"),
                     &case.context,
                     case.safe,
                 ),

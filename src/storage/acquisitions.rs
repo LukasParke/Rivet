@@ -9,7 +9,6 @@ use sqlx::SqlitePool;
 
 use crate::timeutil;
 
-
 #[derive(Debug, Clone, serde::Serialize, sqlx::FromRow)]
 pub struct Acquisition {
     pub id: String,
@@ -189,18 +188,16 @@ pub async fn mark_enqueued(
 }
 
 /// Records a failure; keeps prior progress/content state for later retries.
-pub async fn mark_failed(
-    pool: &SqlitePool,
-    id: &str,
-    last_error: &str,
-) -> Result<(), sqlx::Error> {
-    sqlx::query("UPDATE acquisitions SET status = 'failed', last_error = ?, updated_at = ? WHERE id = ?")
-        .bind(last_error)
-        .bind(timeutil::now())
-        .bind(id)
-        .execute(pool)
-        .await
-        .map(|_| ())
+pub async fn mark_failed(pool: &SqlitePool, id: &str, last_error: &str) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        "UPDATE acquisitions SET status = 'failed', last_error = ?, updated_at = ? WHERE id = ?",
+    )
+    .bind(last_error)
+    .bind(timeutil::now())
+    .bind(id)
+    .execute(pool)
+    .await
+    .map(|_| ())
 }
 
 /// Generic progress poll from the download client. `content_path` only ever
@@ -261,26 +258,26 @@ pub async fn touch_progress_changed(
     id: &str,
     when: DateTime<Utc>,
 ) -> Result<(), sqlx::Error> {
-    sqlx::query(
-        "UPDATE acquisitions SET progress_changed_at = ?, updated_at = ? WHERE id = ?",
-    )
-    .bind(fmt_time(when))
-    .bind(timeutil::now())
-    .bind(id)
-    .execute(pool)
-    .await
-    .map(|_| ())
-}
-
-pub async fn mark_stalled(pool: &SqlitePool, id: &str) -> Result<(), sqlx::Error> {
-    let now = timeutil::now();
-    sqlx::query("UPDATE acquisitions SET status = 'stalled', stalled_at = ?, updated_at = ? WHERE id = ?")
-        .bind(&now)
-        .bind(&now)
+    sqlx::query("UPDATE acquisitions SET progress_changed_at = ?, updated_at = ? WHERE id = ?")
+        .bind(fmt_time(when))
+        .bind(timeutil::now())
         .bind(id)
         .execute(pool)
         .await
         .map(|_| ())
+}
+
+pub async fn mark_stalled(pool: &SqlitePool, id: &str) -> Result<(), sqlx::Error> {
+    let now = timeutil::now();
+    sqlx::query(
+        "UPDATE acquisitions SET status = 'stalled', stalled_at = ?, updated_at = ? WHERE id = ?",
+    )
+    .bind(&now)
+    .bind(&now)
+    .bind(id)
+    .execute(pool)
+    .await
+    .map(|_| ())
 }
 
 pub async fn clear_stalled(pool: &SqlitePool, id: &str) -> Result<(), sqlx::Error> {
@@ -541,16 +538,13 @@ mod tests {
         let target = crate::storage::domain::create_wanted_target(p, "movie", "tmdb", "42", None)
             .await
             .unwrap();
-        let run = crate::storage::domain::create_search_run(p, &target.id).await.unwrap();
-        let cand = crate::storage::domain::insert_candidate(
-            p,
-            &run.id,
-            "idx1",
-            r#"{"title":"x"}"#,
-            None,
-        )
-        .await
-        .unwrap();
+        let run = crate::storage::domain::create_search_run(p, &target.id)
+            .await
+            .unwrap();
+        let cand =
+            crate::storage::domain::insert_candidate(p, &run.id, "idx1", r#"{"title":"x"}"#, None)
+                .await
+                .unwrap();
         (target.id, cand.id)
     }
 
@@ -585,7 +579,10 @@ mod tests {
         assert_eq!(got.client_kind, "sabnzbd");
         assert!(got.external_id.is_none());
         assert!(got.progress.is_none());
-        assert_eq!(got.recovery_attempt, 0, "NULL recovery_attempt decodes as 0");
+        assert_eq!(
+            got.recovery_attempt, 0,
+            "NULL recovery_attempt decodes as 0"
+        );
 
         // Duplicate candidate violates ux_acquisitions_candidate_id and surfaces as Db error.
         let dup = create_acquisition(&p, &cand, &target, "usenet", "sabnzbd", "main").await;
@@ -602,7 +599,10 @@ mod tests {
     async fn get_by_candidate_found_and_missing() {
         let (_d, p) = pool().await;
         let a = make(&p).await;
-        assert!(get_by_candidate(&p, &a.candidate_id).await.unwrap().is_some());
+        assert!(get_by_candidate(&p, &a.candidate_id)
+            .await
+            .unwrap()
+            .is_some());
         assert!(get_by_candidate(&p, "missing").await.unwrap().is_none());
     }
 
@@ -611,7 +611,9 @@ mod tests {
         let (_d, p) = pool().await;
         let a = make(&p).await;
 
-        mark_enqueued(&p, &a.id, Some("ext-1"), Some("https://idx/dl")).await.unwrap();
+        mark_enqueued(&p, &a.id, Some("ext-1"), Some("https://idx/dl"))
+            .await
+            .unwrap();
         let g = get(&p, &a.id).await.unwrap().unwrap();
         assert_eq!(g.status, "enqueued");
         assert_eq!(g.external_id.as_deref(), Some("ext-1"));
@@ -627,15 +629,23 @@ mod tests {
         mark_enqueued(&p, &a.id, Some("ext-2"), None).await.unwrap();
         let g = get(&p, &a.id).await.unwrap().unwrap();
         assert!(g.last_error.is_none());
-        assert_eq!(g.source_url.as_deref(), Some("https://idx/dl"), "COALESCE keeps prior url");
+        assert_eq!(
+            g.source_url.as_deref(),
+            Some("https://idx/dl"),
+            "COALESCE keeps prior url"
+        );
 
-        mark_completed(&p, &a.id, Some("/data/movie.mkv")).await.unwrap();
+        mark_completed(&p, &a.id, Some("/data/movie.mkv"))
+            .await
+            .unwrap();
         let g = get(&p, &a.id).await.unwrap().unwrap();
         assert_eq!(g.status, "completed");
         assert!(g.completed_at.is_some());
         assert_eq!(g.content_path.as_deref(), Some("/data/movie.mkv"));
 
-        mark_imported(&p, &a.id, "/library/movie.mkv").await.unwrap();
+        mark_imported(&p, &a.id, "/library/movie.mkv")
+            .await
+            .unwrap();
         let g = get(&p, &a.id).await.unwrap().unwrap();
         assert_eq!(g.status, "imported");
         assert_eq!(g.imported_path.as_deref(), Some("/library/movie.mkv"));
@@ -646,9 +656,16 @@ mod tests {
     async fn update_progress_bumps_progress_changed() {
         let (_d, p) = pool().await;
         let a = make(&p).await;
-        assert!(get(&p, &a.id).await.unwrap().unwrap().progress_changed_at.is_none());
+        assert!(get(&p, &a.id)
+            .await
+            .unwrap()
+            .unwrap()
+            .progress_changed_at
+            .is_none());
 
-        update_progress(&p, &a.id, "downloading", Some(0.5), Some("/dl/x.mkv")).await.unwrap();
+        update_progress(&p, &a.id, "downloading", Some(0.5), Some("/dl/x.mkv"))
+            .await
+            .unwrap();
         let g = get(&p, &a.id).await.unwrap().unwrap();
         assert_eq!(g.progress, Some(0.5));
         assert_eq!(g.content_path.as_deref(), Some("/dl/x.mkv"));
@@ -656,7 +673,9 @@ mod tests {
 
         // Later poll with no new path must not clobber content_path but still bumps.
         tokio::time::sleep(std::time::Duration::from_millis(2)).await;
-        update_progress(&p, &a.id, "downloading", Some(0.9), None).await.unwrap();
+        update_progress(&p, &a.id, "downloading", Some(0.9), None)
+            .await
+            .unwrap();
         let g = get(&p, &a.id).await.unwrap().unwrap();
         assert_eq!(g.progress, Some(0.9));
         assert_eq!(g.content_path.as_deref(), Some("/dl/x.mkv"));
@@ -675,7 +694,10 @@ mod tests {
         clear_stalled(&p, &a.id).await.unwrap();
         let g = get(&p, &a.id).await.unwrap().unwrap();
         assert!(g.stalled_at.is_none());
-        assert_eq!(g.status, "stalled", "clear_stalled only resets the timestamp");
+        assert_eq!(
+            g.status, "stalled",
+            "clear_stalled only resets the timestamp"
+        );
     }
 
     #[tokio::test]
@@ -693,25 +715,45 @@ mod tests {
         let (_d, p) = pool().await;
         let a = make(&p).await;
 
-        set_verify_status(&p, &a.id, "running", None, None, None).await.unwrap();
+        set_verify_status(&p, &a.id, "running", None, None, None)
+            .await
+            .unwrap();
         let g = get(&p, &a.id).await.unwrap().unwrap();
         assert_eq!(g.verify_status.as_deref(), Some("running"));
 
-        set_verify_status(&p, &a.id, "quarantined", None, Some("/q/x.mkv"),
-            Some(r#"{"rule":"size"}"#)).await.unwrap();
+        set_verify_status(
+            &p,
+            &a.id,
+            "quarantined",
+            None,
+            Some("/q/x.mkv"),
+            Some(r#"{"rule":"size"}"#),
+        )
+        .await
+        .unwrap();
         let g = get(&p, &a.id).await.unwrap().unwrap();
         assert_eq!(g.quarantined_path.as_deref(), Some("/q/x.mkv"));
         assert!(g.verified_path.is_none());
-        assert_eq!(g.verify_evidence_json.as_deref(), Some(r#"{"rule":"size"}"#));
+        assert_eq!(
+            g.verify_evidence_json.as_deref(),
+            Some(r#"{"rule":"size"}"#)
+        );
 
         // Evidence without new payload keeps the stored JSON.
-        set_verify_status(&p, &a.id, "passed", Some("/v/x.mkv"), None, None).await.unwrap();
+        set_verify_status(&p, &a.id, "passed", Some("/v/x.mkv"), None, None)
+            .await
+            .unwrap();
         let g = get(&p, &a.id).await.unwrap().unwrap();
         assert_eq!(g.verify_status.as_deref(), Some("passed"));
         assert_eq!(g.verified_path.as_deref(), Some("/v/x.mkv"));
-        assert_eq!(g.verify_evidence_json.as_deref(), Some(r#"{"rule":"size"}"#));
+        assert_eq!(
+            g.verify_evidence_json.as_deref(),
+            Some(r#"{"rule":"size"}"#)
+        );
 
-        admin_accept_verified(&p, &a.id, "/v/final.mkv").await.unwrap();
+        admin_accept_verified(&p, &a.id, "/v/final.mkv")
+            .await
+            .unwrap();
         let g = get(&p, &a.id).await.unwrap().unwrap();
         assert_eq!(g.status, "completed");
         assert_eq!(g.verify_status.as_deref(), Some("passed"));
@@ -732,8 +774,12 @@ mod tests {
         assert_eq!(g.verify_status.as_deref(), Some("running"));
         assert!(g.last_error.is_none(), "verifying clears prior error");
 
-        set_verify_evidence(&p, &a.id, Some(r#"{"n":1}"#)).await.unwrap();
-        mark_needs_review(&p, &a.id, "suspicious", Some("/q/a.mkv"), "rule hit").await.unwrap();
+        set_verify_evidence(&p, &a.id, Some(r#"{"n":1}"#))
+            .await
+            .unwrap();
+        mark_needs_review(&p, &a.id, "suspicious", Some("/q/a.mkv"), "rule hit")
+            .await
+            .unwrap();
         let g = get(&p, &a.id).await.unwrap().unwrap();
         assert_eq!(g.status, "needs_review");
         assert_eq!(g.verify_status.as_deref(), Some("suspicious"));
@@ -803,8 +849,13 @@ mod tests {
         assert_eq!(found[0].id, stale.id);
 
         // Fresh row never appears; terminal statuses are excluded even when old.
-        update_progress(&p, &stale.id, "downloading", Some(0.1), None).await.unwrap();
-        assert!(list_stale_nonterminal(&p, cutoff, 50).await.unwrap().is_empty());
+        update_progress(&p, &stale.id, "downloading", Some(0.1), None)
+            .await
+            .unwrap();
+        assert!(list_stale_nonterminal(&p, cutoff, 50)
+            .await
+            .unwrap()
+            .is_empty());
         mark_stalled(&p, &fresh.id).await.unwrap();
         let old2 = fmt_time(Utc::now() - Duration::hours(6));
         sqlx::query("UPDATE acquisitions SET stalled_at = ?, updated_at = ? WHERE id = ?")
@@ -815,7 +866,10 @@ mod tests {
             .await
             .unwrap();
         let found = list_stale_nonterminal(&p, cutoff, 50).await.unwrap();
-        assert_eq!(found.iter().map(|a| a.id.as_str()).collect::<Vec<_>>(), vec![fresh.id.as_str()]);
+        assert_eq!(
+            found.iter().map(|a| a.id.as_str()).collect::<Vec<_>>(),
+            vec![fresh.id.as_str()]
+        );
     }
 
     #[tokio::test]
@@ -829,8 +883,14 @@ mod tests {
         let pinned = g.download_started_at.clone().unwrap();
 
         tokio::time::sleep(std::time::Duration::from_millis(2)).await;
-        mark_downloading(&p, &a.id, Utc::now(), Utc::now()).await.unwrap();
+        mark_downloading(&p, &a.id, Utc::now(), Utc::now())
+            .await
+            .unwrap();
         let g = get(&p, &a.id).await.unwrap().unwrap();
-        assert_eq!(g.download_started_at.unwrap(), pinned, "start timestamp pinned once");
+        assert_eq!(
+            g.download_started_at.unwrap(),
+            pinned,
+            "start timestamp pinned once"
+        );
     }
 }

@@ -86,7 +86,11 @@ fn getenv_bool(key: &str, default: bool) -> bool {
 }
 
 fn getenv_duration(key: &str, default: Duration) -> Duration {
-    let Some(v) = std::env::var(key).ok().map(|v| v.trim().to_string()).filter(|v| !v.is_empty()) else {
+    let Some(v) = std::env::var(key)
+        .ok()
+        .map(|v| v.trim().to_string())
+        .filter(|v| !v.is_empty())
+    else {
         return default;
     };
     // Plain seconds ("30") or Go-style duration strings ("30s", "5m", "1h30m").
@@ -152,6 +156,9 @@ mod tests {
     fn plain_seconds_supported() {
         std::env::set_var("SESSION_TTL_TEST_PLAIN", "45");
         // direct function check via getenv_duration equivalent path
-        assert_eq!(getenv_duration("SESSION_TTL_TEST_UNSET_XYZ", Duration::from_secs(7)), Duration::from_secs(7));
+        assert_eq!(
+            getenv_duration("SESSION_TTL_TEST_UNSET_XYZ", Duration::from_secs(7)),
+            Duration::from_secs(7)
+        );
     }
 }

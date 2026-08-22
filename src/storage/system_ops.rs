@@ -6,20 +6,20 @@
 //! - Remote path mappings CRUD and longest-prefix path translation.
 //! - Health-check aggregation ([`health_issues`]).
 //!
-//! # Disk-space limitation
+//! # Disk-space accounting
 //!
-//! Neither `fs4` nor `sysinfo` is a dependency, `std` exposes no statvfs
-//! equivalent, and shelling out to external binaries is banned in this
-//! codebase. [`dir_usage`] therefore reports the recursive byte size of the
-//! directory tree (symlinks skipped, depth-capped) as `bytes_used`. A true
-//! free-space figure cannot be computed, so the health checks deliberately
-//! skip the ">90% disk used" rule instead of guessing.
+//! [`disk_free`] reports true free space via `libc::statvfs`
+//! (f_bavail × f_frsize). This is unix-only (`cfg(unix)`): there is no
+//! portable `std` equivalent and shelling out to external binaries is banned
+//! in this codebase; non-unix targets return `None` and the low-disk health
+//! rule skips instead of guessing. [`dir_usage`] complements it with the
+//! recursive byte size of a directory tree (symlinks skipped, depth-capped).
 
-use std::path::{Path, PathBuf};
 use crate::storage::{acquisitions, settings};
 use chrono::Utc;
 use serde::Serialize;
 use sqlx::SqlitePool;
+use std::path::{Path, PathBuf};
 
 use crate::error::AppError;
 use crate::timeutil;
@@ -141,6 +141,49 @@ fn walk(path: &Path, depth: usize, truncated: &mut bool) -> u64 {
     total
 }
 
+/// One gibibyte; the low-disk-space health threshold.
+pub const LOW_DISK_THRESHOLD_BYTES: u64 = 1024 * 1024 * 1024;
+
+/// Bytes available to unprivileged users on the filesystem containing
+/// `path` (`statvfs` f_bavail × f_frsize), or `None` when the call fails.
+///
+/// # Platform scope (`cfg(unix)`)
+///
+/// Unix only: `libc::statvfs` has no portable `std` equivalent and external
+/// binaries are banned in this codebase. On non-unix targets this always
+/// returns `None`, so callers (e.g. [`health_issues`]) skip free-space rules.
+#[cfg(unix)]
+pub fn disk_free(path: &Path) -> Option<u64> {
+    use std::os::unix::ffi::OsStrExt;
+    let cpath = std::ffi::CString::new(path.as_os_str().as_bytes()).ok()?;
+    let mut st: libc::statvfs = unsafe { std::mem::zeroed() };
+    if unsafe { libc::statvfs(cpath.as_ptr(), &mut st) } != 0 {
+        return None;
+    }
+    Some(st.f_bavail as u64 * st.f_frsize as u64)
+}
+
+/// Non-unix fallback: free space cannot be measured without platform APIs.
+#[cfg(not(unix))]
+pub fn disk_free(_path: &Path) -> Option<u64> {
+    None
+}
+
+/// Resolves the main database file path from a live pool via SQLite's
+/// `pragma_database_list`; `None` for in-memory databases.
+async fn database_file(pool: &SqlitePool) -> Option<PathBuf> {
+    let file: String =
+        sqlx::query_scalar("SELECT file FROM pragma_database_list WHERE name = 'main'")
+            .fetch_one(pool)
+            .await
+            .ok()?;
+    if file.is_empty() {
+        None
+    } else {
+        Some(PathBuf::from(file))
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Remote path mappings
 // ---------------------------------------------------------------------------
@@ -225,15 +268,16 @@ fn issue(severity: &str, source: &str, message: impl Into<String>) -> Issue {
         message: message.into(),
     }
 }
-
 /// Aggregates operational health issues:
 ///
 /// - more than 3 failed jobs in the last hour → error;
 /// - no indexers configured → warning;
 /// - migration drift (an applied migration file changed on disk) → error;
-/// - acquisitions stuck in a non-terminal state for over 24h → warning.
-///
-/// Disk-usage rules are skipped: see the module-level limitation notes.
+/// - acquisitions stuck in a non-terminal state for over 24h → warning;
+/// - a staged database restore (`<db>.restore.pending`) awaiting the manual
+///   swap → warning;
+/// - less than [`LOW_DISK_THRESHOLD_BYTES`] free on the database volume
+///   (unix only) → warning.
 pub async fn health_issues(pool: &SqlitePool) -> Vec<Issue> {
     let mut issues = Vec::new();
 
@@ -252,13 +296,12 @@ pub async fn health_issues(pool: &SqlitePool) -> Vec<Issue> {
 
     // Failed jobs in the last hour.
     let cutoff = timeutil::fmt(Utc::now() - chrono::Duration::hours(1));
-    let failed: i64 = sqlx::query_scalar(
-        "SELECT COUNT(1) FROM jobs WHERE state = 'failed' AND updated_at >= ?",
-    )
-    .bind(cutoff)
-    .fetch_one(pool)
-    .await
-    .unwrap_or(0);
+    let failed: i64 =
+        sqlx::query_scalar("SELECT COUNT(1) FROM jobs WHERE state = 'failed' AND updated_at >= ?")
+            .bind(cutoff)
+            .fetch_one(pool)
+            .await
+            .unwrap_or(0);
     if failed > 3 {
         issues.push(issue(
             "error",
@@ -271,18 +314,10 @@ pub async fn health_issues(pool: &SqlitePool) -> Vec<Issue> {
     match settings::get(pool, "setup.indexers").await {
         Ok(Some(raw)) => {
             if count_indexers(&raw) == 0 {
-                issues.push(issue(
-                    "warning",
-                    "indexers",
-                    "no indexers are configured",
-                ));
+                issues.push(issue("warning", "indexers", "no indexers are configured"));
             }
         }
-        Ok(None) => issues.push(issue(
-            "warning",
-            "indexers",
-            "no indexers are configured",
-        )),
+        Ok(None) => issues.push(issue("warning", "indexers", "no indexers are configured")),
         Err(e) => issues.push(issue(
             "warning",
             "indexers",
@@ -290,14 +325,16 @@ pub async fn health_issues(pool: &SqlitePool) -> Vec<Issue> {
         )),
     }
 
-
     // Stale non-terminal acquisitions (>24h without observed activity).
     let stale_cutoff = Utc::now() - chrono::Duration::hours(24);
     match acquisitions::list_stale_nonterminal(pool, stale_cutoff, 100).await {
         Ok(stale) if !stale.is_empty() => issues.push(issue(
             "warning",
             "stale_acquisitions",
-            format!("{} acquisition(s) stuck non-terminal for over 24h", stale.len()),
+            format!(
+                "{} acquisition(s) stuck non-terminal for over 24h",
+                stale.len()
+            ),
         )),
         Ok(_) => {}
         Err(e) => issues.push(issue(
@@ -305,6 +342,44 @@ pub async fn health_issues(pool: &SqlitePool) -> Vec<Issue> {
             "stale_acquisitions",
             format!("stale-acquisition sweep failed: {e}"),
         )),
+    }
+
+    // Database-volume rules need the database file location; skipped for
+    // in-memory databases.
+    if let Some(db_file) = database_file(pool).await {
+        // Staged restore from POST /system/backups/{name}/restore: the copy
+        // sits next to the live db until the operator swaps it manually.
+        let pending = PathBuf::from(format!("{}.restore.pending", db_file.display()));
+        if pending.exists() {
+            issues.push(issue(
+                "warning",
+                "pending_restore",
+                format!(
+                    "a staged database restore ({}) is awaiting the manual swap; \
+                     stop the service, move it over {}, then restart",
+                    pending.display(),
+                    db_file.display()
+                ),
+            ));
+        }
+
+        // Low free space on the volume holding the database (unix only;
+        // non-unix disk_free is None and the rule is skipped).
+        match disk_free(&db_file) {
+            Some(free) if free < LOW_DISK_THRESHOLD_BYTES => issues.push(issue(
+                "warning",
+                "disk_space",
+                format!(
+                    "only {:.1} GiB free on the database volume ({})",
+                    free as f64 / (1024.0 * 1024.0 * 1024.0),
+                    db_file
+                        .parent()
+                        .map(|p| p.display().to_string())
+                        .unwrap_or_default(),
+                ),
+            )),
+            Some(_) | None => {}
+        }
     }
 
     issues
@@ -315,7 +390,14 @@ pub async fn health_issues(pool: &SqlitePool) -> Vec<Issue> {
 fn count_indexers(raw: &str) -> usize {
     serde_json::from_str::<serde_json::Value>(raw)
         .ok()
-        .and_then(|v| v.as_object().map(|o| o.values().filter_map(|l| l.as_array()).map(|a| a.len()).sum()))
+        .and_then(|v| {
+            v.as_object().map(|o| {
+                o.values()
+                    .filter_map(|l| l.as_array())
+                    .map(|a| a.len())
+                    .sum()
+            })
+        })
         .unwrap_or(0)
 }
 
@@ -325,16 +407,43 @@ fn count_indexers(raw: &str) -> usize {
 /// simply not verified by this check until mirrored.
 const EMBEDDED_MIGRATIONS: &[(&str, &str)] = &[
     ("0001_init.sql", include_str!("migrations/0001_init.sql")),
-    ("0002_sessions_csrf.sql", include_str!("migrations/0002_sessions_csrf.sql")),
-    ("0003_core_domain.sql", include_str!("migrations/0003_core_domain.sql")),
-    ("0004_acquisitions.sql", include_str!("migrations/0004_acquisitions.sql")),
-    ("0005_acquisitions_fields.sql", include_str!("migrations/0005_acquisitions_fields.sql")),
-    ("0006_acquisition_verify_stall.sql", include_str!("migrations/0006_acquisition_verify_stall.sql")),
-    ("0007_blacklist.sql", include_str!("migrations/0007_blacklist.sql")),
-    ("0008_verify_evidence.sql", include_str!("migrations/0008_verify_evidence.sql")),
-    ("0009_hardening.sql", include_str!("migrations/0009_hardening.sql")),
+    (
+        "0002_sessions_csrf.sql",
+        include_str!("migrations/0002_sessions_csrf.sql"),
+    ),
+    (
+        "0003_core_domain.sql",
+        include_str!("migrations/0003_core_domain.sql"),
+    ),
+    (
+        "0004_acquisitions.sql",
+        include_str!("migrations/0004_acquisitions.sql"),
+    ),
+    (
+        "0005_acquisitions_fields.sql",
+        include_str!("migrations/0005_acquisitions_fields.sql"),
+    ),
+    (
+        "0006_acquisition_verify_stall.sql",
+        include_str!("migrations/0006_acquisition_verify_stall.sql"),
+    ),
+    (
+        "0007_blacklist.sql",
+        include_str!("migrations/0007_blacklist.sql"),
+    ),
+    (
+        "0008_verify_evidence.sql",
+        include_str!("migrations/0008_verify_evidence.sql"),
+    ),
+    (
+        "0009_hardening.sql",
+        include_str!("migrations/0009_hardening.sql"),
+    ),
     ("0010_totp.sql", include_str!("migrations/0010_totp.sql")),
-    ("0011_arr_domain.sql", include_str!("migrations/0011_arr_domain.sql")),
+    (
+        "0011_arr_domain.sql",
+        include_str!("migrations/0011_arr_domain.sql"),
+    ),
 ];
 
 fn sha256_hex(data: &str) -> String {
@@ -349,11 +458,10 @@ fn sha256_hex(data: &str) -> String {
 /// embedded file, or `None` when everything matches (or the row names a file
 /// this module does not embed).
 async fn migration_drift(pool: &SqlitePool) -> Option<(String, String, String)> {
-    let rows: Vec<(String, String)> =
-        sqlx::query_as("SELECT name, hash FROM schema_migrations")
-            .fetch_all(pool)
-            .await
-            .ok()?;
+    let rows: Vec<(String, String)> = sqlx::query_as("SELECT name, hash FROM schema_migrations")
+        .fetch_all(pool)
+        .await
+        .ok()?;
     for (name, recorded) in rows {
         if let Some((_, contents)) = EMBEDDED_MIGRATIONS.iter().find(|(n, _)| *n == name) {
             let current = sha256_hex(contents);
@@ -410,14 +518,25 @@ mod tests {
     #[test]
     fn backups_listing_filters_and_sorts() {
         let dir = tempfile::tempdir().unwrap();
-        std::fs::write(dir.path().join(format!("{BACKUP_PREFIX}20260101T000000Z.db")), b"x")
-            .unwrap();
-        std::fs::write(dir.path().join(format!("{BACKUP_PREFIX}20260202T000000Z.db")), b"yy")
-            .unwrap();
+        std::fs::write(
+            dir.path()
+                .join(format!("{BACKUP_PREFIX}20260101T000000Z.db")),
+            b"x",
+        )
+        .unwrap();
+        std::fs::write(
+            dir.path()
+                .join(format!("{BACKUP_PREFIX}20260202T000000Z.db")),
+            b"yy",
+        )
+        .unwrap();
         std::fs::write(dir.path().join("unrelated.db"), b"z").unwrap();
         let listed = list_backups(dir.path());
         assert_eq!(listed.len(), 2);
-        assert_eq!(listed[0].name, format!("{BACKUP_PREFIX}20260202T000000Z.db"));
+        assert_eq!(
+            listed[0].name,
+            format!("{BACKUP_PREFIX}20260202T000000Z.db")
+        );
         assert_eq!(listed[1].size_bytes, 1);
         assert!(list_backups(&dir.path().join("missing")).is_empty());
     }
@@ -425,7 +544,9 @@ mod tests {
     #[tokio::test]
     async fn vacuum_into_creates_nonempty_backup() {
         let (dir, p) = pool().await;
-        let dest = backup_database(&p, &dir.path().join("backups")).await.unwrap();
+        let dest = backup_database(&p, &dir.path().join("backups"))
+            .await
+            .unwrap();
         assert!(dest.is_file());
         assert!(dest.metadata().unwrap().len() > 0);
         let listed = list_backups(dest.parent().unwrap());
@@ -442,7 +563,10 @@ mod tests {
         assert_eq!(m.id, again.id);
         assert_eq!(again.local_path, "/local2");
         assert_eq!(list_mappings(&p).await.unwrap().len(), 1);
-        assert!(translate(&list_mappings(&p).await.unwrap(), "/mnt/r/x").as_deref() == Some("/local2/x"));
+        assert!(
+            translate(&list_mappings(&p).await.unwrap(), "/mnt/r/x").as_deref()
+                == Some("/local2/x")
+        );
         assert!(delete_mapping(&p, &again.id).await.unwrap());
         assert!(!delete_mapping(&p, &again.id).await.unwrap());
         assert!(list_mappings(&p).await.unwrap().is_empty());
@@ -479,14 +603,18 @@ mod tests {
             .unwrap();
         }
         let issues = health_issues(&p).await;
-        assert!(issues.iter().any(|i| i.source == "failed_jobs" && i.severity == "error"));
+        assert!(issues
+            .iter()
+            .any(|i| i.source == "failed_jobs" && i.severity == "error"));
     }
 
     #[tokio::test]
     async fn missing_indexers_emit_warning() {
         let (_d, p) = pool().await;
         let issues = health_issues(&p).await;
-        assert!(issues.iter().any(|i| i.source == "indexers" && i.severity == "warning"));
+        assert!(issues
+            .iter()
+            .any(|i| i.source == "indexers" && i.severity == "warning"));
     }
 
     #[tokio::test]
@@ -495,7 +623,10 @@ mod tests {
         settings::upsert(&p, "setup.indexers", r#"{"torznab": [], "newznab": []}"#)
             .await
             .unwrap();
-        assert!(health_issues(&p).await.iter().any(|i| i.source == "indexers"));
+        assert!(health_issues(&p)
+            .await
+            .iter()
+            .any(|i| i.source == "indexers"));
         settings::upsert(
             &p,
             "setup.indexers",
@@ -503,7 +634,10 @@ mod tests {
         )
         .await
         .unwrap();
-        assert!(!health_issues(&p).await.iter().any(|i| i.source == "indexers"));
+        assert!(!health_issues(&p)
+            .await
+            .iter()
+            .any(|i| i.source == "indexers"));
     }
 
     #[tokio::test]
@@ -515,7 +649,9 @@ mod tests {
         let t = crate::storage::domain::create_wanted_target(&p, "movie", "tmdb", "1", None)
             .await
             .unwrap();
-        let run = crate::storage::domain::create_search_run(&p, &t.id).await.unwrap();
+        let run = crate::storage::domain::create_search_run(&p, &t.id)
+            .await
+            .unwrap();
         let cand = crate::storage::domain::insert_candidate(&p, &run.id, "torznab", "{}", None)
             .await
             .unwrap();
@@ -553,8 +689,43 @@ mod tests {
             .execute(&p)
             .await
             .unwrap();
-        assert!(health_issues(&p).await.iter().any(|i| i.source == "migrations" && i.severity == "error"));
+        assert!(health_issues(&p)
+            .await
+            .iter()
+            .any(|i| i.source == "migrations" && i.severity == "error"));
+    }
+    #[test]
+    fn disk_free_reports_positive_space_on_real_volume() {
+        let dir = tempfile::tempdir().unwrap();
+        #[cfg(unix)]
+        {
+            let free = disk_free(dir.path()).expect("statvfs on a real tempdir");
+            assert!(free > 0);
+            // statvfs on a path that cannot exist must fail gracefully.
+            assert_eq!(disk_free(&dir.path().join("no/such/dir")), None);
+        }
+        // Non-unix fallback is always None.
+        #[cfg(not(unix))]
+        assert_eq!(disk_free(dir.path()), None);
+    }
+
+    #[tokio::test]
+    async fn pending_restore_marker_emits_health_issue() {
+        let (_d, p) = pool().await;
+        assert!(!health_issues(&p)
+            .await
+            .iter()
+            .any(|i| i.source == "pending_restore"));
+
+        let db_file = database_file(&p).await.expect("file-backed test pool");
+        let pending = PathBuf::from(format!("{}.restore.pending", db_file.display()));
+        std::fs::write(&pending, b"staged").unwrap();
+        let issues = health_issues(&p).await;
+        let issue = issues
+            .iter()
+            .find(|i| i.source == "pending_restore")
+            .expect("staged marker must surface");
+        assert_eq!(issue.severity, "warning");
+        assert!(issue.message.contains("restore.pending"));
     }
 }
-
-

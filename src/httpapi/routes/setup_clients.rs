@@ -20,15 +20,19 @@ use crate::error::AppError;
 use crate::httpapi::middleware::auth::Admin;
 use crate::security::ssrf::{self, SsrfError};
 use crate::state::AppState;
-use crate::ws::hub::PublishExt;
 use crate::storage::audit::{insert as insert_audit, AuditEvent};
+use crate::ws::hub::PublishExt;
 
 const SETTING_KEY: &str = "setup.clients";
 const PROBE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(6);
 const MAX_BODY: usize = 64 * 1024;
 
 /// Form/query encoding compatible enough with Go's `url.Values.Encode`.
-const FORM_SET: &AsciiSet = &NON_ALPHANUMERIC.remove(b'-').remove(b'_').remove(b'.').remove(b'~');
+const FORM_SET: &AsciiSet = &NON_ALPHANUMERIC
+    .remove(b'-')
+    .remove(b'_')
+    .remove(b'.')
+    .remove(b'~');
 
 fn qenc(s: &str) -> String {
     utf8_percent_encode(s, FORM_SET).to_string()
@@ -75,11 +79,19 @@ struct ClientTestResult {
 
 impl ClientTestResult {
     fn fail(code: &str) -> Self {
-        ClientTestResult { ok: false, error: Some(code.to_string()), ..Default::default() }
+        ClientTestResult {
+            ok: false,
+            error: Some(code.to_string()),
+            ..Default::default()
+        }
     }
 
     fn ok_with(details: BTreeMap<String, String>) -> Self {
-        ClientTestResult { ok: true, details, error: None }
+        ClientTestResult {
+            ok: true,
+            details,
+            error: None,
+        }
     }
 }
 
@@ -137,7 +149,10 @@ async fn save(
     // silently stored "" on encryption errors).
     let mut persist = serde_json::Map::new();
     if let Some(qb) = &req.qbittorrent {
-        let pw_enc = match state.secret_box.encrypt_to_string(qb.password.trim().as_bytes()) {
+        let pw_enc = match state
+            .secret_box
+            .encrypt_to_string(qb.password.trim().as_bytes())
+        {
             Ok(e) => e,
             Err(_) => {
                 return (
@@ -157,7 +172,10 @@ async fn save(
         );
     }
     if let Some(ng) = &req.nzbget {
-        let pw_enc = match state.secret_box.encrypt_to_string(ng.password.trim().as_bytes()) {
+        let pw_enc = match state
+            .secret_box
+            .encrypt_to_string(ng.password.trim().as_bytes())
+        {
             Ok(e) => e,
             Err(_) => {
                 return (
@@ -177,7 +195,10 @@ async fn save(
         );
     }
     if let Some(sab) = &req.sabnzbd {
-        let key_enc = match state.secret_box.encrypt_to_string(sab.apiKey.trim().as_bytes()) {
+        let key_enc = match state
+            .secret_box
+            .encrypt_to_string(sab.apiKey.trim().as_bytes())
+        {
             Ok(e) => e,
             Err(_) => {
                 return (
@@ -197,7 +218,10 @@ async fn save(
     }
 
     let payload = serde_json::Value::Object(persist).to_string();
-    if crate::storage::settings::upsert(&state.db, SETTING_KEY, &payload).await.is_err() {
+    if crate::storage::settings::upsert(&state.db, SETTING_KEY, &payload)
+        .await
+        .is_err()
+    {
         return (
             StatusCode::INTERNAL_SERVER_ERROR,
             axum::Json(json!({"error": "save_failed"})),
@@ -214,9 +238,10 @@ async fn save(
         },
     )
     .await;
-    state
-        .hub
-        .publish_event("audit.event", json!({"action": "setup.clients_saved", "actorUserId": actor}));
+    state.hub.publish_event(
+        "audit.event",
+        json!({"action": "setup.clients_saved", "actorUserId": actor}),
+    );
     axum::Json(SetupClientsSaveResponse { saved: true }).into_response()
 }
 
@@ -251,8 +276,14 @@ fn join_url(origin: &url::Url, path: &str, query: Option<&str>) -> String {
     u.to_string()
 }
 
-async fn validate_clients(state: &AppState, req: &SetupClientsValidateRequest) -> SetupClientsValidateResponse {
-    let mut resp = SetupClientsValidateResponse { ok: true, ..Default::default() };
+async fn validate_clients(
+    state: &AppState,
+    req: &SetupClientsValidateRequest,
+) -> SetupClientsValidateResponse {
+    let mut resp = SetupClientsValidateResponse {
+        ok: true,
+        ..Default::default()
+    };
 
     // Require at least one configured client.
     if req.qbittorrent.is_none() && req.nzbget.is_none() && req.sabnzbd.is_none() {
@@ -260,11 +291,15 @@ async fn validate_clients(state: &AppState, req: &SetupClientsValidateRequest) -
             "setup.clients.validation.error",
             json!({"error": "no_clients_provided", "message": "At least one client must be configured"}),
         );
-        return SetupClientsValidateResponse { ok: false, ..Default::default() };
+        return SetupClientsValidateResponse {
+            ok: false,
+            ..Default::default()
+        };
     }
 
-    let count =
-        req.qbittorrent.is_some() as i64 + req.nzbget.is_some() as i64 + req.sabnzbd.is_some() as i64;
+    let count = req.qbittorrent.is_some() as i64
+        + req.nzbget.is_some() as i64
+        + req.sabnzbd.is_some() as i64;
     state.hub.publish_event(
         "setup.clients.validation.started",
         json!({
@@ -396,8 +431,15 @@ async fn test_qbittorrent(state: &AppState, cfg: &QBittorrentConfig) -> ClientTe
     } else {
         vec![("cookie", cookie.as_str())]
     };
-    match ssrf::request_validated(reqwest::Method::GET, &ver_url, state.policy, PROBE_TIMEOUT, &headers, None)
-        .await
+    match ssrf::request_validated(
+        reqwest::Method::GET,
+        &ver_url,
+        state.policy,
+        PROBE_TIMEOUT,
+        &headers,
+        None,
+    )
+    .await
     {
         Err(_) => {
             state.hub.publish_event(
@@ -463,7 +505,10 @@ async fn test_nzbget(state: &AppState, cfg: &NZBGetConfig) -> ClientTestResult {
         &rpc_url,
         state.policy,
         PROBE_TIMEOUT,
-        &[("content-type", "application/json"), ("authorization", auth_header.as_str())],
+        &[
+            ("content-type", "application/json"),
+            ("authorization", auth_header.as_str()),
+        ],
         Some(payload),
     )
     .await
@@ -597,12 +642,10 @@ async fn test_sabnzbd(state: &AppState, cfg: &SABnzbdConfig) -> ClientTestResult
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    use std::sync::Arc;
     use crate::httpapi::middleware::auth::{csrf, load_session};
     use crate::metrics::Metrics;
     use crate::security::secrets::SecretBox;
@@ -612,6 +655,7 @@ mod tests {
     use axum::extract::Request;
     use axum::http::StatusCode;
     use axum::middleware;
+    use std::sync::Arc;
     use tower::ServiceExt;
 
     async fn app_state() -> (tempfile::TempDir, AppState) {
@@ -678,10 +722,18 @@ mod tests {
             .layer(middleware::from_fn(csrf))
             .layer(middleware::from_fn_with_state(state.clone(), load_session))
             .with_state(state);
-        let resp = app.oneshot(b.body(Body::from(body.to_string())).unwrap()).await.unwrap();
+        let resp = app
+            .oneshot(b.body(Body::from(body.to_string())).unwrap())
+            .await
+            .unwrap();
         let status = resp.status();
-        let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
-        (status, serde_json::from_slice(&bytes).unwrap_or(serde_json::Value::Null))
+        let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        (
+            status,
+            serde_json::from_slice(&bytes).unwrap_or(serde_json::Value::Null),
+        )
     }
 
     #[tokio::test]
@@ -755,7 +807,9 @@ mod tests {
         // SABnzbd: GET /api returns {"version":"4.1.0"}.
         Mock::given(method("GET"))
             .and(path("/api"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({"version":"4.1.0"})))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(serde_json::json!({"version":"4.1.0"})),
+            )
             .mount(&server)
             .await;
         // qBittorrent: POST login returns "Ok." + SID cookie, GET version returns string.
@@ -791,8 +845,18 @@ mod tests {
         })
         .to_string();
 
-        let (s, v) = post_admin(state.clone(), "/api/v1/setup/clients/save", &body, Some(&sess)).await;
-        assert_eq!(s, StatusCode::OK, "all three probes must pass against the stub");
+        let (s, v) = post_admin(
+            state.clone(),
+            "/api/v1/setup/clients/save",
+            &body,
+            Some(&sess),
+        )
+        .await;
+        assert_eq!(
+            s,
+            StatusCode::OK,
+            "all three probes must pass against the stub"
+        );
         assert_eq!(v["saved"], true);
 
         let stored = crate::storage::settings::get(&state.db, "setup.clients")
@@ -800,9 +864,18 @@ mod tests {
             .unwrap()
             .unwrap();
         // ACCEPTANCE: ciphertext != plaintext in DB.
-        assert!(!stored.contains("hunter2-secret"), "qBittorrent password stored in cleartext!");
-        assert!(!stored.contains("nzb-pass-9"), "NZBGet password stored in cleartext!");
-        assert!(!stored.contains("sab-key-7"), "SABnzbd API key stored in cleartext!");
+        assert!(
+            !stored.contains("hunter2-secret"),
+            "qBittorrent password stored in cleartext!"
+        );
+        assert!(
+            !stored.contains("nzb-pass-9"),
+            "NZBGet password stored in cleartext!"
+        );
+        assert!(
+            !stored.contains("sab-key-7"),
+            "SABnzbd API key stored in cleartext!"
+        );
         let parsed: serde_json::Value = serde_json::from_str(&stored).unwrap();
         assert_ne!(parsed["qbittorrent"]["passwordEnc"], "hunter2-secret");
 

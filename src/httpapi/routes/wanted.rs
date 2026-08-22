@@ -131,7 +131,11 @@ async fn wanted_cutoff_unmet(
     let all = calendar_queries::cutoff_unmet_episodes(&state.db, &cutoffs).await?;
     let total = all.len() as i64;
     let offset = (page - 1).saturating_mul(page_size) as usize;
-    let items = all.into_iter().skip(offset).take(page_size as usize).collect();
+    let items = all
+        .into_iter()
+        .skip(offset)
+        .take(page_size as usize)
+        .collect();
     Ok(Json(Page {
         items,
         total,
@@ -142,7 +146,6 @@ async fn wanted_cutoff_unmet(
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
     use super::*;
     use crate::httpapi::middleware::auth::{csrf, load_session};
     use crate::security::secrets::SecretBox;
@@ -152,6 +155,7 @@ mod tests {
     use axum::body::Body;
     use axum::extract::Request;
     use axum::middleware;
+    use std::sync::Arc;
     use tower::ServiceExt;
 
     async fn test_state() -> (AppState, tempfile::TempDir) {
@@ -210,7 +214,9 @@ mod tests {
     }
 
     async fn body_json(res: axum::http::Response<Body>) -> serde_json::Value {
-        let bytes = axum::body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
+        let bytes = axum::body::to_bytes(res.into_body(), usize::MAX)
+            .await
+            .unwrap();
         serde_json::from_slice(&bytes).unwrap()
     }
 
@@ -246,10 +252,7 @@ mod tests {
         let op = seed_session(&state, "op@x.test", "operator").await;
 
         let res = full_router(&state)
-            .oneshot(get(
-                "/api/v1/wanted/missing?page=1&pageSize=2",
-                Some(&op),
-            ))
+            .oneshot(get("/api/v1/wanted/missing?page=1&pageSize=2", Some(&op)))
             .await
             .unwrap();
         assert_eq!(res.status(), StatusCode::OK);
@@ -326,13 +329,9 @@ mod tests {
         assert_eq!(v["total"], 0);
 
         // Configure {"default": 100}: only the 60-score file is unmet.
-        crate::storage::settings::upsert(
-            &state.db,
-            PROFILES_CUTOFFS,
-            r#"{"default": 100}"#,
-        )
-        .await
-        .unwrap();
+        crate::storage::settings::upsert(&state.db, PROFILES_CUTOFFS, r#"{"default": 100}"#)
+            .await
+            .unwrap();
         let res = full_router(&state)
             .oneshot(get("/api/v1/wanted/cutoff_unmet", Some(&op)))
             .await

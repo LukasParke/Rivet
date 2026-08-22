@@ -56,14 +56,15 @@ impl DryRunClient {
     }
 
     fn shared(fixture: Option<String>) -> Arc<dyn Downloader> {
-        static SHARED: std::sync::Mutex<Option<Arc<dyn Downloader>>> =
-            std::sync::Mutex::new(None);
+        static SHARED: std::sync::Mutex<Option<Arc<dyn Downloader>>> = std::sync::Mutex::new(None);
         let mut guard = SHARED.lock().expect("dryrun shared mutex");
         match &*guard {
             Some(existing) => Arc::clone(existing),
             None => {
-                let client: Arc<dyn Downloader> =
-                    Arc::new(DryRunClient::with_duration(DEFAULT_DURATION, fixture.as_deref()));
+                let client: Arc<dyn Downloader> = Arc::new(DryRunClient::with_duration(
+                    DEFAULT_DURATION,
+                    fixture.as_deref(),
+                ));
                 *guard = Some(Arc::clone(&client));
                 client
             }
@@ -77,7 +78,10 @@ impl DryRunClient {
             .filter(|s| !s.is_empty())
             .map(PathBuf::from);
         Self {
-            inner: Mutex::new(Inner { downloads: Vec::new(), next_seq: 0 }),
+            inner: Mutex::new(Inner {
+                downloads: Vec::new(),
+                next_seq: 0,
+            }),
             fixture_path,
             duration,
         }
@@ -134,7 +138,10 @@ impl Downloader for DryRunClient {
         let hash = fake_hash(url);
         let name = derive_name(url);
 
-        let mut inner = self.inner.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let mut inner = self
+            .inner
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         if inner.downloads.iter().any(|d| d.hash == hash) {
             // Already added; treat as success.
             return Ok(Some(hash));
@@ -157,7 +164,10 @@ impl Downloader for DryRunClient {
         if id.is_empty() {
             return Err(AdapterError::InvalidConfig("hash_required".into()));
         }
-        let inner = self.inner.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let inner = self
+            .inner
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let now = Instant::now();
         Ok(inner
             .downloads
@@ -167,7 +177,10 @@ impl Downloader for DryRunClient {
     }
 
     async fn get_all(&self) -> Result<Vec<TorrentInfo>, AdapterError> {
-        let inner = self.inner.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let inner = self
+            .inner
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let now = Instant::now();
         // Most recently added first.
         let mut items: Vec<&Download> = inner.downloads.iter().collect();
@@ -180,8 +193,15 @@ impl Downloader for DryRunClient {
         if id.is_empty() {
             return Err(AdapterError::InvalidConfig("hash_required".into()));
         }
-        let mut inner = self.inner.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-        if let Some(d) = inner.downloads.iter_mut().find(|d| d.hash.eq_ignore_ascii_case(id)) {
+        let mut inner = self
+            .inner
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if let Some(d) = inner
+            .downloads
+            .iter_mut()
+            .find(|d| d.hash.eq_ignore_ascii_case(id))
+        {
             if d.paused {
                 d.paused = false;
                 d.started_at = Instant::now();
@@ -195,8 +215,15 @@ impl Downloader for DryRunClient {
         if id.is_empty() {
             return Err(AdapterError::InvalidConfig("hash_required".into()));
         }
-        let mut inner = self.inner.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-        if let Some(d) = inner.downloads.iter_mut().find(|d| d.hash.eq_ignore_ascii_case(id)) {
+        let mut inner = self
+            .inner
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if let Some(d) = inner
+            .downloads
+            .iter_mut()
+            .find(|d| d.hash.eq_ignore_ascii_case(id))
+        {
             if !d.paused {
                 d.accumulated += Instant::now().duration_since(d.started_at);
                 d.paused = true;
@@ -220,7 +247,10 @@ impl Downloader for DryRunClient {
         if id.is_empty() {
             return Err(AdapterError::InvalidConfig("hash_required".into()));
         }
-        let mut inner = self.inner.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let mut inner = self
+            .inner
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         inner.downloads.retain(|d| !d.hash.eq_ignore_ascii_case(id));
         Ok(())
     }
@@ -270,7 +300,11 @@ mod tests {
         assert!(c.get_all().await.unwrap().is_empty());
         c.test().await.unwrap();
 
-        let hash = c.add_url("magnet:?xt=urn:btih:abc123&dn=Ubuntu").await.unwrap().unwrap();
+        let hash = c
+            .add_url("magnet:?xt=urn:btih:abc123&dn=Ubuntu")
+            .await
+            .unwrap()
+            .unwrap();
         assert_eq!(hash, "abc123");
 
         let early = c.get_info(&hash).await.unwrap().expect("present");
@@ -286,7 +320,10 @@ mod tests {
         assert_eq!(frozen_a.state, "pauseddl");
         tokio::time::sleep(Duration::from_millis(80)).await;
         let frozen_b = c.get_info(&hash).await.unwrap().unwrap();
-        assert!((frozen_a.progress - frozen_b.progress).abs() < f64::EPSILON, "paused progress must not advance");
+        assert!(
+            (frozen_a.progress - frozen_b.progress).abs() < f64::EPSILON,
+            "paused progress must not advance"
+        );
 
         // Resume continues toward completion.
         c.resume(&hash).await.unwrap();
@@ -300,16 +337,31 @@ mod tests {
         c.delete(&hash, true).await.unwrap();
         assert!(c.get_info(&hash).await.unwrap().is_none());
         assert!(c.get_all().await.unwrap().is_empty());
-        assert!(matches!(c.get_info("").await, Err(AdapterError::InvalidConfig(_))));
+        assert!(matches!(
+            c.get_info("").await,
+            Err(AdapterError::InvalidConfig(_))
+        ));
     }
 
     #[tokio::test]
     async fn get_all_sorted_newest_first_and_readd_is_idempotent() {
         let c = client(60_000);
-        let h1 = c.add_url("magnet:?xt=urn:btih:first&dn=One").await.unwrap().unwrap();
-        let h2 = c.add_url("magnet:?xt=urn:btih:second&dn=Two").await.unwrap().unwrap();
+        let h1 = c
+            .add_url("magnet:?xt=urn:btih:first&dn=One")
+            .await
+            .unwrap()
+            .unwrap();
+        let h2 = c
+            .add_url("magnet:?xt=urn:btih:second&dn=Two")
+            .await
+            .unwrap()
+            .unwrap();
         // Re-adding an existing torrent neither duplicates nor resets it.
-        let again = c.add_url("magnet:?xt=urn:btih:first&dn=One").await.unwrap().unwrap();
+        let again = c
+            .add_url("magnet:?xt=urn:btih:first&dn=One")
+            .await
+            .unwrap()
+            .unwrap();
         assert_eq!(again, h1);
 
         let all = c.get_all().await.unwrap();
@@ -328,7 +380,10 @@ mod tests {
         assert_eq!(h1.len(), 64, "sha256 hex digest");
 
         let info = c.get_info(&h1).await.unwrap().unwrap();
-        assert_eq!(info.name, "dryrun-download", "non-magnet URLs use fallback name");
+        assert_eq!(
+            info.name, "dryrun-download",
+            "non-magnet URLs use fallback name"
+        );
     }
 
     #[tokio::test]
@@ -338,7 +393,11 @@ mod tests {
             Duration::from_secs(60),
             Some(dir.path().to_str().unwrap()),
         );
-        let hash = c.add_url("magnet:?xt=urn:btih:fixtured").await.unwrap().unwrap();
+        let hash = c
+            .add_url("magnet:?xt=urn:btih:fixtured")
+            .await
+            .unwrap()
+            .unwrap();
         let info = c.get_info(&hash).await.unwrap().unwrap();
         assert_eq!(
             info.content_path.as_deref(),
@@ -352,13 +411,31 @@ mod tests {
     #[tokio::test]
     async fn rejects_invalid_arguments() {
         let c = client(60_000);
-        assert!(matches!(c.add_url("").await, Err(AdapterError::InvalidConfig(_))));
-        assert!(matches!(c.add_url("   ").await, Err(AdapterError::InvalidConfig(_))));
+        assert!(matches!(
+            c.add_url("").await,
+            Err(AdapterError::InvalidConfig(_))
+        ));
+        assert!(matches!(
+            c.add_url("   ").await,
+            Err(AdapterError::InvalidConfig(_))
+        ));
         assert!(c.add_url("magnet:?xt=urn:btih:x").await.is_ok());
-        assert!(matches!(c.get_info("").await, Err(AdapterError::InvalidConfig(_))));
-        assert!(matches!(c.pause(" ").await, Err(AdapterError::InvalidConfig(_))));
-        assert!(matches!(c.resume("").await, Err(AdapterError::InvalidConfig(_))));
-        assert!(matches!(c.delete("", false).await, Err(AdapterError::InvalidConfig(_))));
+        assert!(matches!(
+            c.get_info("").await,
+            Err(AdapterError::InvalidConfig(_))
+        ));
+        assert!(matches!(
+            c.pause(" ").await,
+            Err(AdapterError::InvalidConfig(_))
+        ));
+        assert!(matches!(
+            c.resume("").await,
+            Err(AdapterError::InvalidConfig(_))
+        ));
+        assert!(matches!(
+            c.delete("", false).await,
+            Err(AdapterError::InvalidConfig(_))
+        ));
         // Unknown ids are silently ignored (parity with Go).
         c.resume("unknown").await.unwrap();
         c.pause("unknown").await.unwrap();
@@ -367,12 +444,14 @@ mod tests {
         c.recheck("x").await.unwrap();
     }
 
-
     #[test]
     fn derive_name_extracts_display_name() {
         assert_eq!(derive_name("magnet:?xt=urn:btih:a&dn=My%20Show"), "My Show");
         assert_eq!(derive_name("MAGNET:?dn=CaseInsensitive"), "CaseInsensitive");
         assert_eq!(derive_name("magnet:?xt=urn:btih:a"), "dryrun-download");
-        assert_eq!(derive_name("https://example.com/a.torrent"), "dryrun-download");
+        assert_eq!(
+            derive_name("https://example.com/a.torrent"),
+            "dryrun-download"
+        );
     }
 }

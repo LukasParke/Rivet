@@ -128,9 +128,9 @@ impl Hub {
         conns.retain(|c| !c.tx.is_closed());
         for c in conns.iter_mut() {
             let clearance = clearance_of(c.role);
-            let eligible = channels
-                .iter()
-                .any(|ch| c.subscriptions.contains(*ch) && ChannelClearance::for_channel(ch) <= clearance);
+            let eligible = channels.iter().any(|ch| {
+                c.subscriptions.contains(*ch) && ChannelClearance::for_channel(ch) <= clearance
+            });
             if eligible {
                 // Bounded send: drop on backpressure rather than blocking publishers.
                 let _ = c.tx.try_send(envelope.clone());
@@ -219,13 +219,19 @@ mod tests {
     async fn unsubscribe_is_explicit_not_receive_all() {
         let hub = Arc::new(Hub::new());
         let (id, mut rx) = hub.add(Role::Admin);
-        assert_eq!(hub.subscribed_channels(id), vec!["activity", "health", "jobs"]);
+        assert_eq!(
+            hub.subscribed_channels(id),
+            vec!["activity", "health", "jobs"]
+        );
 
         hub.unsubscribe(id, "jobs");
         hub.unsubscribe(id, "activity");
         hub.unsubscribe(id, "health");
         hub.publish("job.completed", serde_json::json!({}));
-        assert!(rx.try_recv().is_err(), "empty subscription set must mean silence");
+        assert!(
+            rx.try_recv().is_err(),
+            "empty subscription set must mean silence"
+        );
 
         hub.subscribe(id, "jobs");
         hub.publish("job.failed", serde_json::json!({}));
@@ -236,7 +242,10 @@ mod tests {
     async fn viewer_cannot_subscribe_to_privileged_channel() {
         let hub = Arc::new(Hub::new());
         let (id, mut rx) = hub.add(Role::Viewer);
-        assert!(!hub.subscribe(id, "audit"), "audit subscribe must be denied");
+        assert!(
+            !hub.subscribe(id, "audit"),
+            "audit subscribe must be denied"
+        );
         hub.publish("audit.x", serde_json::json!({}));
         assert!(rx.try_recv().is_err());
     }

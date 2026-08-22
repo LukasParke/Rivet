@@ -113,10 +113,7 @@ pub async fn get_wanted(pool: &SqlitePool, id: &str) -> Result<Option<WantedTarg
 }
 
 /// Newest-first listing of wanted targets.
-pub async fn list_wanted(
-    pool: &SqlitePool,
-    limit: i64,
-) -> Result<Vec<WantedTarget>, sqlx::Error> {
+pub async fn list_wanted(pool: &SqlitePool, limit: i64) -> Result<Vec<WantedTarget>, sqlx::Error> {
     sqlx::query_as::<_, WantedTarget>(
         "SELECT * FROM wanted_targets ORDER BY created_at DESC LIMIT ?",
     )
@@ -125,7 +122,10 @@ pub async fn list_wanted(
     .await
 }
 
-pub async fn create_search_run(pool: &SqlitePool, target_id: &str) -> Result<SearchRun, sqlx::Error> {
+pub async fn create_search_run(
+    pool: &SqlitePool,
+    target_id: &str,
+) -> Result<SearchRun, sqlx::Error> {
     let id = uuid::Uuid::new_v4().to_string();
     sqlx::query("INSERT INTO search_runs (id, target_id, status) VALUES (?, ?, 'queued')")
         .bind(&id)
@@ -156,33 +156,30 @@ pub async fn update_running(pool: &SqlitePool, run_id: &str) -> Result<(), sqlx:
 
 pub async fn set_completed(pool: &SqlitePool, run_id: &str) -> Result<(), sqlx::Error> {
     let now = timeutil::now();
-    sqlx::query("UPDATE search_runs SET status = 'completed', completed_at = ?, error = NULL WHERE id = ?")
-        .bind(&now)
-        .bind(run_id)
-        .execute(pool)
-        .await
-        .map(|_| ())
+    sqlx::query(
+        "UPDATE search_runs SET status = 'completed', completed_at = ?, error = NULL WHERE id = ?",
+    )
+    .bind(&now)
+    .bind(run_id)
+    .execute(pool)
+    .await
+    .map(|_| ())
 }
 
-pub async fn set_failed(
-    pool: &SqlitePool,
-    run_id: &str,
-    error: &str,
-) -> Result<(), sqlx::Error> {
+pub async fn set_failed(pool: &SqlitePool, run_id: &str, error: &str) -> Result<(), sqlx::Error> {
     let now = timeutil::now();
-    sqlx::query("UPDATE search_runs SET status = 'failed', completed_at = ?, error = ? WHERE id = ?")
-        .bind(&now)
-        .bind(error)
-        .bind(run_id)
-        .execute(pool)
-        .await
-        .map(|_| ())
+    sqlx::query(
+        "UPDATE search_runs SET status = 'failed', completed_at = ?, error = ? WHERE id = ?",
+    )
+    .bind(&now)
+    .bind(error)
+    .bind(run_id)
+    .execute(pool)
+    .await
+    .map(|_| ())
 }
 
-pub async fn get_search_run(
-    pool: &SqlitePool,
-    run_id: &str,
-) -> Result<SearchRun, RunLookupError> {
+pub async fn get_search_run(pool: &SqlitePool, run_id: &str) -> Result<SearchRun, RunLookupError> {
     sqlx::query_as::<_, SearchRun>("SELECT * FROM search_runs WHERE id = ?")
         .bind(run_id)
         .fetch_one(pool)
@@ -340,12 +337,19 @@ mod tests {
     #[tokio::test]
     async fn wanted_targets_roundtrip_and_ordering() {
         let (_d, p) = pool().await;
-        let t1 =
-            create_wanted_target(&p, "movie", "tmdb", "1", Some(&serde_json::json!({"year": 2001})))
-                .await
-                .unwrap();
+        let t1 = create_wanted_target(
+            &p,
+            "movie",
+            "tmdb",
+            "1",
+            Some(&serde_json::json!({"year": 2001})),
+        )
+        .await
+        .unwrap();
         tokio::time::sleep(std::time::Duration::from_millis(2)).await;
-        let t2 = create_wanted_target(&p, "episode", "tvdb", "2", None).await.unwrap();
+        let t2 = create_wanted_target(&p, "episode", "tvdb", "2", None)
+            .await
+            .unwrap();
 
         assert_eq!(t1.state, "wanted");
         assert_eq!(
@@ -370,7 +374,9 @@ mod tests {
     #[tokio::test]
     async fn search_run_lifecycle() {
         let (_d, p) = pool().await;
-        let t = create_wanted_target(&p, "movie", "tmdb", "9", None).await.unwrap();
+        let t = create_wanted_target(&p, "movie", "tmdb", "9", None)
+            .await
+            .unwrap();
         let run = create_search_run(&p, &t.id).await.unwrap();
         assert_eq!(run.status, "queued");
         assert!(run.started_at.is_none());
@@ -404,7 +410,9 @@ mod tests {
     #[tokio::test]
     async fn candidates_and_decisions_persist() {
         let (_d, p) = pool().await;
-        let t = create_wanted_target(&p, "movie", "tmdb", "9", None).await.unwrap();
+        let t = create_wanted_target(&p, "movie", "tmdb", "9", None)
+            .await
+            .unwrap();
         let run = create_search_run(&p, &t.id).await.unwrap();
 
         let c = insert_candidate(
@@ -430,12 +438,18 @@ mod tests {
     #[tokio::test]
     async fn run_with_results_happy_path() {
         let (_d, p) = pool().await;
-        let t = create_wanted_target(&p, "movie", "tmdb", "9", None).await.unwrap();
+        let t = create_wanted_target(&p, "movie", "tmdb", "9", None)
+            .await
+            .unwrap();
         let run = create_search_run(&p, &t.id).await.unwrap();
 
-        let c1 = insert_candidate(&p, &run.id, "idx", r#"{}"#, None).await.unwrap();
+        let c1 = insert_candidate(&p, &run.id, "idx", r#"{}"#, None)
+            .await
+            .unwrap();
         tokio::time::sleep(std::time::Duration::from_millis(2)).await;
-        let c2 = insert_candidate(&p, &run.id, "idx", r#"{}"#, None).await.unwrap();
+        let c2 = insert_candidate(&p, &run.id, "idx", r#"{}"#, None)
+            .await
+            .unwrap();
         insert_decision(&p, &c1.id, false, -5, &["blacklisted".into()])
             .await
             .unwrap();
@@ -462,9 +476,14 @@ mod tests {
         }
 
         // Real DB failure propagates as Db even though the run exists.
-        let t = create_wanted_target(&p, "movie", "tmdb", "9", None).await.unwrap();
+        let t = create_wanted_target(&p, "movie", "tmdb", "9", None)
+            .await
+            .unwrap();
         let run = create_search_run(&p, &t.id).await.unwrap();
-        sqlx::query("DROP TABLE decisions").execute(&p).await.unwrap();
+        sqlx::query("DROP TABLE decisions")
+            .execute(&p)
+            .await
+            .unwrap();
         match get_run_with_results(&p, &run.id).await {
             Err(RunLookupError::Db(_)) => {}
             other => panic!("expected Db error, got {other:?}"),
@@ -474,9 +493,13 @@ mod tests {
     #[tokio::test]
     async fn cascade_delete_removes_runs_candidates_decisions() {
         let (_d, p) = pool().await;
-        let t = create_wanted_target(&p, "movie", "tmdb", "9", None).await.unwrap();
+        let t = create_wanted_target(&p, "movie", "tmdb", "9", None)
+            .await
+            .unwrap();
         let run = create_search_run(&p, &t.id).await.unwrap();
-        let c = insert_candidate(&p, &run.id, "idx", r#"{}"#, None).await.unwrap();
+        let c = insert_candidate(&p, &run.id, "idx", r#"{}"#, None)
+            .await
+            .unwrap();
         insert_decision(&p, &c.id, true, 1, &[]).await.unwrap();
 
         sqlx::query("DELETE FROM wanted_targets WHERE id = ?")
@@ -484,6 +507,9 @@ mod tests {
             .execute(&p)
             .await
             .unwrap();
-        assert!(get_search_run(&p, &run.id).await.is_err(), "run cascaded with target");
+        assert!(
+            get_search_run(&p, &run.id).await.is_err(),
+            "run cascaded with target"
+        );
     }
 }

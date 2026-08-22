@@ -9,8 +9,8 @@ use serde_json::json;
 
 use crate::httpapi::middleware::auth::Admin;
 use crate::state::AppState;
-use crate::ws::hub::PublishExt;
 use crate::storage::audit::{insert as insert_audit, AuditEvent};
+use crate::ws::hub::PublishExt;
 
 const SETTING_KEY: &str = "setup.policies";
 
@@ -82,7 +82,10 @@ async fn save(
                 .into_response()
         }
     };
-    if crate::storage::settings::upsert(&state.db, SETTING_KEY, &payload).await.is_err() {
+    if crate::storage::settings::upsert(&state.db, SETTING_KEY, &payload)
+        .await
+        .is_err()
+    {
         return (
             StatusCode::INTERNAL_SERVER_ERROR,
             axum::Json(json!({"error": "save_failed"})),
@@ -99,9 +102,10 @@ async fn save(
         },
     )
     .await;
-    state
-        .hub
-        .publish_event("audit.event", json!({"action": "setup.policies_saved", "actorUserId": actor}));
+    state.hub.publish_event(
+        "audit.event",
+        json!({"action": "setup.policies_saved", "actorUserId": actor}),
+    );
     axum::Json(SaveResponse { saved: true }).into_response()
 }
 
@@ -152,7 +156,10 @@ fn validate_policies(state: &AppState, req: &SetupPoliciesRequest) -> ValidateRe
                 "message": "Policy validation failed",
             }),
         );
-        return ValidateResponse { ok: false, errors: errs };
+        return ValidateResponse {
+            ok: false,
+            errors: errs,
+        };
     }
 
     state.hub.publish_event(
@@ -166,14 +173,16 @@ fn validate_policies(state: &AppState, req: &SetupPoliciesRequest) -> ValidateRe
             },
         }),
     );
-    ValidateResponse { ok: true, errors: Vec::new() }
+    ValidateResponse {
+        ok: true,
+        errors: Vec::new(),
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    use std::sync::Arc;
     use crate::httpapi::middleware::auth::{csrf, load_session};
     use crate::metrics::Metrics;
     use crate::security::secrets::SecretBox;
@@ -183,6 +192,7 @@ mod tests {
     use axum::extract::Request;
     use axum::http::StatusCode;
     use axum::middleware;
+    use std::sync::Arc;
     use tower::ServiceExt;
 
     async fn app_state() -> (tempfile::TempDir, AppState) {
@@ -257,8 +267,13 @@ mod tests {
             .await
             .unwrap();
         let status = resp.status();
-        let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
-        (status, serde_json::from_slice(&bytes).unwrap_or(serde_json::Value::Null))
+        let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        (
+            status,
+            serde_json::from_slice(&bytes).unwrap_or(serde_json::Value::Null),
+        )
     }
 
     fn valid_body() -> String {
@@ -289,8 +304,18 @@ mod tests {
         })
         .to_string();
 
-        let (s, v) = post(state.clone(), "/api/v1/setup/policies/validate", &bad, Some(&sess)).await;
-        assert_eq!(s, StatusCode::OK, "validate endpoint reports errors in-band");
+        let (s, v) = post(
+            state.clone(),
+            "/api/v1/setup/policies/validate",
+            &bad,
+            Some(&sess),
+        )
+        .await;
+        assert_eq!(
+            s,
+            StatusCode::OK,
+            "validate endpoint reports errors in-band"
+        );
         assert_eq!(v["ok"], false);
         let errors = v["errors"].as_array().unwrap();
         for expected in [
@@ -318,7 +343,13 @@ mod tests {
         assert_eq!(v["error"], "unauthorized");
 
         let sess = seed_admin_session(&state).await;
-        let (s, v) = post(state.clone(), "/api/v1/setup/policies/save", &body, Some(&sess)).await;
+        let (s, v) = post(
+            state.clone(),
+            "/api/v1/setup/policies/save",
+            &body,
+            Some(&sess),
+        )
+        .await;
         assert_eq!(s, StatusCode::OK);
         assert_eq!(v["saved"], true);
 

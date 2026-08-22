@@ -13,8 +13,8 @@ use std::net::SocketAddr;
 use std::time::{Duration, Instant};
 
 use axum::extract::State;
-use axum::response::IntoResponse;
 use axum::http::StatusCode;
+use axum::response::IntoResponse;
 use axum::response::Response;
 use axum::routing::{get, post};
 use axum::{Json, Router};
@@ -37,8 +37,7 @@ pub fn router() -> Router<AppState> {
 // GET /diagnostics/bundle
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Serialize)]
-#[derive(sqlx::FromRow)]
+#[derive(Debug, Serialize, sqlx::FromRow)]
 struct JobErrorRow {
     id: String,
     kind: String,
@@ -50,8 +49,7 @@ struct JobErrorRow {
     updated_at: String,
 }
 
-#[derive(Debug, Serialize)]
-#[derive(sqlx::FromRow)]
+#[derive(Debug, Serialize, sqlx::FromRow)]
 struct AuditRow {
     id: String,
     #[serde(rename = "actorUserId", skip_serializing_if = "Option::is_none")]
@@ -95,7 +93,10 @@ const SETUP_KEYS: &[&str] = &[
     "auth.registration_open",
 ];
 
-async fn diagnostics_bundle(Admin(_user): Admin, State(state): State<AppState>) -> ApiResult<Json<DiagnosticsResponse>> {
+async fn diagnostics_bundle(
+    Admin(_user): Admin,
+    State(state): State<AppState>,
+) -> ApiResult<Json<DiagnosticsResponse>> {
     let mut setup = BTreeMap::new();
     let mut settings = BTreeMap::new();
     for key in SETUP_KEYS {
@@ -127,37 +128,36 @@ async fn diagnostics_bundle(Admin(_user): Admin, State(state): State<AppState>) 
         }
     }
 
-    let queue_depth = job_counts_by_state(&state.db)
-        .await
-        .unwrap_or_default();
-    let recent_jobs = recent_job_errors(&state.db, 25)
-        .await
-        .unwrap_or_default();
-    let recent_audit = recent_audit_rows(&state.db, 25)
-        .await
-        .unwrap_or_default();
+    let queue_depth = job_counts_by_state(&state.db).await.unwrap_or_default();
+    let recent_jobs = recent_job_errors(&state.db, 25).await.unwrap_or_default();
+    let recent_audit = recent_audit_rows(&state.db, 25).await.unwrap_or_default();
 
     let m = &state.metrics;
     let mut metrics = BTreeMap::new();
     metrics.insert(
         "jobs_enqueued_total".to_string(),
-        m.jobs_enqueued_total.load(std::sync::atomic::Ordering::Relaxed) as i64,
+        m.jobs_enqueued_total
+            .load(std::sync::atomic::Ordering::Relaxed) as i64,
     );
     metrics.insert(
         "jobs_claimed_total".to_string(),
-        m.jobs_claimed_total.load(std::sync::atomic::Ordering::Relaxed) as i64,
+        m.jobs_claimed_total
+            .load(std::sync::atomic::Ordering::Relaxed) as i64,
     );
     metrics.insert(
         "jobs_completed_total".to_string(),
-        m.jobs_completed_total.load(std::sync::atomic::Ordering::Relaxed) as i64,
+        m.jobs_completed_total
+            .load(std::sync::atomic::Ordering::Relaxed) as i64,
     );
     metrics.insert(
         "jobs_retry_scheduled_total".to_string(),
-        m.jobs_retry_scheduled_total.load(std::sync::atomic::Ordering::Relaxed) as i64,
+        m.jobs_retry_scheduled_total
+            .load(std::sync::atomic::Ordering::Relaxed) as i64,
     );
     metrics.insert(
         "ws_events_published_total".to_string(),
-        m.ws_events_published_total.load(std::sync::atomic::Ordering::Relaxed) as i64,
+        m.ws_events_published_total
+            .load(std::sync::atomic::Ordering::Relaxed) as i64,
     );
 
     Ok(Json(DiagnosticsResponse {
@@ -303,7 +303,6 @@ struct HttpTestResult {
     duration: Option<String>,
 }
 
-
 impl HttpTestResult {
     fn failure(error: String, duration: Duration) -> Self {
         Self {
@@ -412,22 +411,22 @@ async fn do_test_connection(
     // see the module docs / integration notes.
     let http_start = Instant::now();
     let probe_url = join_probe_path(validated.url.as_str());
-    let http_result = match ssrf::get_validated(&probe_url, state.policy, PROBE_TIMEOUT, MAX_REDIRECT_HOPS)
-        .await
-    {
-        Ok(resp) => {
-            let code = resp.status().as_u16();
-            HttpTestResult {
-                // Any well-formed HTTP response proves reachability; indexers
-                // answer 401 without a key, which still means "connected".
-                success: resp.status().is_success() || code == 401,
-                status_code: Some(code),
-                error: None,
-                duration: Some(fmt_duration(http_start.elapsed())),
+    let http_result =
+        match ssrf::get_validated(&probe_url, state.policy, PROBE_TIMEOUT, MAX_REDIRECT_HOPS).await
+        {
+            Ok(resp) => {
+                let code = resp.status().as_u16();
+                HttpTestResult {
+                    // Any well-formed HTTP response proves reachability; indexers
+                    // answer 401 without a key, which still means "connected".
+                    success: resp.status().is_success() || code == 401,
+                    status_code: Some(code),
+                    error: None,
+                    duration: Some(fmt_duration(http_start.elapsed())),
+                }
             }
-        }
-        Err(e) => HttpTestResult::failure(e.to_string(), http_start.elapsed()),
-    };
+            Err(e) => HttpTestResult::failure(e.to_string(), http_start.elapsed()),
+        };
 
     // Wire compatibility: the original reported two probes (default client +
     // source-pinned transport). Only the pinned transport survives the SSRF

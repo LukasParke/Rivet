@@ -25,8 +25,7 @@ pub struct NotificationSink {
     pub created_at: String,
 }
 
-const COLS: &str =
-    "id, name, kind, config_json, events_json, enabled, created_at";
+const COLS: &str = "id, name, kind, config_json, events_json, enabled, created_at";
 
 impl NotificationSink {
     /// Parsed sink configuration (kind-specific keys such as `url`,
@@ -49,10 +48,13 @@ impl NotificationSink {
 }
 
 fn valid_kind(kind: &str) -> bool {
-    matches!(kind, "webhook" | "ntfy" | "discord")
+    matches!(
+        kind,
+        "webhook" | "ntfy" | "discord" | "telegram" | "slack" | "pushover" | "gotify"
+    )
 }
 
-/// Inserts a sink. `kind` must be one of the three supported channels;
+/// Inserts a sink. `kind` must be one of the supported channels;
 /// `events` empty means subscribe to nothing (the caller decides whether to
 /// widen it to `["*"]`).
 pub async fn create(
@@ -84,8 +86,7 @@ pub async fn create(
         name: name.to_string(),
         kind: kind.to_string(),
         config_json: config.to_string(),
-        events_json: serde_json::to_string(events)
-            .unwrap_or_else(|_| "[]".into()),
+        events_json: serde_json::to_string(events).unwrap_or_else(|_| "[]".into()),
         enabled,
         created_at,
     })
@@ -93,20 +94,18 @@ pub async fn create(
 
 /// Lists every sink, oldest first.
 pub async fn list(pool: &SqlitePool) -> Result<Vec<NotificationSink>, sqlx::Error> {
-    sqlx::query_as::<_, NotificationSink>(
-        &format!("SELECT {COLS} FROM notifications ORDER BY created_at, id"),
-    )
+    sqlx::query_as::<_, NotificationSink>(&format!(
+        "SELECT {COLS} FROM notifications ORDER BY created_at, id"
+    ))
     .fetch_all(pool)
     .await
 }
 
 pub async fn get(pool: &SqlitePool, id: &str) -> Result<Option<NotificationSink>, sqlx::Error> {
-    sqlx::query_as::<_, NotificationSink>(
-        &format!("SELECT {COLS} FROM notifications WHERE id = ?"),
-    )
-    .bind(id)
-    .fetch_optional(pool)
-    .await
+    sqlx::query_as::<_, NotificationSink>(&format!("SELECT {COLS} FROM notifications WHERE id = ?"))
+        .bind(id)
+        .fetch_optional(pool)
+        .await
 }
 
 /// Full-row update; `Ok(None)` when the id does not exist.
@@ -156,11 +155,9 @@ pub async fn list_enabled_matching(
     pool: &SqlitePool,
     event_type: &str,
 ) -> Result<Vec<NotificationSink>, sqlx::Error> {
-    let rows = sqlx::query_as::<_, NotificationSink>(
-        &format!(
-            "SELECT {COLS} FROM notifications WHERE enabled = 1 ORDER BY created_at, id"
-        ),
-    )
+    let rows = sqlx::query_as::<_, NotificationSink>(&format!(
+        "SELECT {COLS} FROM notifications WHERE enabled = 1 ORDER BY created_at, id"
+    ))
     .fetch_all(pool)
     .await?;
     Ok(rows
@@ -176,12 +173,9 @@ mod tests {
 
     async fn pool() -> (SqlitePool, tempfile::TempDir) {
         let dir = tempfile::tempdir().unwrap();
-        let p = crate::storage::open(&format!(
-            "file://{}",
-            dir.path().join("notif.db").display()
-        ))
-        .await
-        .unwrap();
+        let p = crate::storage::open(&format!("file://{}", dir.path().join("notif.db").display()))
+            .await
+            .unwrap();
         crate::storage::migrations::apply(&p).await.unwrap();
         (p, dir)
     }
@@ -215,8 +209,14 @@ mod tests {
         assert_eq!(listed[0].id, sink.id);
         let got = get(&p, &sink.id).await.unwrap().unwrap();
         assert_eq!(got.name, "ops-hook");
-        assert_eq!(got.config(), json!({"url": "https://hooks.example.test/rivet"}));
-        assert_eq!(got.events(), vec!["acquisition.imported".to_string(), "*".to_string()]);
+        assert_eq!(
+            got.config(),
+            json!({"url": "https://hooks.example.test/rivet"})
+        );
+        assert_eq!(
+            got.events(),
+            vec!["acquisition.imported".to_string(), "*".to_string()]
+        );
         assert!(got.subscribes_to("anything"));
         assert!(got.subscribes_to("acquisition.imported"));
 
@@ -256,14 +256,40 @@ mod tests {
     #[tokio::test]
     async fn enabled_filter_matches_subscription_semantics() {
         let (p, _dir) = pool().await;
-        let star = create(&p, "all", "webhook", &json!({"url": "https://a.test"}),
-                          &events(&["*"]), true).await.unwrap();
-        let exact = create(&p, "import-only", "ntfy", &json!({"url": "https://b.test"}),
-                           &events(&["acquisition.imported"]), true).await.unwrap();
-        let disabled = create(&p, "off", "webhook", &json!({"url": "https://c.test"}),
-                              &events(&["acquisition.imported"]), false).await.unwrap();
+        let star = create(
+            &p,
+            "all",
+            "webhook",
+            &json!({"url": "https://a.test"}),
+            &events(&["*"]),
+            true,
+        )
+        .await
+        .unwrap();
+        let exact = create(
+            &p,
+            "import-only",
+            "ntfy",
+            &json!({"url": "https://b.test"}),
+            &events(&["acquisition.imported"]),
+            true,
+        )
+        .await
+        .unwrap();
+        let disabled = create(
+            &p,
+            "off",
+            "webhook",
+            &json!({"url": "https://c.test"}),
+            &events(&["acquisition.imported"]),
+            false,
+        )
+        .await
+        .unwrap();
 
-        let hits = list_enabled_matching(&p, "acquisition.imported").await.unwrap();
+        let hits = list_enabled_matching(&p, "acquisition.imported")
+            .await
+            .unwrap();
         let ids: Vec<&str> = hits.iter().map(|s| s.id.as_str()).collect();
         assert!(ids.contains(&star.id.as_str()));
         assert!(ids.contains(&exact.id.as_str()));
@@ -279,7 +305,9 @@ mod tests {
             .execute(&p)
             .await
             .unwrap();
-        let hits = list_enabled_matching(&p, "acquisition.imported").await.unwrap();
+        let hits = list_enabled_matching(&p, "acquisition.imported")
+            .await
+            .unwrap();
         let ids: Vec<&str> = hits.iter().map(|s| s.id.as_str()).collect();
         assert!(!ids.contains(&exact.id.as_str()));
     }

@@ -45,7 +45,11 @@ fn decrypt_into(
     plain_key: &str,
     enc_key: &str,
 ) {
-    let Some(enc) = obj.get(enc_key).and_then(Value::as_str).filter(|s| !s.is_empty()) else {
+    let Some(enc) = obj
+        .get(enc_key)
+        .and_then(Value::as_str)
+        .filter(|s| !s.is_empty())
+    else {
         return;
     };
     if let Ok(plain) = state.secret_box.decrypt_string(enc) {
@@ -62,25 +66,39 @@ async fn config(_user: Admin, State(state): State<AppState>) -> Result<Response,
 
     // Clients: decrypt passwords / API keys.
     let mut clients = BTreeMap::new();
-    for (client, plain_key) in
-        [("qbittorrent", "password"), ("nzbget", "password"), ("sabnzbd", "apiKey")]
-    {
-        let Some(raw) = load_object(&state, "setup.clients").await.get(client).cloned() else {
+    for (client, plain_key) in [
+        ("qbittorrent", "password"),
+        ("nzbget", "password"),
+        ("sabnzbd", "apiKey"),
+    ] {
+        let Some(raw) = load_object(&state, "setup.clients")
+            .await
+            .get(client)
+            .cloned()
+        else {
             continue;
         };
-        let mut obj: BTreeMap<String, Value> =
-            serde_json::from_value(raw).unwrap_or_default();
+        let mut obj: BTreeMap<String, Value> = serde_json::from_value(raw).unwrap_or_default();
         decrypt_into(&state, &mut obj, plain_key, &format!("{plain_key}Enc"));
-        clients.insert(client.to_string(), serde_json::to_value(obj).unwrap_or(json!({})));
+        clients.insert(
+            client.to_string(),
+            serde_json::to_value(obj).unwrap_or(json!({})),
+        );
     }
 
     // Indexers: decrypt apiKey + password per entry (torznab + newznab lists).
     let mut indexers = BTreeMap::new();
     for kind in ["torznab", "newznab"] {
-        let Some(list) = load_object(&state, "setup.indexers").await.get(kind).cloned() else {
+        let Some(list) = load_object(&state, "setup.indexers")
+            .await
+            .get(kind)
+            .cloned()
+        else {
             continue;
         };
-        let Some(entries) = list.as_array() else { continue };
+        let Some(entries) = list.as_array() else {
+            continue;
+        };
         let mut out: Vec<Value> = Vec::with_capacity(entries.len());
         for entry in entries {
             let mut obj: BTreeMap<String, Value> =
@@ -95,24 +113,35 @@ async fn config(_user: Admin, State(state): State<AppState>) -> Result<Response,
     // Metadata: decrypt API keys.
     let mut metadata = BTreeMap::new();
     for provider in ["tmdb", "tvdb"] {
-        let Some(raw) = load_object(&state, "setup.metadata").await.get(provider).cloned() else {
+        let Some(raw) = load_object(&state, "setup.metadata")
+            .await
+            .get(provider)
+            .cloned()
+        else {
             continue;
         };
-        let mut obj: BTreeMap<String, Value> =
-            serde_json::from_value(raw).unwrap_or_default();
+        let mut obj: BTreeMap<String, Value> = serde_json::from_value(raw).unwrap_or_default();
         decrypt_into(&state, &mut obj, "apiKey", "apiKeyEnc");
-        metadata.insert(provider.to_string(), serde_json::to_value(obj).unwrap_or(json!({})));
+        metadata.insert(
+            provider.to_string(),
+            serde_json::to_value(obj).unwrap_or(json!({})),
+        );
     }
 
-    Ok(axum::Json(DecryptedConfigResponse { paths, clients, indexers, metadata, policies })
-        .into_response())
+    Ok(axum::Json(DecryptedConfigResponse {
+        paths,
+        clients,
+        indexers,
+        metadata,
+        policies,
+    })
+    .into_response())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    use std::sync::Arc;
     use crate::httpapi::middleware::auth::{csrf, load_session};
     use crate::metrics::Metrics;
     use crate::security::secrets::SecretBox;
@@ -122,6 +151,7 @@ mod tests {
     use axum::extract::Request;
     use axum::http::StatusCode;
     use axum::middleware;
+    use std::sync::Arc;
     use tower::ServiceExt;
 
     async fn app_state() -> (tempfile::TempDir, AppState) {
@@ -174,7 +204,10 @@ mod tests {
         let sess = seed_admin_session(&state).await;
 
         // Persist what the wizard save endpoints would store: encrypted secrets.
-        let enc_pw = state.secret_box.encrypt_to_string(b"s3cret-password").unwrap();
+        let enc_pw = state
+            .secret_box
+            .encrypt_to_string(b"s3cret-password")
+            .unwrap();
         let enc_key = state.secret_box.encrypt_to_string(b"tmdb-api-key").unwrap();
         let enc_ix_key = state.secret_box.encrypt_to_string(b"ix-api-key").unwrap();
         let enc_ix_pw = state.secret_box.encrypt_to_string(b"ix-password").unwrap();
@@ -233,7 +266,9 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
-        let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+        let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX)
+            .await
+            .unwrap();
         let v = serde_json::from_slice::<serde_json::Value>(&bytes).unwrap();
 
         // Secrets come back decrypted; nothing ciphertext-shaped leaks.
@@ -250,7 +285,10 @@ mod tests {
             .await
             .unwrap()
             .unwrap();
-        assert!(!raw_clients.contains("s3cret-password"), "plaintext must not be stored");
+        assert!(
+            !raw_clients.contains("s3cret-password"),
+            "plaintext must not be stored"
+        );
     }
 
     #[tokio::test]

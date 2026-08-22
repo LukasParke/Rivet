@@ -1,21 +1,253 @@
 {
   "components": {
     "schemas": {
+      "CreateMovie": {
+        "properties": {
+          "monitored": {
+            "nullable": true,
+            "type": "boolean",
+            "x-charte.rs-provenance": [
+              {
+                "byte_end": 8240,
+                "byte_start": 8217,
+                "end_column": 28,
+                "end_line": 249,
+                "extraction_reason": "rust_struct_field",
+                "file": "src/httpapi/routes/library.rs",
+                "node_kind": "field_declaration",
+                "start_column": 5,
+                "start_line": 249
+              }
+            ]
+          },
+          "path": {
+            "type": "string",
+            "x-charte.rs-provenance": [
+              {
+                "byte_end": 8148,
+                "byte_start": 8136,
+                "end_column": 17,
+                "end_line": 246,
+                "extraction_reason": "rust_struct_field",
+                "file": "src/httpapi/routes/library.rs",
+                "node_kind": "field_declaration",
+                "start_column": 5,
+                "start_line": 246
+              }
+            ]
+          },
+          "quality_profile": {
+            "nullable": true,
+            "type": "string",
+            "x-charte.rs-provenance": [
+              {
+                "byte_end": 8211,
+                "byte_start": 8180,
+                "end_column": 36,
+                "end_line": 248,
+                "extraction_reason": "rust_struct_field",
+                "file": "src/httpapi/routes/library.rs",
+                "node_kind": "field_declaration",
+                "start_column": 5,
+                "start_line": 248
+              }
+            ]
+          },
+          "title": {
+            "type": "string",
+            "x-charte.rs-provenance": [
+              {
+                "byte_end": 8130,
+                "byte_start": 8117,
+                "end_column": 18,
+                "end_line": 245,
+                "extraction_reason": "rust_struct_field",
+                "file": "src/httpapi/routes/library.rs",
+                "node_kind": "field_declaration",
+                "start_column": 5,
+                "start_line": 245
+              }
+            ]
+          },
+          "tmdb_id": {
+            "format": "int64",
+            "nullable": true,
+            "type": "integer",
+            "x-charte.rs-provenance": [
+              {
+                "byte_end": 8174,
+                "byte_start": 8154,
+                "end_column": 25,
+                "end_line": 247,
+                "extraction_reason": "rust_struct_field",
+                "file": "src/httpapi/routes/library.rs",
+                "node_kind": "field_declaration",
+                "start_column": 5,
+                "start_line": 247
+              }
+            ]
+          }
+        },
+        "required": [
+          "title",
+          "path"
+        ],
+        "type": "object",
+        "x-charte.rs-confidence": "exact",
+        "x-charte.rs-provenance": [
+          {
+            "byte_end": 8243,
+            "byte_start": 8092,
+            "end_column": 2,
+            "end_line": 250,
+            "extraction_reason": "rust_struct",
+            "file": "src/httpapi/routes/library.rs",
+            "node_kind": "struct_item",
+            "start_column": 1,
+            "start_line": 244
+          }
+        ]
+      },
+      "CreateSeries": {
+        "properties": {
+          "monitored": {
+            "nullable": true,
+            "type": "boolean",
+            "x-charte.rs-provenance": [
+              {
+                "byte_end": 2874,
+                "byte_start": 2851,
+                "end_column": 28,
+                "end_line": 73,
+                "extraction_reason": "rust_struct_field",
+                "file": "src/httpapi/routes/library.rs",
+                "node_kind": "field_declaration",
+                "start_column": 5,
+                "start_line": 73
+              }
+            ]
+          },
+          "path": {
+            "type": "string",
+            "x-charte.rs-provenance": [
+              {
+                "byte_end": 2756,
+                "byte_start": 2744,
+                "end_column": 17,
+                "end_line": 69,
+                "extraction_reason": "rust_struct_field",
+                "file": "src/httpapi/routes/library.rs",
+                "node_kind": "field_declaration",
+                "start_column": 5,
+                "start_line": 69
+              }
+            ]
+          },
+          "quality_profile": {
+            "nullable": true,
+            "type": "string",
+            "x-charte.rs-provenance": [
+              {
+                "byte_end": 2845,
+                "byte_start": 2814,
+                "end_column": 36,
+                "end_line": 72,
+                "extraction_reason": "rust_struct_field",
+                "file": "src/httpapi/routes/library.rs",
+                "node_kind": "field_declaration",
+                "start_column": 5,
+                "start_line": 72
+              }
+            ]
+          },
+          "title": {
+            "type": "string",
+            "x-charte.rs-provenance": [
+              {
+                "byte_end": 2738,
+                "byte_start": 2725,
+                "end_column": 18,
+                "end_line": 68,
+                "extraction_reason": "rust_struct_field",
+                "file": "src/httpapi/routes/library.rs",
+                "node_kind": "field_declaration",
+                "start_column": 5,
+                "start_line": 68
+              }
+            ]
+          },
+          "tmdb_id": {
+            "format": "int64",
+            "nullable": true,
+            "type": "integer",
+            "x-charte.rs-provenance": [
+              {
+                "byte_end": 2808,
+                "byte_start": 2788,
+                "end_column": 25,
+                "end_line": 71,
+                "extraction_reason": "rust_struct_field",
+                "file": "src/httpapi/routes/library.rs",
+                "node_kind": "field_declaration",
+                "start_column": 5,
+                "start_line": 71
+              }
+            ]
+          },
+          "tvdb_id": {
+            "format": "int64",
+            "nullable": true,
+            "type": "integer",
+            "x-charte.rs-provenance": [
+              {
+                "byte_end": 2782,
+                "byte_start": 2762,
+                "end_column": 25,
+                "end_line": 70,
+                "extraction_reason": "rust_struct_field",
+                "file": "src/httpapi/routes/library.rs",
+                "node_kind": "field_declaration",
+                "start_column": 5,
+                "start_line": 70
+              }
+            ]
+          }
+        },
+        "required": [
+          "title",
+          "path"
+        ],
+        "type": "object",
+        "x-charte.rs-confidence": "exact",
+        "x-charte.rs-provenance": [
+          {
+            "byte_end": 2877,
+            "byte_start": 2699,
+            "end_column": 2,
+            "end_line": 74,
+            "extraction_reason": "rust_struct",
+            "file": "src/httpapi/routes/library.rs",
+            "node_kind": "struct_item",
+            "start_column": 1,
+            "start_line": 67
+          }
+        ]
+      },
       "CreateTargetRequest": {
         "properties": {
           "external_id": {
             "type": "string",
             "x-charte.rs-provenance": [
               {
-                "byte_end": 6313,
-                "byte_start": 6294,
+                "byte_end": 6303,
+                "byte_start": 6284,
                 "end_column": 24,
-                "end_line": 222,
+                "end_line": 221,
                 "extraction_reason": "rust_struct_field",
                 "file": "src/httpapi/routes/targets_search.rs",
                 "node_kind": "field_declaration",
                 "start_column": 5,
-                "start_line": 222
+                "start_line": 221
               }
             ]
           },
@@ -23,15 +255,15 @@
             "type": "string",
             "x-charte.rs-provenance": [
               {
-                "byte_end": 6266,
-                "byte_start": 6243,
+                "byte_end": 6256,
+                "byte_start": 6233,
                 "end_column": 28,
-                "end_line": 220,
+                "end_line": 219,
                 "extraction_reason": "rust_struct_field",
                 "file": "src/httpapi/routes/targets_search.rs",
                 "node_kind": "field_declaration",
                 "start_column": 5,
-                "start_line": 220
+                "start_line": 219
               }
             ]
           },
@@ -39,15 +271,15 @@
             "type": "string",
             "x-charte.rs-provenance": [
               {
-                "byte_end": 6215,
-                "byte_start": 6203,
+                "byte_end": 6205,
+                "byte_start": 6193,
                 "end_column": 17,
-                "end_line": 218,
+                "end_line": 217,
                 "extraction_reason": "rust_struct_field",
                 "file": "src/httpapi/routes/targets_search.rs",
                 "node_kind": "field_declaration",
                 "start_column": 5,
-                "start_line": 218
+                "start_line": 217
               }
             ]
           },
@@ -55,15 +287,15 @@
             "type": "string",
             "x-charte.rs-provenance": [
               {
-                "byte_end": 6354,
-                "byte_start": 6341,
+                "byte_end": 6344,
+                "byte_start": 6331,
                 "end_column": 18,
-                "end_line": 224,
+                "end_line": 223,
                 "extraction_reason": "rust_struct_field",
                 "file": "src/httpapi/routes/targets_search.rs",
                 "node_kind": "field_declaration",
                 "start_column": 5,
-                "start_line": 224
+                "start_line": 223
               }
             ]
           }
@@ -78,15 +310,15 @@
         "x-charte.rs-confidence": "exact",
         "x-charte.rs-provenance": [
           {
-            "byte_end": 6357,
-            "byte_start": 6148,
+            "byte_end": 6347,
+            "byte_start": 6138,
             "end_column": 2,
-            "end_line": 225,
+            "end_line": 224,
             "extraction_reason": "rust_struct",
             "file": "src/httpapi/routes/targets_search.rs",
             "node_kind": "struct_item",
             "start_column": 1,
-            "start_line": 216
+            "start_line": 215
           }
         ]
       },
@@ -96,15 +328,15 @@
             "type": "string",
             "x-charte.rs-provenance": [
               {
-                "byte_end": 6663,
-                "byte_start": 6639,
+                "byte_end": 6947,
+                "byte_start": 6923,
                 "end_column": 29,
-                "end_line": 174,
+                "end_line": 188,
                 "extraction_reason": "rust_struct_field",
                 "file": "src/httpapi/routes/search_interactive.rs",
                 "node_kind": "field_declaration",
                 "start_column": 5,
-                "start_line": 174
+                "start_line": 188
               }
             ]
           },
@@ -117,15 +349,15 @@
             "type": "array",
             "x-charte.rs-provenance": [
               {
-                "byte_end": 6926,
-                "byte_start": 6896,
+                "byte_end": 7210,
+                "byte_start": 7180,
                 "end_column": 35,
-                "end_line": 181,
+                "end_line": 195,
                 "extraction_reason": "rust_struct_field",
                 "file": "src/httpapi/routes/search_interactive.rs",
                 "node_kind": "field_declaration",
                 "start_column": 5,
-                "start_line": 181
+                "start_line": 195
               }
             ]
           },
@@ -133,15 +365,15 @@
             "type": "string",
             "x-charte.rs-provenance": [
               {
-                "byte_end": 6715,
-                "byte_start": 6699,
+                "byte_end": 6999,
+                "byte_start": 6983,
                 "end_column": 21,
-                "end_line": 176,
+                "end_line": 190,
                 "extraction_reason": "rust_struct_field",
                 "file": "src/httpapi/routes/search_interactive.rs",
                 "node_kind": "field_declaration",
                 "start_column": 5,
-                "start_line": 176
+                "start_line": 190
               }
             ]
           },
@@ -150,15 +382,15 @@
             "type": "string",
             "x-charte.rs-provenance": [
               {
-                "byte_end": 6784,
-                "byte_start": 6756,
+                "byte_end": 7068,
+                "byte_start": 7040,
                 "end_column": 33,
-                "end_line": 178,
+                "end_line": 192,
                 "extraction_reason": "rust_struct_field",
                 "file": "src/httpapi/routes/search_interactive.rs",
                 "node_kind": "field_declaration",
                 "start_column": 5,
-                "start_line": 178
+                "start_line": 192
               }
             ]
           },
@@ -166,15 +398,15 @@
             "type": "string",
             "x-charte.rs-provenance": [
               {
-                "byte_end": 6633,
-                "byte_start": 6608,
+                "byte_end": 6917,
+                "byte_start": 6892,
                 "end_column": 30,
-                "end_line": 173,
+                "end_line": 187,
                 "extraction_reason": "rust_struct_field",
                 "file": "src/httpapi/routes/search_interactive.rs",
                 "node_kind": "field_declaration",
                 "start_column": 5,
-                "start_line": 173
+                "start_line": 187
               }
             ]
           },
@@ -184,15 +416,15 @@
             "type": "integer",
             "x-charte.rs-provenance": [
               {
-                "byte_end": 6813,
-                "byte_start": 6790,
+                "byte_end": 7097,
+                "byte_start": 7074,
                 "end_column": 28,
-                "end_line": 179,
+                "end_line": 193,
                 "extraction_reason": "rust_struct_field",
                 "file": "src/httpapi/routes/search_interactive.rs",
                 "node_kind": "field_declaration",
                 "start_column": 5,
-                "start_line": 179
+                "start_line": 193
               }
             ]
           },
@@ -201,15 +433,15 @@
             "type": "string",
             "x-charte.rs-provenance": [
               {
-                "byte_end": 6750,
-                "byte_start": 6721,
+                "byte_end": 7034,
+                "byte_start": 7005,
                 "end_column": 34,
-                "end_line": 177,
+                "end_line": 191,
                 "extraction_reason": "rust_struct_field",
                 "file": "src/httpapi/routes/search_interactive.rs",
                 "node_kind": "field_declaration",
                 "start_column": 5,
-                "start_line": 177
+                "start_line": 191
               }
             ]
           }
@@ -223,15 +455,15 @@
         "x-charte.rs-confidence": "exact",
         "x-charte.rs-provenance": [
           {
-            "byte_end": 6929,
-            "byte_start": 6568,
+            "byte_end": 7213,
+            "byte_start": 6852,
             "end_column": 2,
-            "end_line": 182,
+            "end_line": 196,
             "extraction_reason": "rust_struct",
             "file": "src/httpapi/routes/search_interactive.rs",
             "node_kind": "struct_item",
             "start_column": 1,
-            "start_line": 172
+            "start_line": 186
           }
         ]
       },
@@ -241,15 +473,15 @@
             "type": "string",
             "x-charte.rs-provenance": [
               {
-                "byte_end": 6279,
-                "byte_start": 6260,
+                "byte_end": 10553,
+                "byte_start": 10534,
                 "end_column": 24,
-                "end_line": 196,
+                "end_line": 308,
                 "extraction_reason": "rust_struct_field",
                 "file": "src/httpapi/routes/system.rs",
                 "node_kind": "field_declaration",
                 "start_column": 5,
-                "start_line": 196
+                "start_line": 308
               }
             ]
           },
@@ -257,15 +489,15 @@
             "type": "string",
             "x-charte.rs-provenance": [
               {
-                "byte_end": 6303,
-                "byte_start": 6285,
+                "byte_end": 10577,
+                "byte_start": 10559,
                 "end_column": 23,
-                "end_line": 197,
+                "end_line": 309,
                 "extraction_reason": "rust_struct_field",
                 "file": "src/httpapi/routes/system.rs",
                 "node_kind": "field_declaration",
                 "start_column": 5,
-                "start_line": 197
+                "start_line": 309
               }
             ]
           }
@@ -278,15 +510,170 @@
         "x-charte.rs-confidence": "exact",
         "x-charte.rs-provenance": [
           {
-            "byte_end": 6306,
-            "byte_start": 6232,
+            "byte_end": 10580,
+            "byte_start": 10506,
             "end_column": 2,
-            "end_line": 198,
+            "end_line": 310,
             "extraction_reason": "rust_struct",
             "file": "src/httpapi/routes/system.rs",
             "node_kind": "struct_item",
             "start_column": 1,
-            "start_line": 195
+            "start_line": 307
+          }
+        ]
+      },
+      "QualityProfileInput": {
+        "properties": {
+          "allowed_qualities": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "x-charte.rs-provenance": [
+              {
+                "byte_end": 14422,
+                "byte_start": 14392,
+                "end_column": 35,
+                "end_line": 436,
+                "extraction_reason": "rust_struct_field",
+                "file": "src/httpapi/routes/library.rs",
+                "node_kind": "field_declaration",
+                "start_column": 5,
+                "start_line": 436
+              }
+            ]
+          },
+          "cutoff": {
+            "format": "int64",
+            "nullable": true,
+            "type": "integer",
+            "x-charte.rs-provenance": [
+              {
+                "byte_end": 14447,
+                "byte_start": 14428,
+                "end_column": 24,
+                "end_line": 437,
+                "extraction_reason": "rust_struct_field",
+                "file": "src/httpapi/routes/library.rs",
+                "node_kind": "field_declaration",
+                "start_column": 5,
+                "start_line": 437
+              }
+            ]
+          },
+          "name": {
+            "type": "string",
+            "x-charte.rs-provenance": [
+              {
+                "byte_end": 14386,
+                "byte_start": 14374,
+                "end_column": 17,
+                "end_line": 435,
+                "extraction_reason": "rust_struct_field",
+                "file": "src/httpapi/routes/library.rs",
+                "node_kind": "field_declaration",
+                "start_column": 5,
+                "start_line": 435
+              }
+            ]
+          }
+        },
+        "required": [
+          "name",
+          "allowed_qualities"
+        ],
+        "type": "object",
+        "x-charte.rs-confidence": "exact",
+        "x-charte.rs-provenance": [
+          {
+            "byte_end": 14450,
+            "byte_start": 14341,
+            "end_column": 2,
+            "end_line": 438,
+            "extraction_reason": "rust_struct",
+            "file": "src/httpapi/routes/library.rs",
+            "node_kind": "struct_item",
+            "start_column": 1,
+            "start_line": 434
+          }
+        ]
+      },
+      "SaveQualityProfiles": {
+        "properties": {
+          "quality_profiles": {
+            "items": {
+              "$ref": "#/components/schemas/QualityProfileInput"
+            },
+            "type": "array",
+            "x-charte.rs-provenance": [
+              {
+                "byte_end": 14592,
+                "byte_start": 14550,
+                "end_column": 47,
+                "end_line": 443,
+                "extraction_reason": "rust_struct_field",
+                "file": "src/httpapi/routes/library.rs",
+                "node_kind": "field_declaration",
+                "start_column": 5,
+                "start_line": 443
+              }
+            ]
+          }
+        },
+        "required": [
+          "quality_profiles"
+        ],
+        "type": "object",
+        "x-charte.rs-confidence": "exact",
+        "x-charte.rs-provenance": [
+          {
+            "byte_end": 14595,
+            "byte_start": 14517,
+            "end_column": 2,
+            "end_line": 444,
+            "extraction_reason": "rust_struct",
+            "file": "src/httpapi/routes/library.rs",
+            "node_kind": "struct_item",
+            "start_column": 1,
+            "start_line": 442
+          }
+        ]
+      },
+      "SetMonitored": {
+        "properties": {
+          "monitored": {
+            "type": "boolean",
+            "x-charte.rs-provenance": [
+              {
+                "byte_end": 6596,
+                "byte_start": 6581,
+                "end_column": 20,
+                "end_line": 199,
+                "extraction_reason": "rust_struct_field",
+                "file": "src/httpapi/routes/library.rs",
+                "node_kind": "field_declaration",
+                "start_column": 5,
+                "start_line": 199
+              }
+            ]
+          }
+        },
+        "required": [
+          "monitored"
+        ],
+        "type": "object",
+        "x-charte.rs-confidence": "exact",
+        "x-charte.rs-provenance": [
+          {
+            "byte_end": 6599,
+            "byte_start": 6555,
+            "end_column": 2,
+            "end_line": 200,
+            "extraction_reason": "rust_struct",
+            "file": "src/httpapi/routes/library.rs",
+            "node_kind": "struct_item",
+            "start_column": 1,
+            "start_line": 198
           }
         ]
       },
@@ -295,15 +682,15 @@
           "config": {
             "x-charte.rs-provenance": [
               {
-                "byte_end": 2271,
-                "byte_start": 2258,
+                "byte_end": 2321,
+                "byte_start": 2308,
                 "end_column": 18,
-                "end_line": 73,
+                "end_line": 75,
                 "extraction_reason": "rust_struct_field",
                 "file": "src/httpapi/routes/notifications.rs",
                 "node_kind": "field_declaration",
                 "start_column": 5,
-                "start_line": 73
+                "start_line": 75
               }
             ]
           },
@@ -311,15 +698,15 @@
             "type": "boolean",
             "x-charte.rs-provenance": [
               {
-                "byte_end": 2430,
-                "byte_start": 2417,
+                "byte_end": 2480,
+                "byte_start": 2467,
                 "end_column": 18,
-                "end_line": 77,
+                "end_line": 79,
                 "extraction_reason": "rust_struct_field",
                 "file": "src/httpapi/routes/notifications.rs",
                 "node_kind": "field_declaration",
                 "start_column": 5,
-                "start_line": 77
+                "start_line": 79
               }
             ]
           },
@@ -331,15 +718,15 @@
             "type": "array",
             "x-charte.rs-provenance": [
               {
-                "byte_end": 2372,
-                "byte_start": 2345,
+                "byte_end": 2422,
+                "byte_start": 2395,
                 "end_column": 32,
-                "end_line": 75,
+                "end_line": 77,
                 "extraction_reason": "rust_struct_field",
                 "file": "src/httpapi/routes/notifications.rs",
                 "node_kind": "field_declaration",
                 "start_column": 5,
-                "start_line": 75
+                "start_line": 77
               }
             ]
           },
@@ -347,15 +734,15 @@
             "type": "string",
             "x-charte.rs-provenance": [
               {
-                "byte_end": 2230,
-                "byte_start": 2218,
+                "byte_end": 2280,
+                "byte_start": 2268,
                 "end_column": 17,
-                "end_line": 71,
+                "end_line": 73,
                 "extraction_reason": "rust_struct_field",
                 "file": "src/httpapi/routes/notifications.rs",
                 "node_kind": "field_declaration",
                 "start_column": 5,
-                "start_line": 71
+                "start_line": 73
               }
             ]
           },
@@ -363,15 +750,15 @@
             "type": "string",
             "x-charte.rs-provenance": [
               {
-                "byte_end": 2212,
-                "byte_start": 2200,
+                "byte_end": 2262,
+                "byte_start": 2250,
                 "end_column": 17,
-                "end_line": 70,
+                "end_line": 72,
                 "extraction_reason": "rust_struct_field",
                 "file": "src/httpapi/routes/notifications.rs",
                 "node_kind": "field_declaration",
                 "start_column": 5,
-                "start_line": 70
+                "start_line": 72
               }
             ]
           }
@@ -386,15 +773,15 @@
         "x-charte.rs-confidence": "exact",
         "x-charte.rs-provenance": [
           {
-            "byte_end": 2433,
-            "byte_start": 2175,
+            "byte_end": 2483,
+            "byte_start": 2225,
             "end_column": 2,
-            "end_line": 78,
+            "end_line": 80,
             "extraction_reason": "rust_struct",
             "file": "src/httpapi/routes/notifications.rs",
             "node_kind": "struct_item",
             "start_column": 1,
-            "start_line": 69
+            "start_line": 71
           }
         ]
       },
@@ -404,8 +791,8 @@
             "type": "string",
             "x-charte.rs-provenance": [
               {
-                "byte_end": 8690,
-                "byte_start": 8674,
+                "byte_end": 8692,
+                "byte_start": 8676,
                 "end_column": 21,
                 "end_line": 262,
                 "extraction_reason": "rust_struct_field",
@@ -420,8 +807,8 @@
             "type": "string",
             "x-charte.rs-provenance": [
               {
-                "byte_end": 8627,
-                "byte_start": 8616,
+                "byte_end": 8629,
+                "byte_start": 8618,
                 "end_column": 16,
                 "end_line": 260,
                 "extraction_reason": "rust_struct_field",
@@ -441,8 +828,8 @@
         "x-charte.rs-confidence": "exact",
         "x-charte.rs-provenance": [
           {
-            "byte_end": 8693,
-            "byte_start": 8559,
+            "byte_end": 8695,
+            "byte_start": 8561,
             "end_column": 2,
             "end_line": 263,
             "extraction_reason": "rust_struct",
@@ -473,10 +860,10 @@
         "x-charte.rs-handler": "list_acquisitions_handler",
         "x-charte.rs-provenance": [
           {
-            "byte_end": 1709,
+            "byte_end": 1674,
             "byte_start": 1597,
-            "end_column": 10,
-            "end_line": 44,
+            "end_column": 64,
+            "end_line": 41,
             "extraction_reason": "axum_route",
             "file": "src/httpapi/routes/acquisitions.rs",
             "node_kind": "call_expression",
@@ -500,10 +887,10 @@
             "x-charte.rs-confidence": "exact",
             "x-charte.rs-provenance": [
               {
-                "byte_end": 1768,
+                "byte_end": 1733,
                 "byte_start": 1597,
                 "end_column": 59,
-                "end_line": 45,
+                "end_line": 42,
                 "extraction_reason": "path_template_parameter:route-0024:get_acquisition",
                 "file": "src/httpapi/routes/acquisitions.rs",
                 "node_kind": "call_expression",
@@ -511,15 +898,15 @@
                 "start_line": 40
               },
               {
-                "byte_end": 7198,
-                "byte_start": 7176,
+                "byte_end": 7320,
+                "byte_start": 7298,
                 "end_column": 27,
-                "end_line": 204,
+                "end_line": 215,
                 "extraction_reason": "axum_path_extractor",
                 "file": "src/httpapi/routes/acquisitions.rs",
                 "node_kind": "parameter",
                 "start_column": 5,
-                "start_line": 204
+                "start_line": 215
               }
             ]
           }
@@ -533,10 +920,10 @@
         "x-charte.rs-handler": "get_acquisition",
         "x-charte.rs-provenance": [
           {
-            "byte_end": 1768,
+            "byte_end": 1733,
             "byte_start": 1597,
             "end_column": 59,
-            "end_line": 45,
+            "end_line": 42,
             "extraction_reason": "axum_route",
             "file": "src/httpapi/routes/acquisitions.rs",
             "node_kind": "call_expression",
@@ -560,10 +947,10 @@
             "x-charte.rs-confidence": "exact",
             "x-charte.rs-provenance": [
               {
-                "byte_end": 2359,
+                "byte_end": 2464,
                 "byte_start": 1597,
                 "end_column": 10,
-                "end_line": 55,
+                "end_line": 64,
                 "extraction_reason": "path_template_parameter:route-0010:accept_verified",
                 "file": "src/httpapi/routes/acquisitions.rs",
                 "node_kind": "call_expression",
@@ -571,15 +958,15 @@
                 "start_line": 40
               },
               {
-                "byte_end": 17448,
-                "byte_start": 17426,
+                "byte_end": 17546,
+                "byte_start": 17524,
                 "end_column": 27,
-                "end_line": 537,
+                "end_line": 542,
                 "extraction_reason": "axum_path_extractor",
                 "file": "src/httpapi/routes/acquisitions.rs",
                 "node_kind": "parameter",
                 "start_column": 5,
-                "start_line": 537
+                "start_line": 542
               }
             ]
           }
@@ -593,10 +980,10 @@
         "x-charte.rs-handler": "accept_verified",
         "x-charte.rs-provenance": [
           {
-            "byte_end": 2359,
+            "byte_end": 2464,
             "byte_start": 1597,
             "end_column": 10,
-            "end_line": 55,
+            "end_line": 64,
             "extraction_reason": "axum_route",
             "file": "src/httpapi/routes/acquisitions.rs",
             "node_kind": "call_expression",
@@ -620,10 +1007,10 @@
             "x-charte.rs-confidence": "exact",
             "x-charte.rs-provenance": [
               {
-                "byte_end": 2554,
+                "byte_end": 2659,
                 "byte_start": 1597,
                 "end_column": 72,
-                "end_line": 60,
+                "end_line": 69,
                 "extraction_reason": "path_template_parameter:route-0006:blacklist",
                 "file": "src/httpapi/routes/acquisitions.rs",
                 "node_kind": "call_expression",
@@ -631,15 +1018,15 @@
                 "start_line": 40
               },
               {
-                "byte_end": 21817,
-                "byte_start": 21795,
+                "byte_end": 21893,
+                "byte_start": 21871,
                 "end_column": 27,
-                "end_line": 669,
+                "end_line": 676,
                 "extraction_reason": "axum_path_extractor",
                 "file": "src/httpapi/routes/acquisitions.rs",
                 "node_kind": "parameter",
                 "start_column": 5,
-                "start_line": 669
+                "start_line": 676
               }
             ]
           }
@@ -653,10 +1040,10 @@
         "x-charte.rs-handler": "blacklist",
         "x-charte.rs-provenance": [
           {
-            "byte_end": 2554,
+            "byte_end": 2659,
             "byte_start": 1597,
             "end_column": 72,
-            "end_line": 60,
+            "end_line": 69,
             "extraction_reason": "axum_route",
             "file": "src/httpapi/routes/acquisitions.rs",
             "node_kind": "call_expression",
@@ -680,10 +1067,10 @@
             "x-charte.rs-confidence": "exact",
             "x-charte.rs-provenance": [
               {
-                "byte_end": 2685,
+                "byte_end": 2790,
                 "byte_start": 1597,
                 "end_column": 10,
-                "end_line": 64,
+                "end_line": 73,
                 "extraction_reason": "path_template_parameter:route-0004:blacklist_and_rescout",
                 "file": "src/httpapi/routes/acquisitions.rs",
                 "node_kind": "call_expression",
@@ -691,15 +1078,15 @@
                 "start_line": 40
               },
               {
-                "byte_end": 22162,
-                "byte_start": 22140,
+                "byte_end": 22238,
+                "byte_start": 22216,
                 "end_column": 27,
-                "end_line": 679,
+                "end_line": 686,
                 "extraction_reason": "axum_path_extractor",
                 "file": "src/httpapi/routes/acquisitions.rs",
                 "node_kind": "parameter",
                 "start_column": 5,
-                "start_line": 679
+                "start_line": 686
               }
             ]
           }
@@ -713,10 +1100,10 @@
         "x-charte.rs-handler": "blacklist_and_rescout",
         "x-charte.rs-provenance": [
           {
-            "byte_end": 2685,
+            "byte_end": 2790,
             "byte_start": 1597,
             "end_column": 10,
-            "end_line": 64,
+            "end_line": 73,
             "extraction_reason": "axum_route",
             "file": "src/httpapi/routes/acquisitions.rs",
             "node_kind": "call_expression",
@@ -740,10 +1127,10 @@
             "x-charte.rs-confidence": "exact",
             "x-charte.rs-provenance": [
               {
-                "byte_end": 2482,
+                "byte_end": 2587,
                 "byte_start": 1597,
                 "end_column": 10,
-                "end_line": 59,
+                "end_line": 68,
                 "extraction_reason": "path_template_parameter:route-0008:override_imported",
                 "file": "src/httpapi/routes/acquisitions.rs",
                 "node_kind": "call_expression",
@@ -751,15 +1138,15 @@
                 "start_line": 40
               },
               {
-                "byte_end": 20200,
-                "byte_start": 20178,
+                "byte_end": 20277,
+                "byte_start": 20255,
                 "end_column": 27,
-                "end_line": 618,
+                "end_line": 625,
                 "extraction_reason": "axum_path_extractor",
                 "file": "src/httpapi/routes/acquisitions.rs",
                 "node_kind": "parameter",
                 "start_column": 5,
-                "start_line": 618
+                "start_line": 625
               }
             ]
           }
@@ -773,10 +1160,10 @@
         "x-charte.rs-handler": "override_imported",
         "x-charte.rs-provenance": [
           {
-            "byte_end": 2482,
+            "byte_end": 2587,
             "byte_start": 1597,
             "end_column": 10,
-            "end_line": 59,
+            "end_line": 68,
             "extraction_reason": "axum_route",
             "file": "src/httpapi/routes/acquisitions.rs",
             "node_kind": "call_expression",
@@ -800,10 +1187,10 @@
             "x-charte.rs-confidence": "exact",
             "x-charte.rs-provenance": [
               {
-                "byte_end": 1844,
+                "byte_end": 1809,
                 "byte_start": 1597,
                 "end_column": 76,
-                "end_line": 46,
+                "end_line": 43,
                 "extraction_reason": "path_template_parameter:route-0022:pause_acquisition",
                 "file": "src/httpapi/routes/acquisitions.rs",
                 "node_kind": "call_expression",
@@ -811,15 +1198,15 @@
                 "start_line": 40
               },
               {
-                "byte_end": 10711,
-                "byte_start": 10689,
+                "byte_end": 10809,
+                "byte_start": 10787,
                 "end_column": 27,
-                "end_line": 303,
+                "end_line": 308,
                 "extraction_reason": "axum_path_extractor",
                 "file": "src/httpapi/routes/acquisitions.rs",
                 "node_kind": "parameter",
                 "start_column": 5,
-                "start_line": 303
+                "start_line": 308
               }
             ]
           }
@@ -833,10 +1220,10 @@
         "x-charte.rs-handler": "pause_acquisition",
         "x-charte.rs-provenance": [
           {
-            "byte_end": 1844,
+            "byte_end": 1809,
             "byte_start": 1597,
             "end_column": 76,
-            "end_line": 46,
+            "end_line": 43,
             "extraction_reason": "axum_route",
             "file": "src/httpapi/routes/acquisitions.rs",
             "node_kind": "call_expression",
@@ -860,10 +1247,10 @@
             "x-charte.rs-confidence": "exact",
             "x-charte.rs-provenance": [
               {
-                "byte_end": 2240,
+                "byte_end": 2345,
                 "byte_start": 1597,
-                "end_column": 82,
-                "end_line": 51,
+                "end_column": 10,
+                "end_line": 60,
                 "extraction_reason": "path_template_parameter:route-0012:reimport_acquisition",
                 "file": "src/httpapi/routes/acquisitions.rs",
                 "node_kind": "call_expression",
@@ -871,15 +1258,15 @@
                 "start_line": 40
               },
               {
-                "byte_end": 15856,
-                "byte_start": 15834,
+                "byte_end": 15954,
+                "byte_start": 15932,
                 "end_column": 27,
-                "end_line": 479,
+                "end_line": 484,
                 "extraction_reason": "axum_path_extractor",
                 "file": "src/httpapi/routes/acquisitions.rs",
                 "node_kind": "parameter",
                 "start_column": 5,
-                "start_line": 479
+                "start_line": 484
               }
             ]
           }
@@ -893,10 +1280,10 @@
         "x-charte.rs-handler": "reimport_acquisition",
         "x-charte.rs-provenance": [
           {
-            "byte_end": 2240,
+            "byte_end": 2345,
             "byte_start": 1597,
-            "end_column": 82,
-            "end_line": 51,
+            "end_column": 10,
+            "end_line": 60,
             "extraction_reason": "axum_route",
             "file": "src/httpapi/routes/acquisitions.rs",
             "node_kind": "call_expression",
@@ -920,10 +1307,10 @@
             "x-charte.rs-confidence": "exact",
             "x-charte.rs-provenance": [
               {
-                "byte_end": 2076,
+                "byte_end": 2111,
                 "byte_start": 1597,
-                "end_column": 78,
-                "end_line": 49,
+                "end_column": 10,
+                "end_line": 52,
                 "extraction_reason": "path_template_parameter:route-0016:remove_acquisition",
                 "file": "src/httpapi/routes/acquisitions.rs",
                 "node_kind": "call_expression",
@@ -931,15 +1318,15 @@
                 "start_line": 40
               },
               {
-                "byte_end": 13559,
-                "byte_start": 13537,
+                "byte_end": 13657,
+                "byte_start": 13635,
                 "end_column": 27,
-                "end_line": 393,
+                "end_line": 398,
                 "extraction_reason": "axum_path_extractor",
                 "file": "src/httpapi/routes/acquisitions.rs",
                 "node_kind": "parameter",
                 "start_column": 5,
-                "start_line": 393
+                "start_line": 398
               }
             ]
           }
@@ -953,10 +1340,10 @@
         "x-charte.rs-handler": "remove_acquisition",
         "x-charte.rs-provenance": [
           {
-            "byte_end": 2076,
+            "byte_end": 2111,
             "byte_start": 1597,
-            "end_column": 78,
-            "end_line": 49,
+            "end_column": 10,
+            "end_line": 52,
             "extraction_reason": "axum_route",
             "file": "src/httpapi/routes/acquisitions.rs",
             "node_kind": "call_expression",
@@ -982,7 +1369,7 @@
               {
                 "byte_end": 1922,
                 "byte_start": 1597,
-                "end_column": 78,
+                "end_column": 10,
                 "end_line": 47,
                 "extraction_reason": "path_template_parameter:route-0020:resume_acquisition",
                 "file": "src/httpapi/routes/acquisitions.rs",
@@ -991,15 +1378,15 @@
                 "start_line": 40
               },
               {
-                "byte_end": 10940,
-                "byte_start": 10918,
+                "byte_end": 11038,
+                "byte_start": 11016,
                 "end_column": 27,
-                "end_line": 311,
+                "end_line": 316,
                 "extraction_reason": "axum_path_extractor",
                 "file": "src/httpapi/routes/acquisitions.rs",
                 "node_kind": "parameter",
                 "start_column": 5,
-                "start_line": 311
+                "start_line": 316
               }
             ]
           }
@@ -1015,7 +1402,7 @@
           {
             "byte_end": 1922,
             "byte_start": 1597,
-            "end_column": 78,
+            "end_column": 10,
             "end_line": 47,
             "extraction_reason": "axum_route",
             "file": "src/httpapi/routes/acquisitions.rs",
@@ -1051,15 +1438,15 @@
                 "start_line": 40
               },
               {
-                "byte_end": 15222,
-                "byte_start": 15200,
+                "byte_end": 15320,
+                "byte_start": 15298,
                 "end_column": 27,
-                "end_line": 449,
+                "end_line": 454,
                 "extraction_reason": "axum_path_extractor",
                 "file": "src/httpapi/routes/acquisitions.rs",
                 "node_kind": "parameter",
                 "start_column": 5,
-                "start_line": 449
+                "start_line": 454
               }
             ]
           }
@@ -1100,10 +1487,10 @@
             "x-charte.rs-confidence": "exact",
             "x-charte.rs-provenance": [
               {
-                "byte_end": 2158,
+                "byte_end": 2228,
                 "byte_start": 1597,
-                "end_column": 82,
-                "end_line": 50,
+                "end_column": 10,
+                "end_line": 56,
                 "extraction_reason": "path_template_parameter:route-0014:reverify_acquisition",
                 "file": "src/httpapi/routes/acquisitions.rs",
                 "node_kind": "call_expression",
@@ -1111,15 +1498,15 @@
                 "start_line": 40
               },
               {
-                "byte_end": 15538,
-                "byte_start": 15516,
+                "byte_end": 15636,
+                "byte_start": 15614,
                 "end_column": 27,
-                "end_line": 464,
+                "end_line": 469,
                 "extraction_reason": "axum_path_extractor",
                 "file": "src/httpapi/routes/acquisitions.rs",
                 "node_kind": "parameter",
                 "start_column": 5,
-                "start_line": 464
+                "start_line": 469
               }
             ]
           }
@@ -1133,10 +1520,10 @@
         "x-charte.rs-handler": "reverify_acquisition",
         "x-charte.rs-provenance": [
           {
-            "byte_end": 2158,
+            "byte_end": 2228,
             "byte_start": 1597,
-            "end_column": 82,
-            "end_line": 50,
+            "end_column": 10,
+            "end_line": 56,
             "extraction_reason": "axum_route",
             "file": "src/httpapi/routes/acquisitions.rs",
             "node_kind": "call_expression",
@@ -1214,22 +1601,22 @@
                 "byte_start": 1378,
                 "end_column": 10,
                 "end_line": 42,
-                "extraction_reason": "path_template_parameter:route-0058:create_candidate_acquisition",
+                "extraction_reason": "path_template_parameter:route-0082:create_candidate_acquisition",
                 "file": "src/httpapi/routes/targets_search.rs",
                 "node_kind": "call_expression",
                 "start_column": 5,
                 "start_line": 35
               },
               {
-                "byte_end": 11581,
-                "byte_start": 11559,
+                "byte_end": 11542,
+                "byte_start": 11520,
                 "end_column": 27,
-                "end_line": 380,
+                "end_line": 383,
                 "extraction_reason": "axum_path_extractor",
                 "file": "src/httpapi/routes/targets_search.rs",
                 "node_kind": "parameter",
                 "start_column": 5,
-                "start_line": 380
+                "start_line": 383
               }
             ]
           }
@@ -1296,15 +1683,15 @@
           "x-charte.rs-confidence": "exact",
           "x-charte.rs-provenance": [
             {
-              "byte_end": 10602,
-              "byte_start": 10564,
+              "byte_end": 10603,
+              "byte_start": 10565,
               "end_column": 43,
-              "end_line": 335,
+              "end_line": 334,
               "extraction_reason": "axum_json_extractor",
               "file": "src/httpapi/routes/diagnostics.rs",
               "node_kind": "parameter",
               "start_column": 5,
-              "start_line": 335
+              "start_line": 334
             }
           ]
         },
@@ -1342,26 +1729,51 @@
         "x-charte.rs-handler": "routes::health::healthz",
         "x-charte.rs-provenance": [
           {
-            "byte_end": 1521,
-            "byte_start": 1385,
+            "byte_end": 1605,
+            "byte_start": 1469,
             "end_column": 57,
-            "end_line": 39,
+            "end_line": 41,
             "extraction_reason": "axum_route",
             "file": "src/httpapi/mod.rs",
             "node_kind": "call_expression",
             "start_column": 5,
-            "start_line": 37
+            "start_line": 39
           },
           {
-            "byte_end": 3115,
-            "byte_start": 3057,
+            "byte_end": 3095,
+            "byte_start": 3037,
             "end_column": 45,
-            "end_line": 92,
+            "end_line": 89,
             "extraction_reason": "axum_route",
             "file": "src/httpapi/routes/health.rs",
             "node_kind": "call_expression",
             "start_column": 19,
-            "start_line": 91
+            "start_line": 88
+          }
+        ]
+      }
+    },
+    "/history": {
+      "get": {
+        "operationId": "history",
+        "responses": {
+          "default": {
+            "description": "Response schema unknown"
+          }
+        },
+        "x-charte.rs-confidence": "exact",
+        "x-charte.rs-handler": "history",
+        "x-charte.rs-provenance": [
+          {
+            "byte_end": 688,
+            "byte_start": 643,
+            "end_column": 50,
+            "end_line": 20,
+            "extraction_reason": "axum_route",
+            "file": "src/httpapi/routes/history.rs",
+            "node_kind": "call_expression",
+            "start_column": 5,
+            "start_line": 20
           }
         ]
       }
@@ -1378,15 +1790,15 @@
         "x-charte.rs-handler": "routes::metrics::metrics_handler",
         "x-charte.rs-provenance": [
           {
-            "byte_end": 1642,
-            "byte_start": 1385,
+            "byte_end": 1726,
+            "byte_start": 1469,
             "end_column": 66,
-            "end_line": 41,
+            "end_line": 43,
             "extraction_reason": "axum_route",
             "file": "src/httpapi/mod.rs",
             "node_kind": "call_expression",
             "start_column": 5,
-            "start_line": 37
+            "start_line": 39
           },
           {
             "byte_end": 2202,
@@ -1398,6 +1810,222 @@
             "node_kind": "call_expression",
             "start_column": 19,
             "start_line": 66
+          }
+        ]
+      }
+    },
+    "/movies": {
+      "get": {
+        "operationId": "list_movies",
+        "responses": {
+          "default": {
+            "description": "Response schema unknown"
+          }
+        },
+        "x-charte.rs-confidence": "exact",
+        "x-charte.rs-handler": "list_movies",
+        "x-charte.rs-provenance": [
+          {
+            "byte_end": 1902,
+            "byte_start": 1621,
+            "end_column": 63,
+            "end_line": 43,
+            "extraction_reason": "axum_route",
+            "file": "src/httpapi/routes/library.rs",
+            "node_kind": "call_expression",
+            "start_column": 5,
+            "start_line": 39
+          }
+        ]
+      },
+      "post": {
+        "operationId": "create_movie",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateMovie"
+              }
+            }
+          },
+          "required": true,
+          "x-charte.rs-confidence": "exact",
+          "x-charte.rs-provenance": [
+            {
+              "byte_end": 8359,
+              "byte_start": 8331,
+              "end_column": 33,
+              "end_line": 255,
+              "extraction_reason": "axum_json_extractor",
+              "file": "src/httpapi/routes/library.rs",
+              "node_kind": "parameter",
+              "start_column": 5,
+              "start_line": 255
+            }
+          ]
+        },
+        "responses": {
+          "default": {
+            "description": "Response schema unknown"
+          }
+        },
+        "x-charte.rs-confidence": "exact",
+        "x-charte.rs-handler": "create_movie",
+        "x-charte.rs-provenance": [
+          {
+            "byte_end": 1902,
+            "byte_start": 1621,
+            "end_column": 63,
+            "end_line": 43,
+            "extraction_reason": "axum_route",
+            "file": "src/httpapi/routes/library.rs",
+            "node_kind": "call_expression",
+            "start_column": 5,
+            "start_line": 39
+          }
+        ]
+      }
+    },
+    "/movies/{id}": {
+      "delete": {
+        "operationId": "delete_movie",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "x-charte.rs-confidence": "exact",
+            "x-charte.rs-provenance": [
+              {
+                "byte_end": 1955,
+                "byte_start": 1621,
+                "end_column": 53,
+                "end_line": 44,
+                "extraction_reason": "path_template_parameter:route-0042:delete_movie",
+                "file": "src/httpapi/routes/library.rs",
+                "node_kind": "call_expression",
+                "start_column": 5,
+                "start_line": 39
+              },
+              {
+                "byte_end": 10009,
+                "byte_start": 9987,
+                "end_column": 27,
+                "end_line": 309,
+                "extraction_reason": "axum_path_extractor",
+                "file": "src/httpapi/routes/library.rs",
+                "node_kind": "parameter",
+                "start_column": 5,
+                "start_line": 309
+              }
+            ]
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response schema unknown"
+          }
+        },
+        "x-charte.rs-confidence": "exact",
+        "x-charte.rs-handler": "delete_movie",
+        "x-charte.rs-provenance": [
+          {
+            "byte_end": 1955,
+            "byte_start": 1621,
+            "end_column": 53,
+            "end_line": 44,
+            "extraction_reason": "axum_route",
+            "file": "src/httpapi/routes/library.rs",
+            "node_kind": "call_expression",
+            "start_column": 5,
+            "start_line": 39
+          }
+        ]
+      }
+    },
+    "/movies/{id}/monitor": {
+      "put": {
+        "operationId": "set_movie_monitor",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "x-charte.rs-confidence": "exact",
+            "x-charte.rs-provenance": [
+              {
+                "byte_end": 2018,
+                "byte_start": 1621,
+                "end_column": 63,
+                "end_line": 45,
+                "extraction_reason": "path_template_parameter:route-0039:set_movie_monitor",
+                "file": "src/httpapi/routes/library.rs",
+                "node_kind": "call_expression",
+                "start_column": 5,
+                "start_line": 39
+              },
+              {
+                "byte_end": 10850,
+                "byte_start": 10828,
+                "end_column": 27,
+                "end_line": 337,
+                "extraction_reason": "axum_path_extractor",
+                "file": "src/httpapi/routes/library.rs",
+                "node_kind": "parameter",
+                "start_column": 5,
+                "start_line": 337
+              }
+            ]
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetMonitored"
+              }
+            }
+          },
+          "required": true,
+          "x-charte.rs-confidence": "exact",
+          "x-charte.rs-provenance": [
+            {
+              "byte_end": 10885,
+              "byte_start": 10856,
+              "end_column": 34,
+              "end_line": 338,
+              "extraction_reason": "axum_json_extractor",
+              "file": "src/httpapi/routes/library.rs",
+              "node_kind": "parameter",
+              "start_column": 5,
+              "start_line": 338
+            }
+          ]
+        },
+        "responses": {
+          "default": {
+            "description": "Response schema unknown"
+          }
+        },
+        "x-charte.rs-confidence": "exact",
+        "x-charte.rs-handler": "set_movie_monitor",
+        "x-charte.rs-provenance": [
+          {
+            "byte_end": 2018,
+            "byte_start": 1621,
+            "end_column": 63,
+            "end_line": 45,
+            "extraction_reason": "axum_route",
+            "file": "src/httpapi/routes/library.rs",
+            "node_kind": "call_expression",
+            "start_column": 5,
+            "start_line": 39
           }
         ]
       }
@@ -1414,15 +2042,15 @@
         "x-charte.rs-handler": "list_sinks",
         "x-charte.rs-provenance": [
           {
-            "byte_end": 1123,
-            "byte_start": 1007,
-            "end_column": 10,
-            "end_line": 31,
+            "byte_end": 1138,
+            "byte_start": 1057,
+            "end_column": 68,
+            "end_line": 30,
             "extraction_reason": "axum_route",
             "file": "src/httpapi/routes/notifications.rs",
             "node_kind": "call_expression",
             "start_column": 5,
-            "start_line": 27
+            "start_line": 29
           }
         ]
       },
@@ -1440,8 +2068,8 @@
           "x-charte.rs-confidence": "exact",
           "x-charte.rs-provenance": [
             {
-              "byte_end": 3700,
-              "byte_start": 3672,
+              "byte_end": 3724,
+              "byte_start": 3696,
               "end_column": 33,
               "end_line": 123,
               "extraction_reason": "axum_json_extractor",
@@ -1461,15 +2089,15 @@
         "x-charte.rs-handler": "create_sink",
         "x-charte.rs-provenance": [
           {
-            "byte_end": 1123,
-            "byte_start": 1007,
-            "end_column": 10,
-            "end_line": 31,
+            "byte_end": 1138,
+            "byte_start": 1057,
+            "end_column": 68,
+            "end_line": 30,
             "extraction_reason": "axum_route",
             "file": "src/httpapi/routes/notifications.rs",
             "node_kind": "call_expression",
             "start_column": 5,
-            "start_line": 27
+            "start_line": 29
           }
         ]
       }
@@ -1488,19 +2116,19 @@
             "x-charte.rs-confidence": "exact",
             "x-charte.rs-provenance": [
               {
-                "byte_end": 1214,
-                "byte_start": 1007,
-                "end_column": 91,
-                "end_line": 32,
-                "extraction_reason": "path_template_parameter:route-0036:delete_sink",
+                "byte_end": 1264,
+                "byte_start": 1057,
+                "end_column": 10,
+                "end_line": 34,
+                "extraction_reason": "path_template_parameter:route-0058:delete_sink",
                 "file": "src/httpapi/routes/notifications.rs",
                 "node_kind": "call_expression",
                 "start_column": 5,
-                "start_line": 27
+                "start_line": 29
               },
               {
-                "byte_end": 4555,
-                "byte_start": 4533,
+                "byte_end": 4579,
+                "byte_start": 4557,
                 "end_column": 27,
                 "end_line": 162,
                 "extraction_reason": "axum_path_extractor",
@@ -1521,15 +2149,87 @@
         "x-charte.rs-handler": "delete_sink",
         "x-charte.rs-provenance": [
           {
-            "byte_end": 1214,
-            "byte_start": 1007,
-            "end_column": 91,
-            "end_line": 32,
+            "byte_end": 1264,
+            "byte_start": 1057,
+            "end_column": 10,
+            "end_line": 34,
             "extraction_reason": "axum_route",
             "file": "src/httpapi/routes/notifications.rs",
             "node_kind": "call_expression",
             "start_column": 5,
-            "start_line": 27
+            "start_line": 29
+          }
+        ]
+      }
+    },
+    "/qualityprofiles": {
+      "get": {
+        "operationId": "quality_profiles",
+        "responses": {
+          "default": {
+            "description": "Response schema unknown"
+          }
+        },
+        "x-charte.rs-confidence": "exact",
+        "x-charte.rs-handler": "quality_profiles",
+        "x-charte.rs-provenance": [
+          {
+            "byte_end": 2138,
+            "byte_start": 1621,
+            "end_column": 10,
+            "end_line": 49,
+            "extraction_reason": "axum_route",
+            "file": "src/httpapi/routes/library.rs",
+            "node_kind": "call_expression",
+            "start_column": 5,
+            "start_line": 39
+          }
+        ]
+      },
+      "put": {
+        "operationId": "save_quality_profiles",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveQualityProfiles"
+              }
+            }
+          },
+          "required": true,
+          "x-charte.rs-confidence": "exact",
+          "x-charte.rs-provenance": [
+            {
+              "byte_end": 14728,
+              "byte_start": 14692,
+              "end_column": 41,
+              "end_line": 449,
+              "extraction_reason": "axum_json_extractor",
+              "file": "src/httpapi/routes/library.rs",
+              "node_kind": "parameter",
+              "start_column": 5,
+              "start_line": 449
+            }
+          ]
+        },
+        "responses": {
+          "default": {
+            "description": "Response schema unknown"
+          }
+        },
+        "x-charte.rs-confidence": "exact",
+        "x-charte.rs-handler": "save_quality_profiles",
+        "x-charte.rs-provenance": [
+          {
+            "byte_end": 2138,
+            "byte_start": 1621,
+            "end_column": 10,
+            "end_line": 49,
+            "extraction_reason": "axum_route",
+            "file": "src/httpapi/routes/library.rs",
+            "node_kind": "call_expression",
+            "start_column": 5,
+            "start_line": 39
           }
         ]
       }
@@ -1546,37 +2246,37 @@
         "x-charte.rs-handler": "routes::health::readyz",
         "x-charte.rs-provenance": [
           {
-            "byte_end": 1576,
-            "byte_start": 1385,
+            "byte_end": 1660,
+            "byte_start": 1469,
             "end_column": 55,
-            "end_line": 40,
+            "end_line": 42,
             "extraction_reason": "axum_route",
             "file": "src/httpapi/mod.rs",
             "node_kind": "call_expression",
             "start_column": 5,
-            "start_line": 37
+            "start_line": 39
           },
           {
-            "byte_end": 3706,
-            "byte_start": 3650,
+            "byte_end": 3785,
+            "byte_start": 3729,
             "end_column": 43,
-            "end_line": 105,
+            "end_line": 110,
             "extraction_reason": "axum_route",
             "file": "src/httpapi/routes/health.rs",
             "node_kind": "call_expression",
             "start_column": 19,
-            "start_line": 104
+            "start_line": 109
           },
           {
-            "byte_end": 4568,
-            "byte_start": 4512,
+            "byte_end": 4766,
+            "byte_start": 4710,
             "end_column": 43,
-            "end_line": 123,
+            "end_line": 137,
             "extraction_reason": "axum_route",
             "file": "src/httpapi/routes/health.rs",
             "node_kind": "call_expression",
             "start_column": 19,
-            "start_line": 122
+            "start_line": 136
           }
         ]
       }
@@ -1593,15 +2293,15 @@
         "x-charte.rs-handler": "list_mappings_handler",
         "x-charte.rs-provenance": [
           {
-            "byte_end": 1252,
-            "byte_start": 842,
+            "byte_end": 1384,
+            "byte_start": 866,
             "end_column": 10,
-            "end_line": 36,
+            "end_line": 33,
             "extraction_reason": "axum_route",
             "file": "src/httpapi/routes/system.rs",
             "node_kind": "call_expression",
             "start_column": 5,
-            "start_line": 25
+            "start_line": 23
           }
         ]
       },
@@ -1619,15 +2319,15 @@
           "x-charte.rs-confidence": "exact",
           "x-charte.rs-provenance": [
             {
-              "byte_end": 6914,
-              "byte_start": 6883,
+              "byte_end": 11188,
+              "byte_start": 11157,
               "end_column": 36,
-              "end_line": 219,
+              "end_line": 331,
               "extraction_reason": "axum_json_extractor",
               "file": "src/httpapi/routes/system.rs",
               "node_kind": "parameter",
               "start_column": 5,
-              "start_line": 219
+              "start_line": 331
             }
           ]
         },
@@ -1640,15 +2340,15 @@
         "x-charte.rs-handler": "create_mapping",
         "x-charte.rs-provenance": [
           {
-            "byte_end": 1252,
-            "byte_start": 842,
+            "byte_end": 1384,
+            "byte_start": 866,
             "end_column": 10,
-            "end_line": 36,
+            "end_line": 33,
             "extraction_reason": "axum_route",
             "file": "src/httpapi/routes/system.rs",
             "node_kind": "call_expression",
             "start_column": 5,
-            "start_line": 25
+            "start_line": 23
           }
         ]
       }
@@ -1667,15 +2367,15 @@
             "x-charte.rs-confidence": "exact",
             "x-charte.rs-provenance": [
               {
-                "byte_end": 1355,
-                "byte_start": 842,
-                "end_column": 103,
+                "byte_end": 1522,
+                "byte_start": 866,
+                "end_column": 10,
                 "end_line": 37,
-                "extraction_reason": "path_template_parameter:route-0047:delete_mapping_handler",
+                "extraction_reason": "path_template_parameter:route-0069:delete_mapping_handler",
                 "file": "src/httpapi/routes/system.rs",
                 "node_kind": "call_expression",
                 "start_column": 5,
-                "start_line": 25
+                "start_line": 23
               }
             ]
           }
@@ -1689,15 +2389,15 @@
         "x-charte.rs-handler": "delete_mapping_handler",
         "x-charte.rs-provenance": [
           {
-            "byte_end": 1355,
-            "byte_start": 842,
-            "end_column": 103,
+            "byte_end": 1522,
+            "byte_start": 866,
+            "end_column": 10,
             "end_line": 37,
             "extraction_reason": "axum_route",
             "file": "src/httpapi/routes/system.rs",
             "node_kind": "call_expression",
             "start_column": 5,
-            "start_line": 25
+            "start_line": 23
           }
         ]
       },
@@ -1714,15 +2414,15 @@
             "x-charte.rs-confidence": "exact",
             "x-charte.rs-provenance": [
               {
-                "byte_end": 1355,
-                "byte_start": 842,
-                "end_column": 103,
+                "byte_end": 1522,
+                "byte_start": 866,
+                "end_column": 10,
                 "end_line": 37,
-                "extraction_reason": "path_template_parameter:route-0048:update_mapping_handler",
+                "extraction_reason": "path_template_parameter:route-0070:update_mapping_handler",
                 "file": "src/httpapi/routes/system.rs",
                 "node_kind": "call_expression",
                 "start_column": 5,
-                "start_line": 25
+                "start_line": 23
               }
             ]
           }
@@ -1739,15 +2439,15 @@
           "x-charte.rs-confidence": "exact",
           "x-charte.rs-provenance": [
             {
-              "byte_end": 7517,
-              "byte_start": 7486,
+              "byte_end": 11791,
+              "byte_start": 11760,
               "end_column": 36,
-              "end_line": 239,
+              "end_line": 351,
               "extraction_reason": "axum_json_extractor",
               "file": "src/httpapi/routes/system.rs",
               "node_kind": "parameter",
               "start_column": 5,
-              "start_line": 239
+              "start_line": 351
             }
           ]
         },
@@ -1760,15 +2460,15 @@
         "x-charte.rs-handler": "update_mapping_handler",
         "x-charte.rs-provenance": [
           {
-            "byte_end": 1355,
-            "byte_start": 842,
-            "end_column": 103,
+            "byte_end": 1522,
+            "byte_start": 866,
+            "end_column": 10,
             "end_line": 37,
             "extraction_reason": "axum_route",
             "file": "src/httpapi/routes/system.rs",
             "node_kind": "call_expression",
             "start_column": 5,
-            "start_line": 25
+            "start_line": 23
           }
         ]
       }
@@ -1788,15 +2488,15 @@
             "x-charte.rs-confidence": "exact",
             "x-charte.rs-provenance": [
               {
-                "byte_end": 2422,
-                "byte_start": 2394,
+                "byte_end": 2545,
+                "byte_start": 2517,
                 "end_column": 33,
-                "end_line": 60,
+                "end_line": 63,
                 "extraction_reason": "axum_query_field",
                 "file": "src/httpapi/routes/search_interactive.rs",
                 "node_kind": "field_declaration",
                 "start_column": 5,
-                "start_line": 60
+                "start_line": 63
               }
             ]
           },
@@ -1810,15 +2510,15 @@
             "x-charte.rs-confidence": "exact",
             "x-charte.rs-provenance": [
               {
-                "byte_end": 2353,
-                "byte_start": 2336,
+                "byte_end": 2476,
+                "byte_start": 2459,
                 "end_column": 22,
-                "end_line": 58,
+                "end_line": 61,
                 "extraction_reason": "axum_query_field",
                 "file": "src/httpapi/routes/search_interactive.rs",
                 "node_kind": "field_declaration",
                 "start_column": 5,
-                "start_line": 58
+                "start_line": 61
               }
             ]
           },
@@ -1833,15 +2533,15 @@
             "x-charte.rs-confidence": "exact",
             "x-charte.rs-provenance": [
               {
-                "byte_end": 2388,
-                "byte_start": 2359,
+                "byte_end": 2511,
+                "byte_start": 2482,
                 "end_column": 34,
-                "end_line": 59,
+                "end_line": 62,
                 "extraction_reason": "axum_query_field",
                 "file": "src/httpapi/routes/search_interactive.rs",
                 "node_kind": "field_declaration",
                 "start_column": 5,
-                "start_line": 59
+                "start_line": 62
               }
             ]
           }
@@ -1855,15 +2555,15 @@
         "x-charte.rs-handler": "interactive_search",
         "x-charte.rs-provenance": [
           {
-            "byte_end": 1938,
-            "byte_start": 1862,
+            "byte_end": 2061,
+            "byte_start": 1985,
             "end_column": 63,
-            "end_line": 47,
+            "end_line": 50,
             "extraction_reason": "axum_route",
             "file": "src/httpapi/routes/search_interactive.rs",
             "node_kind": "call_expression",
             "start_column": 5,
-            "start_line": 46
+            "start_line": 49
           }
         ]
       }
@@ -1883,15 +2583,15 @@
           "x-charte.rs-confidence": "exact",
           "x-charte.rs-provenance": [
             {
-              "byte_end": 7066,
-              "byte_start": 7027,
+              "byte_end": 7350,
+              "byte_start": 7311,
               "end_column": 44,
-              "end_line": 187,
+              "end_line": 201,
               "extraction_reason": "axum_json_extractor",
               "file": "src/httpapi/routes/search_interactive.rs",
               "node_kind": "parameter",
               "start_column": 5,
-              "start_line": 187
+              "start_line": 201
             }
           ]
         },
@@ -1904,15 +2604,15 @@
         "x-charte.rs-handler": "interactive_grab",
         "x-charte.rs-provenance": [
           {
-            "byte_end": 2005,
-            "byte_start": 1862,
+            "byte_end": 2128,
+            "byte_start": 1985,
             "end_column": 67,
-            "end_line": 48,
+            "end_line": 51,
             "extraction_reason": "axum_route",
             "file": "src/httpapi/routes/search_interactive.rs",
             "node_kind": "call_expression",
             "start_column": 5,
-            "start_line": 46
+            "start_line": 49
           }
         ]
       }
@@ -1935,22 +2635,22 @@
                 "byte_start": 1378,
                 "end_column": 57,
                 "end_line": 38,
-                "extraction_reason": "path_template_parameter:route-0060:get_search_run",
+                "extraction_reason": "path_template_parameter:route-0084:get_search_run",
                 "file": "src/httpapi/routes/targets_search.rs",
                 "node_kind": "call_expression",
                 "start_column": 5,
                 "start_line": 35
               },
               {
-                "byte_end": 10343,
-                "byte_start": 10321,
+                "byte_end": 10304,
+                "byte_start": 10282,
                 "end_column": 27,
-                "end_line": 348,
+                "end_line": 351,
                 "extraction_reason": "axum_path_extractor",
                 "file": "src/httpapi/routes/targets_search.rs",
                 "node_kind": "parameter",
                 "start_column": 5,
-                "start_line": 348
+                "start_line": 351
               }
             ]
           }
@@ -1977,6 +2677,280 @@
         ]
       }
     },
+    "/series": {
+      "get": {
+        "operationId": "list_series",
+        "responses": {
+          "default": {
+            "description": "Response schema unknown"
+          }
+        },
+        "x-charte.rs-confidence": "exact",
+        "x-charte.rs-handler": "list_series",
+        "x-charte.rs-provenance": [
+          {
+            "byte_end": 1698,
+            "byte_start": 1621,
+            "end_column": 64,
+            "end_line": 40,
+            "extraction_reason": "axum_route",
+            "file": "src/httpapi/routes/library.rs",
+            "node_kind": "call_expression",
+            "start_column": 5,
+            "start_line": 39
+          }
+        ]
+      },
+      "post": {
+        "operationId": "create_series",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSeries"
+              }
+            }
+          },
+          "required": true,
+          "x-charte.rs-confidence": "exact",
+          "x-charte.rs-provenance": [
+            {
+              "byte_end": 2995,
+              "byte_start": 2966,
+              "end_column": 34,
+              "end_line": 79,
+              "extraction_reason": "axum_json_extractor",
+              "file": "src/httpapi/routes/library.rs",
+              "node_kind": "parameter",
+              "start_column": 5,
+              "start_line": 79
+            }
+          ]
+        },
+        "responses": {
+          "default": {
+            "description": "Response schema unknown"
+          }
+        },
+        "x-charte.rs-confidence": "exact",
+        "x-charte.rs-handler": "create_series",
+        "x-charte.rs-provenance": [
+          {
+            "byte_end": 1698,
+            "byte_start": 1621,
+            "end_column": 64,
+            "end_line": 40,
+            "extraction_reason": "axum_route",
+            "file": "src/httpapi/routes/library.rs",
+            "node_kind": "call_expression",
+            "start_column": 5,
+            "start_line": 39
+          }
+        ]
+      }
+    },
+    "/series/{id}": {
+      "delete": {
+        "operationId": "delete_series",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "x-charte.rs-confidence": "exact",
+            "x-charte.rs-provenance": [
+              {
+                "byte_end": 1775,
+                "byte_start": 1621,
+                "end_column": 77,
+                "end_line": 41,
+                "extraction_reason": "path_template_parameter:route-0050:delete_series",
+                "file": "src/httpapi/routes/library.rs",
+                "node_kind": "call_expression",
+                "start_column": 5,
+                "start_line": 39
+              },
+              {
+                "byte_end": 5654,
+                "byte_start": 5632,
+                "end_column": 27,
+                "end_line": 169,
+                "extraction_reason": "axum_path_extractor",
+                "file": "src/httpapi/routes/library.rs",
+                "node_kind": "parameter",
+                "start_column": 5,
+                "start_line": 169
+              }
+            ]
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response schema unknown"
+          }
+        },
+        "x-charte.rs-confidence": "exact",
+        "x-charte.rs-handler": "delete_series",
+        "x-charte.rs-provenance": [
+          {
+            "byte_end": 1775,
+            "byte_start": 1621,
+            "end_column": 77,
+            "end_line": 41,
+            "extraction_reason": "axum_route",
+            "file": "src/httpapi/routes/library.rs",
+            "node_kind": "call_expression",
+            "start_column": 5,
+            "start_line": 39
+          }
+        ]
+      },
+      "get": {
+        "operationId": "get_series_detail",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "x-charte.rs-confidence": "exact",
+            "x-charte.rs-provenance": [
+              {
+                "byte_end": 1775,
+                "byte_start": 1621,
+                "end_column": 77,
+                "end_line": 41,
+                "extraction_reason": "path_template_parameter:route-0052:get_series_detail",
+                "file": "src/httpapi/routes/library.rs",
+                "node_kind": "call_expression",
+                "start_column": 5,
+                "start_line": 39
+              },
+              {
+                "byte_end": 4969,
+                "byte_start": 4947,
+                "end_column": 27,
+                "end_line": 145,
+                "extraction_reason": "axum_path_extractor",
+                "file": "src/httpapi/routes/library.rs",
+                "node_kind": "parameter",
+                "start_column": 5,
+                "start_line": 145
+              }
+            ]
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response schema unknown"
+          }
+        },
+        "x-charte.rs-confidence": "exact",
+        "x-charte.rs-handler": "get_series_detail",
+        "x-charte.rs-provenance": [
+          {
+            "byte_end": 1775,
+            "byte_start": 1621,
+            "end_column": 77,
+            "end_line": 41,
+            "extraction_reason": "axum_route",
+            "file": "src/httpapi/routes/library.rs",
+            "node_kind": "call_expression",
+            "start_column": 5,
+            "start_line": 39
+          }
+        ]
+      }
+    },
+    "/series/{id}/monitor": {
+      "put": {
+        "operationId": "set_series_monitor",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "x-charte.rs-confidence": "exact",
+            "x-charte.rs-provenance": [
+              {
+                "byte_end": 1839,
+                "byte_start": 1621,
+                "end_column": 64,
+                "end_line": 42,
+                "extraction_reason": "path_template_parameter:route-0047:set_series_monitor",
+                "file": "src/httpapi/routes/library.rs",
+                "node_kind": "call_expression",
+                "start_column": 5,
+                "start_line": 39
+              },
+              {
+                "byte_end": 6721,
+                "byte_start": 6699,
+                "end_column": 27,
+                "end_line": 205,
+                "extraction_reason": "axum_path_extractor",
+                "file": "src/httpapi/routes/library.rs",
+                "node_kind": "parameter",
+                "start_column": 5,
+                "start_line": 205
+              }
+            ]
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetMonitored"
+              }
+            }
+          },
+          "required": true,
+          "x-charte.rs-confidence": "exact",
+          "x-charte.rs-provenance": [
+            {
+              "byte_end": 6756,
+              "byte_start": 6727,
+              "end_column": 34,
+              "end_line": 206,
+              "extraction_reason": "axum_json_extractor",
+              "file": "src/httpapi/routes/library.rs",
+              "node_kind": "parameter",
+              "start_column": 5,
+              "start_line": 206
+            }
+          ]
+        },
+        "responses": {
+          "default": {
+            "description": "Response schema unknown"
+          }
+        },
+        "x-charte.rs-confidence": "exact",
+        "x-charte.rs-handler": "set_series_monitor",
+        "x-charte.rs-provenance": [
+          {
+            "byte_end": 1839,
+            "byte_start": 1621,
+            "end_column": 64,
+            "end_line": 42,
+            "extraction_reason": "axum_route",
+            "file": "src/httpapi/routes/library.rs",
+            "node_kind": "call_expression",
+            "start_column": 5,
+            "start_line": 39
+          }
+        ]
+      }
+    },
     "/system/backup": {
       "get": {
         "operationId": "latest_backup",
@@ -1989,15 +2963,15 @@
         "x-charte.rs-handler": "latest_backup",
         "x-charte.rs-provenance": [
           {
-            "byte_end": 1069,
-            "byte_start": 842,
-            "end_column": 10,
-            "end_line": 31,
+            "byte_end": 1058,
+            "byte_start": 866,
+            "end_column": 73,
+            "end_line": 26,
             "extraction_reason": "axum_route",
             "file": "src/httpapi/routes/system.rs",
             "node_kind": "call_expression",
             "start_column": 5,
-            "start_line": 25
+            "start_line": 23
           }
         ]
       },
@@ -2012,15 +2986,15 @@
         "x-charte.rs-handler": "create_backup",
         "x-charte.rs-provenance": [
           {
-            "byte_end": 1069,
-            "byte_start": 842,
-            "end_column": 10,
-            "end_line": 31,
+            "byte_end": 1058,
+            "byte_start": 866,
+            "end_column": 73,
+            "end_line": 26,
             "extraction_reason": "axum_route",
             "file": "src/httpapi/routes/system.rs",
             "node_kind": "call_expression",
             "start_column": 5,
-            "start_line": 25
+            "start_line": 23
           }
         ]
       }
@@ -2037,15 +3011,113 @@
         "x-charte.rs-handler": "list_backups_handler",
         "x-charte.rs-provenance": [
           {
-            "byte_end": 1130,
-            "byte_start": 842,
+            "byte_end": 1119,
+            "byte_start": 866,
             "end_column": 61,
-            "end_line": 32,
+            "end_line": 27,
             "extraction_reason": "axum_route",
             "file": "src/httpapi/routes/system.rs",
             "node_kind": "call_expression",
             "start_column": 5,
-            "start_line": 25
+            "start_line": 23
+          }
+        ]
+      }
+    },
+    "/system/backups/{name}/download": {
+      "get": {
+        "operationId": "download_backup",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "x-charte.rs-confidence": "exact",
+            "x-charte.rs-provenance": [
+              {
+                "byte_end": 1191,
+                "byte_start": 866,
+                "end_column": 72,
+                "end_line": 28,
+                "extraction_reason": "path_template_parameter:route-0076:download_backup",
+                "file": "src/httpapi/routes/system.rs",
+                "node_kind": "call_expression",
+                "start_column": 5,
+                "start_line": 23
+              }
+            ]
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response schema unknown"
+          }
+        },
+        "x-charte.rs-confidence": "exact",
+        "x-charte.rs-handler": "download_backup",
+        "x-charte.rs-provenance": [
+          {
+            "byte_end": 1191,
+            "byte_start": 866,
+            "end_column": 72,
+            "end_line": 28,
+            "extraction_reason": "axum_route",
+            "file": "src/httpapi/routes/system.rs",
+            "node_kind": "call_expression",
+            "start_column": 5,
+            "start_line": 23
+          }
+        ]
+      }
+    },
+    "/system/backups/{name}/restore": {
+      "post": {
+        "operationId": "restore_backup",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "x-charte.rs-confidence": "exact",
+            "x-charte.rs-provenance": [
+              {
+                "byte_end": 1262,
+                "byte_start": 866,
+                "end_column": 71,
+                "end_line": 29,
+                "extraction_reason": "path_template_parameter:route-0075:restore_backup",
+                "file": "src/httpapi/routes/system.rs",
+                "node_kind": "call_expression",
+                "start_column": 5,
+                "start_line": 23
+              }
+            ]
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response schema unknown"
+          }
+        },
+        "x-charte.rs-confidence": "exact",
+        "x-charte.rs-handler": "restore_backup",
+        "x-charte.rs-provenance": [
+          {
+            "byte_end": 1262,
+            "byte_start": 866,
+            "end_column": 71,
+            "end_line": 29,
+            "extraction_reason": "axum_route",
+            "file": "src/httpapi/routes/system.rs",
+            "node_kind": "call_expression",
+            "start_column": 5,
+            "start_line": 23
           }
         ]
       }
@@ -2062,15 +3134,15 @@
         "x-charte.rs-handler": "system_health",
         "x-charte.rs-provenance": [
           {
-            "byte_end": 961,
-            "byte_start": 842,
+            "byte_end": 985,
+            "byte_start": 866,
             "end_column": 53,
-            "end_line": 27,
+            "end_line": 25,
             "extraction_reason": "axum_route",
             "file": "src/httpapi/routes/system.rs",
             "node_kind": "call_expression",
             "start_column": 5,
-            "start_line": 25
+            "start_line": 23
           }
         ]
       }
@@ -2087,15 +3159,15 @@
         "x-charte.rs-handler": "system_status",
         "x-charte.rs-provenance": [
           {
-            "byte_end": 908,
-            "byte_start": 842,
+            "byte_end": 932,
+            "byte_start": 866,
             "end_column": 53,
-            "end_line": 26,
+            "end_line": 24,
             "extraction_reason": "axum_route",
             "file": "src/httpapi/routes/system.rs",
             "node_kind": "call_expression",
             "start_column": 5,
-            "start_line": 25
+            "start_line": 23
           }
         ]
       }
@@ -2138,15 +3210,15 @@
           "x-charte.rs-confidence": "exact",
           "x-charte.rs-provenance": [
             {
-              "byte_end": 6489,
-              "byte_start": 6453,
+              "byte_end": 6479,
+              "byte_start": 6443,
               "end_column": 41,
-              "end_line": 230,
+              "end_line": 229,
               "extraction_reason": "axum_json_extractor",
               "file": "src/httpapi/routes/targets_search.rs",
               "node_kind": "parameter",
               "start_column": 5,
-              "start_line": 230
+              "start_line": 229
             }
           ]
         },
@@ -2190,22 +3262,22 @@
                 "byte_start": 1378,
                 "end_column": 59,
                 "end_line": 37,
-                "extraction_reason": "path_template_parameter:route-0062:start_search",
+                "extraction_reason": "path_template_parameter:route-0086:start_search",
                 "file": "src/httpapi/routes/targets_search.rs",
                 "node_kind": "call_expression",
                 "start_column": 5,
                 "start_line": 35
               },
               {
-                "byte_end": 8234,
-                "byte_start": 8212,
+                "byte_end": 8195,
+                "byte_start": 8173,
                 "end_column": 27,
-                "end_line": 284,
+                "end_line": 287,
                 "extraction_reason": "axum_path_extractor",
                 "file": "src/httpapi/routes/targets_search.rs",
                 "node_kind": "parameter",
                 "start_column": 5,
-                "start_line": 284
+                "start_line": 287
               }
             ]
           }
@@ -2342,15 +3414,15 @@
       "schema_version": 1,
       "severity": "warning",
       "source_span": {
-        "byte_end": 1521,
-        "byte_start": 1385,
+        "byte_end": 1605,
+        "byte_start": 1469,
         "end_column": 57,
-        "end_line": 39,
+        "end_line": 41,
         "extraction_reason": "axum_route",
         "file": "src/httpapi/mod.rs",
         "node_kind": "call_expression",
         "start_column": 5,
-        "start_line": 37
+        "start_line": 39
       }
     },
     {
@@ -2361,15 +3433,15 @@
       "schema_version": 1,
       "severity": "warning",
       "source_span": {
-        "byte_end": 1576,
-        "byte_start": 1385,
+        "byte_end": 1660,
+        "byte_start": 1469,
         "end_column": 55,
-        "end_line": 40,
+        "end_line": 42,
         "extraction_reason": "axum_route",
         "file": "src/httpapi/mod.rs",
         "node_kind": "call_expression",
         "start_column": 5,
-        "start_line": 37
+        "start_line": 39
       }
     },
     {
@@ -2380,15 +3452,15 @@
       "schema_version": 1,
       "severity": "warning",
       "source_span": {
-        "byte_end": 1642,
-        "byte_start": 1385,
+        "byte_end": 1726,
+        "byte_start": 1469,
         "end_column": 66,
-        "end_line": 41,
+        "end_line": 43,
         "extraction_reason": "axum_route",
         "file": "src/httpapi/mod.rs",
         "node_kind": "call_expression",
         "start_column": 5,
-        "start_line": 37
+        "start_line": 39
       }
     }
   ]

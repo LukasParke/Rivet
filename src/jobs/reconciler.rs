@@ -209,14 +209,12 @@ mod tests {
         .execute(&state.db)
         .await
         .unwrap();
-        sqlx::query(
-            "INSERT INTO search_runs (id, target_id, status) VALUES (?, ?, 'running')",
-        )
-        .bind(&run_id)
-        .bind(&target_id)
-        .execute(&state.db)
-        .await
-        .unwrap();
+        sqlx::query("INSERT INTO search_runs (id, target_id, status) VALUES (?, ?, 'running')")
+            .bind(&run_id)
+            .bind(&target_id)
+            .execute(&state.db)
+            .await
+            .unwrap();
         sqlx::query(
             "INSERT INTO release_candidates (id, search_run_id, indexer_name, raw_json, created_at)
              VALUES (?, ?, 'ix', '{}', ?)",

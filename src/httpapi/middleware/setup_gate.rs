@@ -107,7 +107,9 @@ impl SetupGate {
     /// under `/api/v1`, first in the layer order:
     /// `Router::new()....layer(gate.middleware())`
     pub fn middleware(self: &Arc<Self>) -> SetupGateLayer {
-        SetupGateLayer { gate: Arc::clone(self) }
+        SetupGateLayer {
+            gate: Arc::clone(self),
+        }
     }
 }
 
@@ -121,7 +123,10 @@ impl<S> tower::Layer<S> for SetupGateLayer {
     type Service = SetupGateService<S>;
 
     fn layer(&self, inner: S) -> Self::Service {
-        SetupGateService { inner, gate: Arc::clone(&self.gate) }
+        SetupGateService {
+            inner,
+            gate: Arc::clone(&self.gate),
+        }
     }
 }
 
@@ -138,8 +143,7 @@ where
 {
     type Response = Response;
     type Error = S::Error;
-    type Future =
-        std::pin::Pin<Box<dyn Future<Output = Result<Response, S::Error>> + Send>>;
+    type Future = std::pin::Pin<Box<dyn Future<Output = Result<Response, S::Error>> + Send>>;
 
     fn poll_ready(
         &mut self,
@@ -190,7 +194,11 @@ fn setup_required_response() -> Response {
 pub async fn init_shared(pool: SqlitePool, refresh_every: Duration) -> Arc<SetupGate> {
     // Clone any existing gate out under a short lock; never hold the guard
     // across the refresher await.
-    let existing = SHARED.lock().expect("setup gate registry").as_ref().map(Arc::clone);
+    let existing = SHARED
+        .lock()
+        .expect("setup gate registry")
+        .as_ref()
+        .map(Arc::clone);
     if let Some(gate) = existing {
         gate.start_refresher().await;
         return gate;
@@ -270,13 +278,19 @@ mod tests {
         let gate = SetupGate::new(pool, Duration::from_secs(3600));
         assert!(gate.is_setup_mode(), "starts optimistic");
         gate.start_refresher().await;
-        assert!(!gate.is_setup_mode(), "initial refresh sees the existing user");
+        assert!(
+            !gate.is_setup_mode(),
+            "initial refresh sees the existing user"
+        );
     }
 
     fn gated_router(gate: &Arc<SetupGate>) -> Router {
         Router::new()
             .route("/healthz", axum::routing::get(|| async { "ok" }))
-            .route("/api/v1/setup/status", axum::routing::get(|| async { "ok" }))
+            .route(
+                "/api/v1/setup/status",
+                axum::routing::get(|| async { "ok" }),
+            )
             .route("/api/v1/auth/me", axum::routing::get(|| async { "ok" }))
             .layer(gate.middleware())
     }
@@ -296,8 +310,14 @@ mod tests {
 
         let app = gated_router(&gate);
         assert_eq!(status_of(app.clone(), "/healthz").await, StatusCode::OK);
-        assert_ne!(status_of(app.clone(), "/metrics").await, StatusCode::FORBIDDEN);
-        assert_eq!(status_of(app.clone(), "/api/v1/setup/status").await, StatusCode::OK);
+        assert_ne!(
+            status_of(app.clone(), "/metrics").await,
+            StatusCode::FORBIDDEN
+        );
+        assert_eq!(
+            status_of(app.clone(), "/api/v1/setup/status").await,
+            StatusCode::OK
+        );
 
         let resp = app
             .oneshot(
@@ -309,7 +329,9 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(resp.status(), StatusCode::FORBIDDEN);
-        let body = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+        let body = axum::body::to_bytes(resp.into_body(), usize::MAX)
+            .await
+            .unwrap();
         let v = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
         assert_eq!(v["error"], "setup_required");
         assert_eq!(v["setupMode"], true);

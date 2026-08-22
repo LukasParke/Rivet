@@ -18,14 +18,18 @@ use crate::error::AppError;
 use crate::httpapi::middleware::auth::Admin;
 use crate::security::ssrf::{self, SsrfError};
 use crate::state::AppState;
-use crate::ws::hub::PublishExt;
 use crate::storage::audit::{insert as insert_audit, AuditEvent};
+use crate::ws::hub::PublishExt;
 
 const SETTING_KEY: &str = "setup.indexers";
 const PROBE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(8);
 const MAX_BODY: usize = 1024 * 1024;
 
-const QUERY_SET: &AsciiSet = &NON_ALPHANUMERIC.remove(b'-').remove(b'_').remove(b'.').remove(b'~');
+const QUERY_SET: &AsciiSet = &NON_ALPHANUMERIC
+    .remove(b'-')
+    .remove(b'_')
+    .remove(b'.')
+    .remove(b'~');
 
 fn qenc(s: &str) -> String {
     utf8_percent_encode(s, QUERY_SET).to_string()
@@ -63,17 +67,29 @@ struct IndexerTestResult {
 
 impl IndexerTestResult {
     fn fail(code: &str) -> Self {
-        IndexerTestResult { ok: false, error: Some(code.to_string()), ..Default::default() }
+        IndexerTestResult {
+            ok: false,
+            error: Some(code.to_string()),
+            ..Default::default()
+        }
     }
 
     fn fail_with_hint(code: &str, hint: &str) -> Self {
         let mut details = BTreeMap::new();
         details.insert("hint".into(), hint.to_string());
-        IndexerTestResult { ok: false, details, error: Some(code.to_string()) }
+        IndexerTestResult {
+            ok: false,
+            details,
+            error: Some(code.to_string()),
+        }
     }
 
     fn ok_with(details: BTreeMap<String, String>) -> Self {
-        IndexerTestResult { ok: true, details, error: None }
+        IndexerTestResult {
+            ok: true,
+            details,
+            error: None,
+        }
     }
 }
 
@@ -98,10 +114,7 @@ pub fn router() -> axum::Router<AppState> {
 async fn validate(
     _user: Admin,
     State(state): State<AppState>,
-    body: Result<
-        axum::Json<SetupIndexersValidateRequest>,
-        axum::extract::rejection::JsonRejection,
-    >,
+    body: Result<axum::Json<SetupIndexersValidateRequest>, axum::extract::rejection::JsonRejection>,
 ) -> Response {
     let Ok(axum::Json(req)) = body else {
         return AppError::BadRequest("invalid_json".into()).into_response();
@@ -113,10 +126,7 @@ async fn validate(
 async fn save(
     user: Admin,
     State(state): State<AppState>,
-    body: Result<
-        axum::Json<SetupIndexersValidateRequest>,
-        axum::extract::rejection::JsonRejection,
-    >,
+    body: Result<axum::Json<SetupIndexersValidateRequest>, axum::extract::rejection::JsonRejection>,
 ) -> Response {
     let actor = user.0.user.id.clone();
     let Ok(axum::Json(req)) = body else {
@@ -138,11 +148,17 @@ async fn save(
         };
         let mut out = Vec::with_capacity(list.len());
         for ix in list {
-            let key_enc = match state.secret_box.encrypt_to_string(ix.apiKey.trim().as_bytes()) {
+            let key_enc = match state
+                .secret_box
+                .encrypt_to_string(ix.apiKey.trim().as_bytes())
+            {
                 Ok(e) => e,
                 Err(_) => return save_failed_response(),
             };
-            let pw_enc = match state.secret_box.encrypt_to_string(ix.password.trim().as_bytes()) {
+            let pw_enc = match state
+                .secret_box
+                .encrypt_to_string(ix.password.trim().as_bytes())
+            {
                 Ok(e) => e,
                 Err(_) => return save_failed_response(),
             };
@@ -220,16 +236,28 @@ fn network_error_info(err: &str, target: &str) -> (&'static str, String) {
         return ("network", format!("Connection refused: The server can reach {target} but the connection was refused. This usually means the service is not running on that address/port."));
     }
     if e.contains("timeout") || e.contains("deadline exceeded") {
-        return ("network", format!("Connection timeout: The connection attempt to {target} timed out."));
+        return (
+            "network",
+            format!("Connection timeout: The connection attempt to {target} timed out."),
+        );
     }
     if e.contains("connection reset") {
-        return ("network", format!("Connection reset: The connection to {target} was reset."));
+        return (
+            "network",
+            format!("Connection reset: The connection to {target} was reset."),
+        );
     }
     if e.contains("no such host") || e.contains("dns") || e.contains("failed to lookup") {
-        return ("dns", format!("DNS resolution failed: The server cannot resolve the hostname for {target}."));
+        return (
+            "dns",
+            format!("DNS resolution failed: The server cannot resolve the hostname for {target}."),
+        );
     }
     if e.contains("tls") || e.contains("ssl") || e.contains("certificate") {
-        return ("tls", format!("TLS/SSL error connecting to {target}: check certificate configuration."));
+        return (
+            "tls",
+            format!("TLS/SSL error connecting to {target}: check certificate configuration."),
+        );
     }
     ("unknown", format!("Connection failed: {err}"))
 }
@@ -278,7 +306,10 @@ async fn validate_indexers(
     state: &AppState,
     req: &SetupIndexersValidateRequest,
 ) -> SetupIndexersValidateResponse {
-    let mut resp = SetupIndexersValidateResponse { ok: true, ..Default::default() };
+    let mut resp = SetupIndexersValidateResponse {
+        ok: true,
+        ..Default::default()
+    };
 
     if req.torznab.is_empty() && req.newznab.is_empty() {
         state.hub.publish_event(
@@ -288,7 +319,10 @@ async fn validate_indexers(
                 "message": "At least one indexer (Torznab or Newznab) must be provided",
             }),
         );
-        return SetupIndexersValidateResponse { ok: false, ..Default::default() };
+        return SetupIndexersValidateResponse {
+            ok: false,
+            ..Default::default()
+        };
     }
 
     let total = req.torznab.len() + req.newznab.len();
@@ -334,7 +368,9 @@ async fn validate_indexers(
             } else {
                 resp.newznab.push(r);
             }
-            state.hub.publish_event("setup.indexer.validation.progress", done);
+            state
+                .hub
+                .publish_event("setup.indexer.validation.progress", done);
         }
     }
 
@@ -476,8 +512,7 @@ async fn test_newznab_like(state: &AppState, cfg: &IndexerConfig) -> IndexerTest
         "setup.indexer.test.connecting",
         json!({"indexerName": cfg.name, "indexerUrl": cfg.url}),
     );
-    let query =
-        format!("t=search&q=ubuntu&apikey={}&limit=1", qenc(api_key));
+    let query = format!("t=search&q=ubuntu&apikey={}&limit=1", qenc(api_key));
     let api_url = join_url(&origin, "/api", Some(&query));
 
     let mut headers: Vec<(&str, &str)> = vec![("x-api-key", api_key)];
@@ -485,8 +520,7 @@ async fn test_newznab_like(state: &AppState, cfg: &IndexerConfig) -> IndexerTest
     if !username.is_empty() || !password.is_empty() {
         use base64::engine::general_purpose::STANDARD as B64;
         use base64::Engine;
-        auth_header =
-            format!("Basic {}", B64.encode(format!("{username}:{password}")));
+        auth_header = format!("Basic {}", B64.encode(format!("{username}:{password}")));
         headers.push(("authorization", auth_header.as_str()));
     }
 
@@ -495,8 +529,15 @@ async fn test_newznab_like(state: &AppState, cfg: &IndexerConfig) -> IndexerTest
         json!({"indexerName": cfg.name, "indexerUrl": cfg.url, "query": "ubuntu"}),
     );
 
-    match ssrf::request_validated(reqwest::Method::GET, &api_url, state.policy, PROBE_TIMEOUT, &headers, None)
-        .await
+    match ssrf::request_validated(
+        reqwest::Method::GET,
+        &api_url,
+        state.policy,
+        PROBE_TIMEOUT,
+        &headers,
+        None,
+    )
+    .await
     {
         Err(e) => {
             let (error_type, hint) = network_error_info(&e.to_string(), url);
@@ -570,15 +611,17 @@ async fn find_prowlarr_indexer(
         return Err(FindError::Network(format!("http status {status}")));
     }
 
-    let body = body_limited(res, MAX_BODY).await.map_err(|e| FindError::Network(e.to_string()))?;
+    let body = body_limited(res, MAX_BODY)
+        .await
+        .map_err(|e| FindError::Network(e.to_string()))?;
     #[derive(Deserialize)]
     struct ProwlarrIndexer {
         id: i64,
         #[serde(default)]
         enable: bool,
     }
-    let indexers: Vec<ProwlarrIndexer> = serde_json::from_slice(&body)
-        .map_err(|e| FindError::Network(e.to_string()))?;
+    let indexers: Vec<ProwlarrIndexer> =
+        serde_json::from_slice(&body).map_err(|e| FindError::Network(e.to_string()))?;
 
     for idx in indexers {
         if idx.enable {
@@ -617,10 +660,7 @@ async fn retry_prowlarr_torznab(
     );
 
     let api_key = cfg.apiKey.trim();
-    let query = format!(
-        "t=search&q=ubuntu&apikey={}&limit=1",
-        qenc(api_key)
-    );
+    let query = format!("t=search&q=ubuntu&apikey={}&limit=1", qenc(api_key));
     let api_url = join_url(origin, &endpoint_path, Some(&query));
 
     let mut headers: Vec<(&str, &str)> = vec![("x-api-key", api_key)];
@@ -639,8 +679,15 @@ async fn retry_prowlarr_torznab(
         json!({"indexerName": cfg.name, "indexerUrl": cfg.url, "query": "ubuntu", "type": "prowlarr"}),
     );
 
-    match ssrf::request_validated(reqwest::Method::GET, &api_url, state.policy, PROBE_TIMEOUT, &headers, None)
-        .await
+    match ssrf::request_validated(
+        reqwest::Method::GET,
+        &api_url,
+        state.policy,
+        PROBE_TIMEOUT,
+        &headers,
+        None,
+    )
+    .await
     {
         Err(e) => {
             let (error_type, hint) = network_error_info(&e.to_string(), origin.as_str());
@@ -720,7 +767,11 @@ async fn evaluate_capsule(
 
     let body = String::from_utf8_lossy(&body_bytes).trim().to_string();
     if body.is_empty() {
-        let code = if prowlarr { "prowlarr_empty_response" } else { "empty_response" };
+        let code = if prowlarr {
+            "prowlarr_empty_response"
+        } else {
+            "empty_response"
+        };
         let r = IndexerTestResult::fail_with_hint(
             code,
             if prowlarr {
@@ -749,7 +800,11 @@ async fn evaluate_capsule(
         let r = IndexerTestResult {
             ok: false,
             details,
-            error: Some(if prowlarr { "prowlarr_invalid_format".into() } else { "json_response_expected_xml".into() }),
+            error: Some(if prowlarr {
+                "prowlarr_invalid_format".into()
+            } else {
+                "json_response_expected_xml".into()
+            }),
         };
         state.hub.publish_event(
             "setup.indexer.test.failed",
@@ -766,7 +821,11 @@ async fn evaluate_capsule(
 
     // Root <error/> capsules.
     if let Some(desc) = parse_newznab_error(&body) {
-        let code = if prowlarr { "prowlarr_error" } else { "newznab_error" };
+        let code = if prowlarr {
+            "prowlarr_error"
+        } else {
+            "newznab_error"
+        };
         let mut details = BTreeMap::new();
         details.insert(
             "hint".into(),
@@ -779,7 +838,11 @@ async fn evaluate_capsule(
         if prowlarr {
             details.insert("rawError".into(), desc);
         }
-        let r = IndexerTestResult { ok: false, details, error: Some(code.into()) };
+        let r = IndexerTestResult {
+            ok: false,
+            details,
+            error: Some(code.into()),
+        };
         state.hub.publish_event(
             "setup.indexer.test.failed",
             json!({
@@ -795,18 +858,27 @@ async fn evaluate_capsule(
 
     // Must look like XML/RSS.
     if !(body.starts_with("<?xml") || body.starts_with("<rss") || body.starts_with("<error")) {
-        let code = if prowlarr { "prowlarr_invalid_format" } else { "invalid_format" };
+        let code = if prowlarr {
+            "prowlarr_invalid_format"
+        } else {
+            "invalid_format"
+        };
         let mut details = BTreeMap::new();
         details.insert(
             "hint".into(),
             if prowlarr {
-                "Prowlarr response is not valid XML/RSS. Ensure the indexer is properly configured.".to_string()
+                "Prowlarr response is not valid XML/RSS. Ensure the indexer is properly configured."
+                    .to_string()
             } else {
                 "Expected XML/RSS response from the indexer.".to_string()
             },
         );
         details.insert("preview".into(), xml_preview(&body));
-        let r = IndexerTestResult { ok: false, details, error: Some(code.into()) };
+        let r = IndexerTestResult {
+            ok: false,
+            details,
+            error: Some(code.into()),
+        };
         state.hub.publish_event(
             "setup.indexer.test.failed",
             json!({
@@ -832,7 +904,10 @@ async fn evaluate_capsule(
         details.insert("type".into(), "prowlarr".into());
         details.insert(
             "note".into(),
-            format!("Prowlarr detected - using indexer ID {}", prowlarr_id.unwrap_or_default()),
+            format!(
+                "Prowlarr detected - using indexer ID {}",
+                prowlarr_id.unwrap_or_default()
+            ),
         );
     }
 
@@ -869,7 +944,6 @@ fn join_url(origin: &url::Url, path: &str, query: Option<&str>) -> String {
 mod tests {
     use super::*;
 
-    use std::sync::Arc;
     use crate::httpapi::middleware::auth::{csrf, load_session};
     use crate::metrics::Metrics;
     use crate::security::secrets::SecretBox;
@@ -879,6 +953,7 @@ mod tests {
     use axum::extract::Request;
     use axum::http::StatusCode;
     use axum::middleware;
+    use std::sync::Arc;
     use tower::ServiceExt;
 
     async fn app_state() -> (tempfile::TempDir, AppState) {
@@ -945,10 +1020,18 @@ mod tests {
             .layer(middleware::from_fn(csrf))
             .layer(middleware::from_fn_with_state(state.clone(), load_session))
             .with_state(state);
-        let resp = app.oneshot(b.body(Body::from(body.to_string())).unwrap()).await.unwrap();
+        let resp = app
+            .oneshot(b.body(Body::from(body.to_string())).unwrap())
+            .await
+            .unwrap();
         let status = resp.status();
-        let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
-        (status, serde_json::from_slice(&bytes).unwrap_or(serde_json::Value::Null))
+        let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        (
+            status,
+            serde_json::from_slice(&bytes).unwrap_or(serde_json::Value::Null),
+        )
     }
 
     const RSS_BODY: &str = r#"<?xml version="1.0"?><rss version="2.0"><channel><item><title>a</title></item><item><title>b</title></item></channel></rss>"#;
@@ -1026,7 +1109,13 @@ mod tests {
             "torznab": [{"name": "bad", "url": base, "apiKey": "wrong"}],
         })
         .to_string();
-        let (_, v) = post_admin(state.clone(), "/api/v1/setup/indexers/validate", &bad, Some(&sess)).await;
+        let (_, v) = post_admin(
+            state.clone(),
+            "/api/v1/setup/indexers/validate",
+            &bad,
+            Some(&sess),
+        )
+        .await;
         assert_eq!(v["ok"], false);
         assert_eq!(v["torznab"][0]["error"], "invalid_api_key");
 
@@ -1036,7 +1125,13 @@ mod tests {
             "newznab": [],
         })
         .to_string();
-        let (s, v) = post_admin(state.clone(), "/api/v1/setup/indexers/save", &save_body, Some(&sess)).await;
+        let (s, v) = post_admin(
+            state.clone(),
+            "/api/v1/setup/indexers/save",
+            &save_body,
+            Some(&sess),
+        )
+        .await;
         assert_eq!(s, StatusCode::OK);
         assert_eq!(v["saved"], true);
 
@@ -1044,8 +1139,14 @@ mod tests {
             .await
             .unwrap()
             .unwrap();
-        assert!(!stored.contains("correct-key"), "API key stored in cleartext!");
-        assert!(!stored.contains("ix-secret"), "password stored in cleartext!");
+        assert!(
+            !stored.contains("correct-key"),
+            "API key stored in cleartext!"
+        );
+        assert!(
+            !stored.contains("ix-secret"),
+            "password stored in cleartext!"
+        );
         let parsed: serde_json::Value = serde_json::from_str(&stored).unwrap();
         assert_eq!(parsed["newznab"], serde_json::json!([]));
         let enc = parsed["torznab"][0]["apiKeyEnc"].as_str().unwrap();
@@ -1100,7 +1201,10 @@ mod tests {
             Some("error:Unauthorized")
         );
         let wrapped = r#"<rss><error code="910"/></rss>"#;
-        assert_eq!(parse_newznab_error(wrapped).as_deref(), Some("error_code:910"));
+        assert_eq!(
+            parse_newznab_error(wrapped).as_deref(),
+            Some("error_code:910")
+        );
         assert_eq!(parse_newznab_error("<rss></rss>"), None);
         assert_eq!(count_rss_items(RSS_BODY), 2);
         assert!(is_prowlarr_url("http://host:9696/api"));

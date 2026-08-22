@@ -98,11 +98,12 @@ async fn drain_queue(state: &AppState, max_jobs: usize) {
                     &e,
                 )
                 .await;
-                let _ = sqlx::query("UPDATE jobs SET run_after = ? WHERE id = ? AND state = 'queued'")
-                    .bind(rivet::timeutil::now())
-                    .bind(&job.id)
-                    .execute(&state.db)
-                    .await;
+                let _ =
+                    sqlx::query("UPDATE jobs SET run_after = ? WHERE id = ? AND state = 'queued'")
+                        .bind(rivet::timeutil::now())
+                        .bind(&job.id)
+                        .execute(&state.db)
+                        .await;
             }
         }
     }
@@ -207,7 +208,10 @@ async fn seed_imported_episode(
     title: &str,
     quality: &str,
     score: i64,
-) -> (rivet::storage::series::Series, rivet::storage::series::Episode) {
+) -> (
+    rivet::storage::series::Series,
+    rivet::storage::series::Episode,
+) {
     let series = upsert_series(
         &state.db,
         &SeriesUpsert {
@@ -306,7 +310,10 @@ async fn acquired_candidate_title(state: &AppState, target_id: &str) -> (String,
     .unwrap();
     assert_eq!(rows.len(), 1, "exactly one acquisition: {rows:?}");
     let raw: Value = serde_json::from_str(&rows[0].0).unwrap();
-    (raw["title"].as_str().unwrap().to_string(), rows[0].1.clone())
+    (
+        raw["title"].as_str().unwrap().to_string(),
+        rows[0].1.clone(),
+    )
 }
 
 // ---------------------------------------------------------------------------
@@ -357,7 +364,10 @@ async fn upgrade_flow_grabs_2160p_over_existing_1080p() {
         Some(&have.quality),
         Some(have.quality.modifier),
     );
-    assert!(d_up.grab && d_up.upgrade, "2160p must upgrade over 1080p: {d_up:?}");
+    assert!(
+        d_up.grab && d_up.upgrade,
+        "2160p must upgrade over 1080p: {d_up:?}"
+    );
     let eq = parse("Show.S01E01.1080p.WEB-DL.x265-OTHER");
     let d_eq = decide_upgrade(
         &eq.quality,
@@ -384,7 +394,11 @@ async fn proper_release_beats_lower_resolution_and_plain_same_quality() {
     // on decision score (30 + proper bonus 5 > 20).
     let feed = torznab_feed(&[
         torznab_item("Show.S01E01.720p.WEB-DL.x264-RIVET", &"c".repeat(40), 100),
-        torznab_item("Show.S01E01.1080p.WEB-DL.x264.PROPER-RIVET", &"d".repeat(40), 40),
+        torznab_item(
+            "Show.S01E01.1080p.WEB-DL.x264.PROPER-RIVET",
+            &"d".repeat(40),
+            40,
+        ),
     ]);
     let server = serve_torznab(feed).await;
     let target = seed_search_target(&state, &server.uri(), &["720p", "1080p"]).await;
@@ -420,7 +434,10 @@ async fn proper_release_beats_lower_resolution_and_plain_same_quality() {
         Some(&have.quality),
         Some(have.quality.modifier),
     );
-    assert!(!d_lower.grab, "720p must be rejected against 1080p: {d_lower:?}");
+    assert!(
+        !d_lower.grab,
+        "720p must be rejected against 1080p: {d_lower:?}"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -454,16 +471,18 @@ async fn stalled_download_recovery_ladder_bounds_to_needs_review() {
     // progress, driving the monitor → recover → monitor loop.
     Mock::given(method("GET"))
         .and(path("/api/v2/torrents/info"))
-        .respond_with(ResponseTemplate::new(200).set_body_string(
-            json!([{
-                "hash": hash,
-                "name": "Show.S01E01",
-                "progress": 0.0,
-                "state": "stalledDL",
-                "total_size": 1000,
-            }])
-            .to_string(),
-        ))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_string(
+                json!([{
+                    "hash": hash,
+                    "name": "Show.S01E01",
+                    "progress": 0.0,
+                    "state": "stalledDL",
+                    "total_size": 1000,
+                }])
+                .to_string(),
+            ),
+        )
         .mount(&server)
         .await;
 
@@ -605,21 +624,32 @@ async fn stalled_download_recovery_ladder_bounds_to_needs_review() {
             .await
             .unwrap();
     assert_eq!(rescouts, 1, "rescout must fire once, got {rescouts}");
-    let acquisitions: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM acquisitions WHERE target_id = ?")
-        .bind(&target.id)
-        .fetch_one(&state.db)
-        .await
-        .unwrap();
-    assert_eq!(acquisitions, 1, "no replacement acquisition without indexers");
+    let acquisitions: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM acquisitions WHERE target_id = ?")
+            .bind(&target.id)
+            .fetch_one(&state.db)
+            .await
+            .unwrap();
+    assert_eq!(
+        acquisitions, 1,
+        "no replacement acquisition without indexers"
+    );
 
     // The ladder hit resume exactly once, reannounce once, recheck twice —
     // bounded attempts, no runaway recovery loop.
     let requests = server.received_requests().await.unwrap_or_default();
     let count = |suffix: &str| requests.iter().filter(|r| r.url.path() == suffix).count();
     assert_eq!(count("/api/v2/torrents/resume"), 1, "resume ladder step");
-    assert_eq!(count("/api/v2/torrents/reannounce"), 1, "reannounce ladder step");
-    assert_eq!(count("/api/v2/torrents/recheck"), 2, "recheck ladder steps 3+4");
-
+    assert_eq!(
+        count("/api/v2/torrents/reannounce"),
+        1,
+        "reannounce ladder step"
+    );
+    assert_eq!(
+        count("/api/v2/torrents/recheck"),
+        2,
+        "recheck ladder steps 3+4"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -648,16 +678,18 @@ async fn series_lifecycle_end_to_end() {
     let fixture_path = fixture.to_string_lossy().into_owned();
     Mock::given(method("GET"))
         .and(path("/api/v2/torrents/info"))
-        .respond_with(ResponseTemplate::new(200).set_body_string(
-            json!([{
-                "hash": "f".repeat(40),
-                "name": "Rivet.Chronicles.S01E01.2160p.WEB-DL",
-                "progress": 1.0,
-                "state": "uploading",
-                "content_path": fixture_path,
-            }])
-            .to_string(),
-        ))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_string(
+                json!([{
+                    "hash": "f".repeat(40),
+                    "name": "Rivet.Chronicles.S01E01.2160p.WEB-DL",
+                    "progress": 1.0,
+                    "state": "uploading",
+                    "content_path": fixture_path,
+                }])
+                .to_string(),
+            ),
+        )
         .mount(&server)
         .await;
 
@@ -761,7 +793,11 @@ async fn series_lifecycle_end_to_end() {
         )
         .await
         .unwrap();
-    assert_eq!(res.status(), StatusCode::OK, "clients save validates against the stub");
+    assert_eq!(
+        res.status(),
+        StatusCode::OK,
+        "clients save validates against the stub"
+    );
 
     let res = app
         .clone()
@@ -791,7 +827,10 @@ async fn series_lifecycle_end_to_end() {
             network: None,
             first_aired: None,
             genres: vec!["Drama".into()],
-            path: lib_root.join("Rivet Chronicles").to_string_lossy().into_owned(),
+            path: lib_root
+                .join("Rivet Chronicles")
+                .to_string_lossy()
+                .into_owned(),
             quality_profile: "hd".into(),
             monitored: true,
             season_folder: true,
@@ -870,9 +909,20 @@ async fn series_lifecycle_end_to_end() {
         .unwrap();
     assert_eq!(res.status(), StatusCode::OK);
     let cal = body_json(res).await;
-    let cal_ids: Vec<&str> = cal.as_array().unwrap().iter().map(|e| e["id"].as_str().unwrap()).collect();
-    assert!(cal_ids.contains(&e01.id.as_str()), "calendar must list E01: {cal:?}");
-    assert!(cal_ids.contains(&e02.id.as_str()), "calendar must list E02: {cal:?}");
+    let cal_ids: Vec<&str> = cal
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|e| e["id"].as_str().unwrap())
+        .collect();
+    assert!(
+        cal_ids.contains(&e01.id.as_str()),
+        "calendar must list E01: {cal:?}"
+    );
+    assert!(
+        cal_ids.contains(&e02.id.as_str()),
+        "calendar must list E02: {cal:?}"
+    );
     assert_eq!(cal[0]["seriesTitle"], json!("Rivet Chronicles"));
     // Wanted/missing lists only the aired, file-less episode.
     let res = app
@@ -893,7 +943,10 @@ async fn series_lifecycle_end_to_end() {
         .iter()
         .map(|e| e["id"].as_str().unwrap())
         .collect();
-    assert!(wanted_ids.contains(&e01.id.as_str()), "E01 is missing: {wanted:?}");
+    assert!(
+        wanted_ids.contains(&e01.id.as_str()),
+        "E01 is missing: {wanted:?}"
+    );
     assert!(
         !wanted_ids.contains(&e02.id.as_str()),
         "unaired E02 must not be wanted: {wanted:?}"
@@ -926,7 +979,10 @@ async fn series_lifecycle_end_to_end() {
         .unwrap();
     assert_eq!(res.status(), StatusCode::CREATED, "grab accepted");
     let grab = body_json(res).await;
-    let acq_id = grab["acquisitionId"].as_str().expect("acquisitionId").to_string();
+    let acq_id = grab["acquisitionId"]
+        .as_str()
+        .expect("acquisitionId")
+        .to_string();
 
     // The grab recorded the audit event.
     let audits: i64 = sqlx::query_scalar(
@@ -948,12 +1004,11 @@ async fn series_lifecycle_end_to_end() {
         .execute(&db)
         .await
         .unwrap();
-    let cand_id: String =
-        sqlx::query_scalar("SELECT candidate_id FROM acquisitions WHERE id = ?")
-            .bind(&acq_id)
-            .fetch_one(&db)
-            .await
-            .unwrap();
+    let cand_id: String = sqlx::query_scalar("SELECT candidate_id FROM acquisitions WHERE id = ?")
+        .bind(&acq_id)
+        .fetch_one(&db)
+        .await
+        .unwrap();
     let fixed_raw =
         json!({"title": release_title, "download_url": magnet, "kind": "torrent"}).to_string();
     sqlx::query("UPDATE release_candidates SET raw_json = ? WHERE id = ?")
@@ -971,8 +1026,15 @@ async fn series_lifecycle_end_to_end() {
         .await
         .unwrap()
         .unwrap();
-    assert_eq!(row.status, "imported", "full pipeline must import, last_error={:?}", row.last_error);
-    assert_eq!(row.verified_path.as_deref(), Some(fixture.to_string_lossy().as_ref()));
+    assert_eq!(
+        row.status, "imported",
+        "full pipeline must import, last_error={:?}",
+        row.last_error
+    );
+    assert_eq!(
+        row.verified_path.as_deref(),
+        Some(fixture.to_string_lossy().as_ref())
+    );
     let imported = row.imported_path.clone().expect("imported path");
     assert!(
         imported.starts_with(lib_root.to_string_lossy().as_ref()),
@@ -996,10 +1058,15 @@ async fn series_lifecycle_end_to_end() {
         &ctx,
         false,
     );
-    assert_eq!(filename, "Rivet Chronicles - S01E01 - WEB-DL 2160p", "naming preview");
+    assert_eq!(
+        filename, "Rivet Chronicles - S01E01 - WEB-DL 2160p",
+        "naming preview"
+    );
 }
 
 async fn body_json(res: axum::response::Response) -> Value {
-    let bytes = axum::body::to_bytes(res.into_body(), 1 << 20).await.unwrap();
+    let bytes = axum::body::to_bytes(res.into_body(), 1 << 20)
+        .await
+        .unwrap();
     serde_json::from_slice(&bytes).unwrap_or(Value::Null)
 }

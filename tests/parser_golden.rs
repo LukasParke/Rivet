@@ -18,7 +18,11 @@ fn golden_dir() -> PathBuf {
 fn curated_cases_match_expected_fields() {
     let raw = std::fs::read_to_string(golden_dir().join("cases.json")).unwrap();
     let cases: Vec<Value> = serde_json::from_str(&raw).expect("cases.json parses");
-    assert!(cases.len() >= 80, "golden corpus should stay large, got {}", cases.len());
+    assert!(
+        cases.len() >= 300,
+        "golden corpus should stay large, got {}",
+        cases.len()
+    );
 
     let mut failures = Vec::new();
     for case in &cases {

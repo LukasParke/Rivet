@@ -23,8 +23,8 @@
     "edition": null,
     "audio": [
       {
-        "codec": "DDP5 1",
-        "channels": null
+        "codec": "DDP",
+        "channels": 5.1
       }
     ],
     "releaseGroup": "GROUP",

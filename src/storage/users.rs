@@ -17,7 +17,9 @@ pub struct User {
 }
 
 pub async fn count_users(pool: &SqlitePool) -> Result<i64, sqlx::Error> {
-    sqlx::query_scalar("SELECT COUNT(*) FROM users").fetch_one(pool).await
+    sqlx::query_scalar("SELECT COUNT(*) FROM users")
+        .fetch_one(pool)
+        .await
 }
 
 pub async fn get_by_email(pool: &SqlitePool, email: &str) -> Result<User, sqlx::Error> {
@@ -63,12 +65,14 @@ pub async fn set_totp_secret(
     enabled: bool,
 ) -> Result<(), sqlx::Error> {
     let now = crate::timeutil::fmt(Utc::now());
-    sqlx::query("UPDATE users SET totp_secret_enc = ?, totp_enabled = ?, updated_at = ? WHERE id = ?")
-        .bind(enc)
-        .bind(enabled)
-        .bind(&now)
-        .bind(user_id)
-        .execute(pool)
-        .await
-        .map(|_| ())
+    sqlx::query(
+        "UPDATE users SET totp_secret_enc = ?, totp_enabled = ?, updated_at = ? WHERE id = ?",
+    )
+    .bind(enc)
+    .bind(enabled)
+    .bind(&now)
+    .bind(user_id)
+    .execute(pool)
+    .await
+    .map(|_| ())
 }

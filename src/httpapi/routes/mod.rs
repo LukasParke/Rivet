@@ -11,6 +11,8 @@ pub mod auth;
 pub mod calendar;
 pub mod diagnostics;
 pub mod health;
+pub mod history;
+pub mod library;
 pub mod metrics;
 pub mod notifications;
 pub mod search_interactive;

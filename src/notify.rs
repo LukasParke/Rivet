@@ -8,6 +8,18 @@
 //! - `ntfy`:     POST `title\nmessage` to `config.url`/`config.topic`
 //!   (`X-Title: <event>` header included)
 //! - `discord`:  POST `{"content": ...}` to `config.webhookUrl`
+//! - `telegram`: POST `{"chat_id", "text"}` to
+//!   `https://api.telegram.org/bot{botToken}/sendMessage`
+//! - `slack`:    POST `{"text": ...}` to `config.webhookUrl`
+//! - `pushover`: POST form-encoded `token/user/title/message` to
+//!   `https://api.pushover.net/1/messages.json`
+//! - `gotify`:   POST `{"title", "message"}` to `{url}/message?token={appToken}`
+//!
+//! Plain-text channels (all but `webhook`) render as `{event}: {summary}`,
+//! where the summary is derived best-effort from the payload data — see
+//! [`summarize`]. `telegram` and `pushover` accept an optional `baseUrl`
+//! config override (tests / API proxies); it defaults to the official API
+//! host.
 //!
 //! Every request goes through [`crate::security::ssrf::request_validated`]
 //! under the state's outbound policy with a hard 5s timeout. Delivery
@@ -17,6 +29,8 @@
 use std::time::Duration;
 
 use serde_json::{json, Value};
+
+use percent_encoding::utf8_percent_encode;
 
 use crate::security::ssrf;
 use crate::state::AppState;
@@ -138,12 +152,17 @@ async fn send(
     body: &Value,
 ) -> Result<(), String> {
     let config = sink.config();
-    let message = serde_json::to_string_pretty(&body)
-        .unwrap_or_else(|_| event_type.to_string());
+    let message = serde_json::to_string_pretty(&body).unwrap_or_else(|_| event_type.to_string());
     match sink.kind.as_str() {
         "webhook" => {
             let url = str_field(&config, "url")?;
-            post_json(policy, url, &[("content-type", "application/json")], body.to_string()).await
+            post_json(
+                policy,
+                url,
+                &[("content-type", "application/json")],
+                body.to_string(),
+            )
+            .await
         }
         "ntfy" => {
             let base = str_field(&config, "url")?;
@@ -176,6 +195,80 @@ async fn send(
             )
             .await
         }
+        "telegram" => {
+            let token = str_field(&config, "botToken")?;
+            let chat_id = str_field(&config, "chatId")?;
+            // Optional override (tests / API proxies); defaults to the real API.
+            let base = config
+                .get("baseUrl")
+                .and_then(Value::as_str)
+                .filter(|s| !s.trim().is_empty())
+                .unwrap_or("https://api.telegram.org");
+            // Telegram rejects texts over 4096 UTF-16 code units — truncate.
+            let text: String = plain_text(event_type, body).chars().take(4096).collect();
+            post_json(
+                policy,
+                &format!("{}/bot{token}/sendMessage", base.trim_end_matches('/')),
+                &[("content-type", "application/json")],
+                json!({ "chat_id": chat_id, "text": text }).to_string(),
+            )
+            .await
+        }
+        "slack" => {
+            let url = str_field(&config, "webhookUrl")?;
+            post_json(
+                policy,
+                url,
+                &[("content-type", "application/json")],
+                json!({ "text": plain_text(event_type, body) }).to_string(),
+            )
+            .await
+        }
+        "pushover" => {
+            let user_key = str_field(&config, "userKey")?;
+            let api_token = str_field(&config, "apiToken")?;
+            // Optional override (tests); defaults to the real API.
+            let base = config
+                .get("baseUrl")
+                .and_then(Value::as_str)
+                .filter(|s| !s.trim().is_empty())
+                .unwrap_or("https://api.pushover.net");
+            // Pushover caps the message at 1024 chars — truncate.
+            let message: String = plain_text(event_type, body).chars().take(1024).collect();
+            let form = form_encode(&[
+                ("token", api_token),
+                ("user", user_key),
+                ("title", event_type),
+                ("message", &message),
+            ]);
+            post_json(
+                policy,
+                &format!("{}/1/messages.json", base.trim_end_matches('/')),
+                &[("content-type", "application/x-www-form-urlencoded")],
+                form,
+            )
+            .await
+        }
+        "gotify" => {
+            let base = str_field(&config, "url")?;
+            let app_token = str_field(&config, "appToken")?;
+            let url = format!(
+                "{}/message?token={}",
+                base.trim_end_matches('/'),
+                utf8_percent_encode(app_token, percent_encoding::CONTROLS)
+            );
+            post_json(
+                policy,
+                &url,
+                &[("content-type", "application/json")],
+                json!({
+                    "title": event_type,
+                    "message": plain_text(event_type, body),
+                })
+                .to_string(),
+            )
+            .await
+        }
         other => Err(format!("unsupported sink kind {other:?}")),
     }
 }
@@ -192,9 +285,115 @@ fn str_field<'a>(config: &'a Value, key: &str) -> Result<&'a str, String> {
 fn sanitize_topic(event_type: &str) -> String {
     let cleaned: String = event_type
         .chars()
-        .map(|c| if c.is_ascii_alphanumeric() || c == '_' || c == '-' { c } else { '_' })
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '_' || c == '-' {
+                c
+            } else {
+                '_'
+            }
+        })
         .collect();
-    if cleaned.is_empty() { "rivet".into() } else { cleaned }
+    if cleaned.is_empty() {
+        "rivet".into()
+    } else {
+        cleaned
+    }
+}
+
+/// `application/x-www-form-urlencoded` body from key/value pairs. Escapes
+/// everything outside the unreserved set (`A-Za-z0-9 -._*`) plus reserved
+/// delimiters; spaces become `%20`, which every form parser accepts.
+fn form_encode(pairs: &[(&str, &str)]) -> String {
+    pairs
+        .iter()
+        .map(|(k, v)| {
+            format!(
+                "{}={}",
+                utf8_percent_encode(k, FORM_URLENCODED),
+                utf8_percent_encode(v, FORM_URLENCODED)
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("&")
+}
+
+/// Characters percent-escaped by [`form_encode`]: C0 controls, space, and
+/// every delimiter reserved by `application/x-www-form-urlencoded`.
+const FORM_URLENCODED: &percent_encoding::AsciiSet = &percent_encoding::CONTROLS
+    .add(b' ')
+    .add(b'!')
+    .add(b'"')
+    .add(b'#')
+    .add(b'$')
+    .add(b'%')
+    .add(b'&')
+    .add(b'\'')
+    .add(b'(')
+    .add(b')')
+    .add(b'+')
+    .add(b',')
+    .add(b'/')
+    .add(b':')
+    .add(b';')
+    .add(b'<')
+    .add(b'=')
+    .add(b'>')
+    .add(b'?')
+    .add(b'@')
+    .add(b'[')
+    .add(b'\\')
+    .add(b']')
+    .add(b'^')
+    .add(b'`')
+    .add(b'{')
+    .add(b'|')
+    .add(b'}');
+
+/// Renders the human-readable `{event}: {summary}` text used by every
+/// channel except `webhook` (which gets the full JSON payload).
+fn plain_text(event_type: &str, body: &Value) -> String {
+    format!(
+        "{event_type}: {}",
+        summarize(body.get("data").unwrap_or(&Value::Null))
+    )
+}
+
+/// Best-effort one-line summary derived from an event payload's data.
+///
+/// Prefers a human title (`title`/`name`), then appends identifying fields
+/// (`status`, `acquisitionId`, `id`) when present. Falls back to the compact
+/// JSON of the data itself so operators always see something useful.
+fn summarize(data: &Value) -> String {
+    let mut parts: Vec<String> = Vec::new();
+    for key in ["title", "name"] {
+        if let Some(s) = data.get(key).and_then(Value::as_str) {
+            if !s.trim().is_empty() {
+                parts.push(s.to_string());
+            }
+            break;
+        }
+    }
+    for key in ["status", "acquisitionId", "id"] {
+        match data.get(key) {
+            Some(Value::String(s)) if !s.is_empty() => parts.push(s.clone()),
+            Some(v @ Value::Number(_)) => {
+                if let Some(n) = v.as_i64() {
+                    parts.push(n.to_string());
+                } else if let Some(f) = v.as_f64() {
+                    parts.push(f.to_string());
+                }
+            }
+            _ => {}
+        }
+        if parts.len() >= 3 {
+            break;
+        }
+    }
+    if parts.is_empty() {
+        serde_json::to_string(data).unwrap_or_else(|_| "…".into())
+    } else {
+        parts.join(" — ")
+    }
 }
 
 async fn post_json(
@@ -229,7 +428,9 @@ mod tests {
     use crate::ws::hub::Hub;
     use serde_json::json;
     use std::sync::Arc;
-    use wiremock::matchers::{body_partial_json, body_string_contains, header, method, path};
+    use wiremock::matchers::{
+        body_partial_json, body_string_contains, header, method, path, query_param,
+    };
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
     async fn test_state() -> AppState {
@@ -304,12 +505,9 @@ mod tests {
         )
         .await;
 
-        let outcomes = dispatch_with_results(
-            &state,
-            "acquisition.imported",
-            json!({"title": "Example"}),
-        )
-        .await;
+        let outcomes =
+            dispatch_with_results(&state, "acquisition.imported", json!({"title": "Example"}))
+                .await;
         assert_eq!(outcomes.len(), 1, "{outcomes:?}");
         assert!(outcomes[0].ok, "{outcomes:?}");
         assert!(outcomes[0].error.is_none());
@@ -435,6 +633,170 @@ mod tests {
         let outcomes = dispatch_with_results(&state, "acquisition.imported", json!({})).await;
         assert!(outcomes[0].ok, "{outcomes:?}");
     }
+    #[tokio::test]
+    async fn telegram_posts_chat_id_and_text_to_bot_endpoint() {
+        let state = test_state().await;
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/bot123456:ABC-DEF/sendMessage"))
+            .and(header("content-type", "application/json"))
+            .and(body_partial_json(json!({
+                "chat_id": "-100200300",
+                "text": "acquisition.imported: Example",
+            })))
+            .respond_with(ResponseTemplate::new(200))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        seed(
+            &state,
+            "tg",
+            "telegram",
+            json!({
+                "botToken": "123456:ABC-DEF",
+                "chatId": "-100200300",
+                "baseUrl": server.uri(),
+            }),
+            &["acquisition.imported"],
+            true,
+        )
+        .await;
+
+        let outcomes =
+            dispatch_with_results(&state, "acquisition.imported", json!({"title": "Example"}))
+                .await;
+        assert!(outcomes[0].ok, "{outcomes:?}");
+        assert_eq!(server.received_requests().await.unwrap().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn slack_posts_text_to_webhook_url() {
+        let state = test_state().await;
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/services/T000/B000/xyz"))
+            .and(header("content-type", "application/json"))
+            .and(body_partial_json(json!({
+                "text": "acquisition.imported: Example",
+            })))
+            .respond_with(ResponseTemplate::new(200))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        seed(
+            &state,
+            "slack",
+            "slack",
+            json!({ "webhookUrl": format!("{}/services/T000/B000/xyz", server.uri()) }),
+            &["acquisition.imported"],
+            true,
+        )
+        .await;
+
+        let outcomes =
+            dispatch_with_results(&state, "acquisition.imported", json!({"title": "Example"}))
+                .await;
+        assert!(outcomes[0].ok, "{outcomes:?}");
+        assert_eq!(server.received_requests().await.unwrap().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn pushover_posts_form_encoded_credentials_and_message() {
+        let state = test_state().await;
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/1/messages.json"))
+            .and(header("content-type", "application/x-www-form-urlencoded"))
+            .and(body_string_contains("token=po-api-token"))
+            .and(body_string_contains("user=po-user-key"))
+            .and(body_string_contains("title=acquisition.imported"))
+            .and(body_string_contains("message=acquisition.imported"))
+            .respond_with(ResponseTemplate::new(200))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        seed(
+            &state,
+            "pushover",
+            "pushover",
+            json!({
+                "userKey": "po-user-key",
+                "apiToken": "po-api-token",
+                "baseUrl": server.uri(),
+            }),
+            &["acquisition.imported"],
+            true,
+        )
+        .await;
+
+        let outcomes =
+            dispatch_with_results(&state, "acquisition.imported", json!({"title": "Example"}))
+                .await;
+        assert!(outcomes[0].ok, "{outcomes:?}");
+
+        let reqs = server.received_requests().await.unwrap();
+        let body = String::from_utf8(reqs[0].body.clone()).unwrap();
+        // The summary is percent-encoded in the form body.
+        assert!(
+            body.contains("message=acquisition.imported%3A%20Example"),
+            "body = {body:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn gotify_posts_title_and_message_with_token_query_param() {
+        let state = test_state().await;
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/message"))
+            .and(query_param("token", "gotify-app-token"))
+            .and(header("content-type", "application/json"))
+            .and(body_partial_json(json!({
+                "title": "acquisition.imported",
+                "message": "acquisition.imported: Example",
+            })))
+            .respond_with(ResponseTemplate::new(200))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        seed(
+            &state,
+            "gotify",
+            "gotify",
+            json!({
+                "url": server.uri(),
+                "appToken": "gotify-app-token",
+            }),
+            &["acquisition.imported"],
+            true,
+        )
+        .await;
+
+        let outcomes =
+            dispatch_with_results(&state, "acquisition.imported", json!({"title": "Example"}))
+                .await;
+        assert!(outcomes[0].ok, "{outcomes:?}");
+        assert_eq!(server.received_requests().await.unwrap().len(), 1);
+    }
+
+    #[test]
+    fn summarize_prefers_title_then_identifying_fields() {
+        assert_eq!(
+            summarize(&json!({"title": "Example", "status": "imported", "id": 7})),
+            "Example — imported — 7"
+        );
+        assert_eq!(
+            summarize(&json!({"name": "Show", "acquisitionId": "abc"})),
+            "Show — abc"
+        );
+        // No known fields: falls back to compact JSON of the data.
+        assert_eq!(summarize(&json!({"n": 1})), r#"{"n":1}"#);
+        assert_eq!(summarize(&json!({})), "{}");
+    }
 
     #[tokio::test]
     async fn failures_are_reported_not_propagated() {
@@ -489,6 +851,9 @@ mod tests {
         .await;
         let outcomes = dispatch_with_results(&state, "test", json!({})).await;
         let failing = outcomes.iter().find(|o| o.sink_name == "failing").unwrap();
-        assert_eq!(failing.error.as_deref(), Some("unexpected status 500 Internal Server Error"));
+        assert_eq!(
+            failing.error.as_deref(),
+            Some("unexpected status 500 Internal Server Error")
+        );
     }
 }

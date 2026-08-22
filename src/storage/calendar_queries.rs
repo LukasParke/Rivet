@@ -189,10 +189,9 @@ mod tests {
 
     async fn pool() -> (SqlitePool, tempfile::TempDir) {
         let dir = tempfile::tempdir().unwrap();
-        let pool =
-            crate::storage::open(&format!("file://{}", dir.path().join("t.db").display()))
-                .await
-                .unwrap();
+        let pool = crate::storage::open(&format!("file://{}", dir.path().join("t.db").display()))
+            .await
+            .unwrap();
         migrations::apply(&pool).await.unwrap();
         (pool, dir)
     }
@@ -261,11 +260,38 @@ mod tests {
     async fn range_filters_by_air_date_and_includes_end_day() {
         let (pool, _dir) = pool().await;
         seed_series(&pool, "s1", "Show").await;
-        seed_episode(&pool, "e1", "s1", 1, Some("2026-08-21T05:00:00Z"), true, false).await;
+        seed_episode(
+            &pool,
+            "e1",
+            "s1",
+            1,
+            Some("2026-08-21T05:00:00Z"),
+            true,
+            false,
+        )
+        .await;
         // Same day as the range end: must be included despite the timestamp.
-        seed_episode(&pool, "e2", "s1", 2, Some("2026-08-28T23:30:00Z"), true, false).await;
+        seed_episode(
+            &pool,
+            "e2",
+            "s1",
+            2,
+            Some("2026-08-28T23:30:00Z"),
+            true,
+            false,
+        )
+        .await;
         // One day past the end: excluded.
-        seed_episode(&pool, "e3", "s1", 3, Some("2026-08-29T00:30:00Z"), true, false).await;
+        seed_episode(
+            &pool,
+            "e3",
+            "s1",
+            3,
+            Some("2026-08-29T00:30:00Z"),
+            true,
+            false,
+        )
+        .await;
         // No air date: excluded.
         seed_episode(&pool, "e4", "s1", 4, None, true, false).await;
 
@@ -284,13 +310,49 @@ mod tests {
         let (pool, _dir) = pool().await;
         seed_series(&pool, "s1", "Show").await;
         // Qualifies: monitored, aired, no file.
-        seed_episode(&pool, "e1", "s1", 1, Some("2026-08-20T05:00:00Z"), true, false).await;
+        seed_episode(
+            &pool,
+            "e1",
+            "s1",
+            1,
+            Some("2026-08-20T05:00:00Z"),
+            true,
+            false,
+        )
+        .await;
         // Unmonitored: excluded.
-        seed_episode(&pool, "e2", "s1", 2, Some("2026-08-20T05:00:00Z"), false, false).await;
+        seed_episode(
+            &pool,
+            "e2",
+            "s1",
+            2,
+            Some("2026-08-20T05:00:00Z"),
+            false,
+            false,
+        )
+        .await;
         // Has file: excluded.
-        seed_episode(&pool, "e3", "s1", 3, Some("2026-08-20T05:00:00Z"), true, true).await;
+        seed_episode(
+            &pool,
+            "e3",
+            "s1",
+            3,
+            Some("2026-08-20T05:00:00Z"),
+            true,
+            true,
+        )
+        .await;
         // Not yet aired: excluded.
-        seed_episode(&pool, "e4", "s1", 4, Some("2999-01-01T00:00:00Z"), true, false).await;
+        seed_episode(
+            &pool,
+            "e4",
+            "s1",
+            4,
+            Some("2999-01-01T00:00:00Z"),
+            true,
+            false,
+        )
+        .await;
 
         assert_eq!(count_missing_episodes(&pool).await.unwrap(), 1);
         let rows = missing_episodes(&pool, 50, 0).await.unwrap();
@@ -325,7 +387,16 @@ mod tests {
         let (pool, _dir) = pool().await;
         seed_series(&pool, "s1", "Show").await;
         for (id, ep_no, score) in [("low", 1, 60), ("met", 2, 100)] {
-            seed_episode(&pool, id, "s1", ep_no, Some("2026-08-20T05:00:00Z"), true, true).await;
+            seed_episode(
+                &pool,
+                id,
+                "s1",
+                ep_no,
+                Some("2026-08-20T05:00:00Z"),
+                true,
+                true,
+            )
+            .await;
             seed_file(&pool, id, score).await;
         }
 

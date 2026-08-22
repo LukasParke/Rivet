@@ -12,18 +12,45 @@
 use sha2::{Digest, Sha256};
 use sqlx::SqlitePool;
 
-const MIGRATIONS: &[( &str, &str )] = &[
+const MIGRATIONS: &[(&str, &str)] = &[
     ("0001_init.sql", include_str!("migrations/0001_init.sql")),
-    ("0002_sessions_csrf.sql", include_str!("migrations/0002_sessions_csrf.sql")),
-    ("0003_core_domain.sql", include_str!("migrations/0003_core_domain.sql")),
-    ("0004_acquisitions.sql", include_str!("migrations/0004_acquisitions.sql")),
-    ("0005_acquisitions_fields.sql", include_str!("migrations/0005_acquisitions_fields.sql")),
-    ("0006_acquisition_verify_stall.sql", include_str!("migrations/0006_acquisition_verify_stall.sql")),
-    ("0007_blacklist.sql", include_str!("migrations/0007_blacklist.sql")),
-    ("0008_verify_evidence.sql", include_str!("migrations/0008_verify_evidence.sql")),
-    ("0009_hardening.sql", include_str!("migrations/0009_hardening.sql")),
+    (
+        "0002_sessions_csrf.sql",
+        include_str!("migrations/0002_sessions_csrf.sql"),
+    ),
+    (
+        "0003_core_domain.sql",
+        include_str!("migrations/0003_core_domain.sql"),
+    ),
+    (
+        "0004_acquisitions.sql",
+        include_str!("migrations/0004_acquisitions.sql"),
+    ),
+    (
+        "0005_acquisitions_fields.sql",
+        include_str!("migrations/0005_acquisitions_fields.sql"),
+    ),
+    (
+        "0006_acquisition_verify_stall.sql",
+        include_str!("migrations/0006_acquisition_verify_stall.sql"),
+    ),
+    (
+        "0007_blacklist.sql",
+        include_str!("migrations/0007_blacklist.sql"),
+    ),
+    (
+        "0008_verify_evidence.sql",
+        include_str!("migrations/0008_verify_evidence.sql"),
+    ),
+    (
+        "0009_hardening.sql",
+        include_str!("migrations/0009_hardening.sql"),
+    ),
     ("0010_totp.sql", include_str!("migrations/0010_totp.sql")),
-    ("0011_arr_domain.sql", include_str!("migrations/0011_arr_domain.sql")),
+    (
+        "0011_arr_domain.sql",
+        include_str!("migrations/0011_arr_domain.sql"),
+    ),
 ];
 
 #[derive(Debug, thiserror::Error)]
@@ -64,11 +91,10 @@ pub async fn apply(pool: &SqlitePool) -> Result<(), MigrationError> {
     if !has_legacy {
         // Detect whether the existing schema_migrations uses the legacy shape
         // (columns id/applied_at). If so, rename and adopt.
-        let cols: Vec<(String,)> = sqlx::query_as(
-            "SELECT name FROM pragma_table_info('schema_migrations')",
-        )
-        .fetch_all(&mut *tx)
-        .await?;
+        let cols: Vec<(String,)> =
+            sqlx::query_as("SELECT name FROM pragma_table_info('schema_migrations')")
+                .fetch_all(&mut *tx)
+                .await?;
         let names: Vec<&str> = cols.iter().map(|(n,)| n.as_str()).collect();
         if names.contains(&"id") && !names.contains(&"name") {
             sqlx::query("ALTER TABLE schema_migrations RENAME TO schema_migrations_legacy")
@@ -97,11 +123,7 @@ pub async fn apply(pool: &SqlitePool) -> Result<(), MigrationError> {
         match existing {
             Some((recorded,)) => {
                 if recorded != hash {
-                    return Err(MigrationError::Drift(
-                        (*name).to_string(),
-                        recorded,
-                        hash,
-                    ));
+                    return Err(MigrationError::Drift((*name).to_string(), recorded, hash));
                 }
                 continue;
             }
@@ -131,13 +153,17 @@ async fn adopt_legacy(tx: &mut sqlx::SqliteConnection) -> Result<(), MigrationEr
             .await?;
     for (id, applied_at) in rows {
         // Legacy ids look like "0001_init.sql:<sha256>".
-        let Some((name, hash)) = id.split_once(':') else { continue };
-        sqlx::query("INSERT OR IGNORE INTO schema_migrations (name, hash, applied_at) VALUES (?, ?, ?)")
-            .bind(name)
-            .bind(hash)
-            .bind(applied_at)
-            .execute(&mut *tx)
-            .await?;
+        let Some((name, hash)) = id.split_once(':') else {
+            continue;
+        };
+        sqlx::query(
+            "INSERT OR IGNORE INTO schema_migrations (name, hash, applied_at) VALUES (?, ?, ?)",
+        )
+        .bind(name)
+        .bind(hash)
+        .bind(applied_at)
+        .execute(&mut *tx)
+        .await?;
     }
     Ok(())
 }
@@ -184,18 +210,22 @@ mod tests {
         let (_d, pool) = test_pool().await;
         // Simulate a Go-migrated database: legacy table with content-hash ids
         // AND the schema those files created.
-        sqlx::query("CREATE TABLE schema_migrations (id TEXT PRIMARY KEY, applied_at TEXT NOT NULL)")
-            .execute(&pool)
-            .await
-            .unwrap();
+        sqlx::query(
+            "CREATE TABLE schema_migrations (id TEXT PRIMARY KEY, applied_at TEXT NOT NULL)",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
         for (name, contents) in MIGRATIONS.iter().take(8) {
             sqlx::raw_sql(contents).execute(&pool).await.unwrap();
             let id = format!("{name}:{}", sha256_hex(contents));
-            sqlx::query("INSERT INTO schema_migrations (id, applied_at) VALUES (?, '2026-01-01T00:00:00Z')")
-                .bind(id)
-                .execute(&pool)
-                .await
-                .unwrap();
+            sqlx::query(
+                "INSERT INTO schema_migrations (id, applied_at) VALUES (?, '2026-01-01T00:00:00Z')",
+            )
+            .bind(id)
+            .execute(&pool)
+            .await
+            .unwrap();
         }
         apply(&pool).await.unwrap();
 
@@ -227,9 +257,11 @@ mod tests {
         // A multi-statement script whose second statement fails must leave no
         // partial effects. Exercise through a manual transaction like the runner.
         let mut tx = pool.begin_with("BEGIN IMMEDIATE").await.unwrap();
-        let res = sqlx::raw_sql("CREATE TABLE rollback_probe(a INT); INSERT INTO nonexistent(x) VALUES (1);")
-            .execute(&mut *tx)
-            .await;
+        let res = sqlx::raw_sql(
+            "CREATE TABLE rollback_probe(a INT); INSERT INTO nonexistent(x) VALUES (1);",
+        )
+        .execute(&mut *tx)
+        .await;
         assert!(res.is_err());
         drop(tx); // rollback
         let exists: i64 = sqlx::query_scalar(

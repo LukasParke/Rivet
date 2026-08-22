@@ -27,10 +27,14 @@ pub struct OutboundPolicy {
 
 impl OutboundPolicy {
     pub const fn production() -> Self {
-        Self { allow_internal: false }
+        Self {
+            allow_internal: false,
+        }
     }
     pub const fn dev() -> Self {
-        Self { allow_internal: true }
+        Self {
+            allow_internal: true,
+        }
     }
 }
 
@@ -70,7 +74,7 @@ pub fn is_internal_ip(ip: IpAddr) -> bool {
                 || (o[0] == 198 && (o[1] == 18 || o[1] == 19)) // benchmarking 198.18/15
                 || (o[0] == 198 && o[1] == 51)                 // TEST-NET-2
                 || (o[0] == 203 && o[1] == 0)                  // TEST-NET-3
-                || o[0] >= 224;                                // multicast + reserved
+                || o[0] >= 224; // multicast + reserved
             private
         }
         IpAddr::V6(v6) => {
@@ -82,7 +86,8 @@ pub fn is_internal_ip(ip: IpAddr) -> bool {
                 || seg[0] & 0xffc0 == 0xfe80 // link-local fe80::/10
                 || seg[0] & 0xff00 == 0xff00 // multicast ff00::/8
                 || seg[0] == 0x100           // discard-only 100::/64
-                || (seg[0] == 0x2001 && seg[1] == 0x0db8) // documentation
+                || (seg[0] == 0x2001 && seg[1] == 0x0db8)
+            // documentation
             {
                 return true;
             }
@@ -145,7 +150,9 @@ pub async fn validate_url(raw: &str, policy: OutboundPolicy) -> Result<Validated
         _ => return Err(SsrfError::BadScheme),
     }
     let host = url.host_str().ok_or(SsrfError::NoHost)?.to_string();
-    let port = url.port_or_known_default().unwrap_or(if url.scheme() == "https" { 443 } else { 80 });
+    let port = url
+        .port_or_known_default()
+        .unwrap_or(if url.scheme() == "https" { 443 } else { 80 });
     let ips = resolve_host(&host, port).await?;
     check_ips(&ips, policy)?;
     Ok(ValidatedTarget { url, ips })
@@ -167,13 +174,15 @@ impl Resolve for PinnedResolver {
         let port = self.port;
         Box::pin(async move {
             if name.as_str().eq_ignore_ascii_case(&host) {
-                let addrs: Addrs = Box::new(ips.into_iter().map(move |ip| SocketAddr::new(ip, port)));
+                let addrs: Addrs =
+                    Box::new(ips.into_iter().map(move |ip| SocketAddr::new(ip, port)));
                 Ok(addrs)
             } else {
                 Err(Box::new(std::io::Error::new(
                     std::io::ErrorKind::PermissionDenied,
                     "hostname not pinned by SSRF policy",
-                )) as Box<dyn std::error::Error + Send + Sync>)
+                ))
+                    as Box<dyn std::error::Error + Send + Sync>)
             }
         })
     }
@@ -188,7 +197,11 @@ pub(crate) fn build_pinned_client(target: &ValidatedTarget, timeout: Duration) -
     let port = target
         .url
         .port_or_known_default()
-        .unwrap_or(if target.url.scheme() == "https" { 443 } else { 80 });
+        .unwrap_or(if target.url.scheme() == "https" {
+            443
+        } else {
+            80
+        });
     let resolver = Arc::new(PinnedResolver {
         host: target.url.host_str().unwrap_or_default().to_string(),
         ips: target.ips.clone(),
@@ -225,7 +238,6 @@ pub async fn request_validated(
     }
     req.send().await.map_err(|_| SsrfError::Network)
 }
-
 
 /// Performs a GET following at most `max_hops` redirects, validating and
 /// pinning every hop against the policy. Returns the final response.
@@ -314,7 +326,9 @@ mod tests {
 
     #[tokio::test]
     async fn allows_internal_when_policy_says_so() {
-        let t = validate_url("http://127.0.0.1:1/x", OutboundPolicy::dev()).await.unwrap();
+        let t = validate_url("http://127.0.0.1:1/x", OutboundPolicy::dev())
+            .await
+            .unwrap();
         assert_eq!(t.ips, vec!["127.0.0.1".parse::<IpAddr>().unwrap()]);
     }
 }

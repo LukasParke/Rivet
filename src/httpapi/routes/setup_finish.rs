@@ -10,8 +10,8 @@ use serde_json::json;
 
 use crate::httpapi::middleware::auth::Admin;
 use crate::state::AppState;
-use crate::ws::hub::PublishExt;
 use crate::storage::audit::{insert as insert_audit, AuditEvent};
+use crate::ws::hub::PublishExt;
 
 const REPORT_KEY: &str = "setup.report.latest";
 const SECTIONS: [&str; 5] = [
@@ -38,7 +38,10 @@ async fn finish(user: Admin, State(state): State<AppState>) -> Response {
 
     // Basic setup report snapshot.
     let mut summary = BTreeMap::new();
-    summary.insert("finishedAt".into(), crate::timeutil::fmt(chrono::Utc::now()));
+    summary.insert(
+        "finishedAt".into(),
+        crate::timeutil::fmt(chrono::Utc::now()),
+    );
     for k in SECTIONS {
         match crate::storage::settings::get(&state.db, k).await {
             Ok(Some(_)) => {
@@ -63,7 +66,10 @@ async fn finish(user: Admin, State(state): State<AppState>) -> Response {
                 .into_response()
         }
     };
-    if crate::storage::settings::upsert(&state.db, REPORT_KEY, &payload).await.is_err() {
+    if crate::storage::settings::upsert(&state.db, REPORT_KEY, &payload)
+        .await
+        .is_err()
+    {
         return (
             axum::http::StatusCode::INTERNAL_SERVER_ERROR,
             axum::Json(json!({"error": "save_failed"})),
@@ -72,8 +78,7 @@ async fn finish(user: Admin, State(state): State<AppState>) -> Response {
     }
 
     // Close registration by default (a future invites feature can flip it).
-    let _ =
-        crate::storage::settings::upsert(&state.db, "auth.registration_open", "false").await;
+    let _ = crate::storage::settings::upsert(&state.db, "auth.registration_open", "false").await;
 
     let _ = insert_audit(
         &state.db,
@@ -89,15 +94,18 @@ async fn finish(user: Admin, State(state): State<AppState>) -> Response {
         json!({"action": "setup.finished", "actorUserId": actor, "reportKey": REPORT_KEY}),
     );
 
-    axum::Json(SetupFinishResponse { ok: true, reportKey: REPORT_KEY.into(), summary })
-        .into_response()
+    axum::Json(SetupFinishResponse {
+        ok: true,
+        reportKey: REPORT_KEY.into(),
+        summary,
+    })
+    .into_response()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    use std::sync::Arc;
     use crate::httpapi::middleware::auth::{csrf, load_session};
     use crate::metrics::Metrics;
     use crate::security::secrets::SecretBox;
@@ -107,6 +115,7 @@ mod tests {
     use axum::extract::Request;
     use axum::http::StatusCode;
     use axum::middleware;
+    use std::sync::Arc;
     use tower::ServiceExt;
 
     async fn app_state() -> (tempfile::TempDir, AppState) {
@@ -159,8 +168,12 @@ mod tests {
         let sess = seed_admin_session(&state).await;
 
         // Two sections present, one absent.
-        crate::storage::settings::upsert(&state.db, "setup.paths", "{}").await.unwrap();
-        crate::storage::settings::upsert(&state.db, "setup.policies", "{}").await.unwrap();
+        crate::storage::settings::upsert(&state.db, "setup.paths", "{}")
+            .await
+            .unwrap();
+        crate::storage::settings::upsert(&state.db, "setup.policies", "{}")
+            .await
+            .unwrap();
 
         let req = Request::builder()
             .method("POST")
@@ -178,7 +191,9 @@ mod tests {
         let resp = app.oneshot(req).await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
 
-        let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+        let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX)
+            .await
+            .unwrap();
         let v = serde_json::from_slice::<serde_json::Value>(&bytes).unwrap();
         assert_eq!(v["ok"], true);
         assert_eq!(v["reportKey"], "setup.report.latest");

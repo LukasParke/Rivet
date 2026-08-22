@@ -12,6 +12,7 @@ pub mod acquisition_monitor;
 pub mod acquisition_recover;
 pub mod acquisition_rescout;
 pub mod acquisition_verify;
+pub mod enrich_series;
 pub mod search_common;
 pub mod search_run;
 
@@ -34,6 +35,7 @@ pub async fn dispatch(state: &AppState, job: &Job) -> Result<(), String> {
         "acquisition_import" => acquisition_import::handle(state, job).await,
         "acquisition_recover" => acquisition_recover::handle(state, job).await,
         "acquisition_rescout" => acquisition_rescout::handle(state, job).await,
+        "enrich_series" => enrich_series::handle(state, job).await,
         #[cfg(test)]
         "test_panic" => panic!("intentional test panic"),
         _ => Err("unknown_job_kind".to_string()),

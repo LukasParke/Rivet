@@ -1819,6 +1819,7 @@ dependencies = [
  "futures-util",
  "hex",
  "hmac",
+ "libc",
  "percent-encoding",
  "proptest",
  "rand 0.8.7",

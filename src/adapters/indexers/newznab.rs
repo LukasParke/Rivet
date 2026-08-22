@@ -19,9 +19,7 @@ use std::time::Duration;
 use async_trait::async_trait;
 use serde::Deserialize;
 
-use crate::adapters::{
-    AdapterError, Indexer, Release, ReleaseKind, SearchQuery,
-};
+use crate::adapters::{AdapterError, Indexer, Release, ReleaseKind, SearchQuery};
 use crate::security::ssrf::{get_validated, OutboundPolicy};
 
 const TIMEOUT: Duration = Duration::from_secs(20);
@@ -116,11 +114,19 @@ pub struct NewznabClient {
 }
 
 impl NewznabClient {
-    pub fn new(cfg: &IndexerConfig, policy: OutboundPolicy) -> Result<Arc<dyn Indexer>, AdapterError> {
+    pub fn new(
+        cfg: &IndexerConfig,
+        policy: OutboundPolicy,
+    ) -> Result<Arc<dyn Indexer>, AdapterError> {
         if cfg.name.trim().is_empty() || cfg.url.trim().is_empty() || cfg.apikey.trim().is_empty() {
-            return Err(AdapterError::InvalidConfig("name/url/apikey required".into()));
+            return Err(AdapterError::InvalidConfig(
+                "name/url/apikey required".into(),
+            ));
         }
-        Ok(Arc::new(Self { cfg: cfg.clone(), policy }))
+        Ok(Arc::new(Self {
+            cfg: cfg.clone(),
+            policy,
+        }))
     }
 
     fn search_url(&self, q: &SearchQuery, limit: i64) -> String {
@@ -131,7 +137,14 @@ impl NewznabClient {
             ("limit".into(), limit.clamp(1, 100).to_string()),
         ];
         for (i, cat) in q.categories.iter().enumerate() {
-            pairs.push((if i == 0 { "cat".into() } else { format!("cat{}", i + 1) }, cat.to_string()));
+            pairs.push((
+                if i == 0 {
+                    "cat".into()
+                } else {
+                    format!("cat{}", i + 1)
+                },
+                cat.to_string(),
+            ));
         }
         let base = self.cfg.url.trim_end_matches('/');
         format!("{base}/api?{}", form_urlencoded(&pairs))
@@ -148,14 +161,21 @@ impl NewznabClient {
         if !status.is_success() {
             return Err(AdapterError::Network(format!("status {status}")));
         }
-        let bytes = resp.bytes().await.map_err(|e| AdapterError::Network(e.to_string()))?;
+        let bytes = resp
+            .bytes()
+            .await
+            .map_err(|e| AdapterError::Network(e.to_string()))?;
         if bytes.len() > MAX_BODY {
             return Err(AdapterError::Network("response_too_large".into()));
         }
         String::from_utf8(bytes.to_vec()).map_err(|e| AdapterError::Parse(e.to_string()))
     }
 
-    async fn search_prowlarr_json(&self, q: &SearchQuery, limit: i64) -> Result<Vec<Release>, AdapterError> {
+    async fn search_prowlarr_json(
+        &self,
+        q: &SearchQuery,
+        limit: i64,
+    ) -> Result<Vec<Release>, AdapterError> {
         #[derive(Deserialize)]
         struct ProwlarrItem {
             #[serde(default)]
@@ -192,8 +212,8 @@ impl NewznabClient {
         }
         let url = format!("{base}/api/v1/search?{}", form_urlencoded(&pairs));
         let body = self.fetch_body(&url).await?;
-        let items: Vec<ProwlarrItem> = serde_json::from_str(&body)
-            .map_err(|e| AdapterError::Parse(e.to_string()))?;
+        let items: Vec<ProwlarrItem> =
+            serde_json::from_str(&body).map_err(|e| AdapterError::Parse(e.to_string()))?;
         Ok(items
             .into_iter()
             .map(|it| {
@@ -247,7 +267,11 @@ impl Indexer for NewznabClient {
     }
 
     async fn test(&self) -> Result<(), AdapterError> {
-        let q = SearchQuery { query: "test".into(), categories: vec![], limit: 1 };
+        let q = SearchQuery {
+            query: "test".into(),
+            categories: vec![],
+            limit: 1,
+        };
         self.search(&q).await.map(|_| ())
     }
 }
@@ -259,7 +283,10 @@ pub struct TorznabClient {
 }
 
 impl TorznabClient {
-    pub fn new(cfg: &IndexerConfig, policy: OutboundPolicy) -> Result<Arc<dyn Indexer>, AdapterError> {
+    pub fn new(
+        cfg: &IndexerConfig,
+        policy: OutboundPolicy,
+    ) -> Result<Arc<dyn Indexer>, AdapterError> {
         let mut cfg = cfg.clone();
         cfg.torznab = true;
         NewznabClient::new(&cfg, policy).map(|inner| {
@@ -268,10 +295,7 @@ impl TorznabClient {
             let inner_ref = boxed.as_ref() as &dyn Indexer;
             let _ = inner_ref;
             Arc::new(TorznabClient {
-                inner: NewznabClient {
-                    cfg,
-                    policy,
-                },
+                inner: NewznabClient { cfg, policy },
             }) as Arc<dyn Indexer>
         })
     }
@@ -291,9 +315,17 @@ impl Indexer for TorznabClient {
 }
 
 /// Extracts releases from a Newznab/Torznab caps XML response.
-pub fn parse_caps_xml(xml: &str, indexer_name: &str, torznab: bool) -> Result<Vec<Release>, AdapterError> {
+pub fn parse_caps_xml(
+    xml: &str,
+    indexer_name: &str,
+    torznab: bool,
+) -> Result<Vec<Release>, AdapterError> {
     let doc = roxmltree::Document::parse(xml).map_err(|e| AdapterError::Parse(e.to_string()))?;
-    let kind = if torznab { ReleaseKind::Torrent } else { ReleaseKind::Usenet };
+    let kind = if torznab {
+        ReleaseKind::Torrent
+    } else {
+        ReleaseKind::Usenet
+    };
     let mut out = Vec::new();
     for item in doc.descendants().filter(|n| n.has_tag_name("item")) {
         let title = child_text(&item, "title").unwrap_or_default();
@@ -453,7 +485,8 @@ pub fn classify_title(title: &str) -> (Option<String>, Vec<String>) {
         Some("bluray")
     } else if t.contains("dvdrip") {
         Some("dvd")
-    } else if t.contains("x264") || t.contains("x265") || t.contains("h.264") || t.contains("hevc") {
+    } else if t.contains("x264") || t.contains("x265") || t.contains("h.264") || t.contains("hevc")
+    {
         Some("encode")
     } else {
         None
@@ -533,7 +566,8 @@ mod tests {
     #[test]
     fn magnet_hash_extraction() {
         assert_eq!(
-            magnet_hash("magnet:?xt=urn:btih:0123456789ABCDEF0123456789ABCDEF01234567&dn=x").as_deref(),
+            magnet_hash("magnet:?xt=urn:btih:0123456789ABCDEF0123456789ABCDEF01234567&dn=x")
+                .as_deref(),
             Some("0123456789abcdef0123456789abcdef01234567")
         );
         assert_eq!(magnet_hash("https://example.com/file.torrent"), None);

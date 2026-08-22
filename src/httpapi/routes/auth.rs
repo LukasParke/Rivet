@@ -16,9 +16,9 @@ use crate::httpapi::middleware::auth::{
 };
 use crate::security::password;
 use crate::state::AppState;
-use crate::ws::hub::PublishExt;
 use crate::storage::audit::{insert as insert_audit, AuditEvent};
 use crate::timeutil;
+use crate::ws::hub::PublishExt;
 
 #[derive(Debug, Deserialize)]
 struct LoginRequest {
@@ -173,7 +173,9 @@ async fn login(
     let expires = timeutil::parse(&sess.expires_at).unwrap_or_else(chrono::Utc::now);
     let mut resp = (
         StatusCode::OK,
-        axum::Json(CsrfResponse { token: sess.csrf_token.clone() }),
+        axum::Json(CsrfResponse {
+            token: sess.csrf_token.clone(),
+        }),
     )
         .into_response();
     resp.headers_mut().insert(
@@ -249,7 +251,9 @@ async fn deliver_csrf(user: AuthenticatedUser) -> Result<axum::Json<CsrfResponse
     if user.session.csrf_token.is_empty() {
         return Err(AppError::Unauthorized);
     }
-    Ok(axum::Json(CsrfResponse { token: user.session.csrf_token }))
+    Ok(axum::Json(CsrfResponse {
+        token: user.session.csrf_token,
+    }))
 }
 
 // ---------------------------------------------------------------------------
@@ -329,7 +333,9 @@ async fn handle_totp_toggle(
     let Some(enc) = user.user.totp_secret_enc.as_deref() else {
         return coded_error(StatusCode::BAD_REQUEST, "totp_not_setup");
     };
-    let secret = match state.secret_box.decrypt_string(enc)
+    let secret = match state
+        .secret_box
+        .decrypt_string(enc)
         .ok()
         .and_then(|bytes| String::from_utf8(bytes).ok())
     {
@@ -341,18 +347,18 @@ async fn handle_totp_toggle(
         Ok(false) => return coded_error(StatusCode::UNAUTHORIZED, "invalid_code"),
         Err(_) => return coded_error(StatusCode::INTERNAL_SERVER_ERROR, "totp_secret_unreadable"),
     }
-    let new_enc = if enable {
-        Some(enc.to_string())
-    } else {
-        None
-    };
+    let new_enc = if enable { Some(enc.to_string()) } else { None };
     if crate::storage::users::set_totp_secret(&state.db, &user.user.id, new_enc.as_deref(), enable)
         .await
         .is_err()
     {
         return coded_error(StatusCode::INTERNAL_SERVER_ERROR, "totp_update_failed");
     }
-    let action = if enable { "auth.totp.enable" } else { "auth.totp.disable" };
+    let action = if enable {
+        "auth.totp.enable"
+    } else {
+        "auth.totp.disable"
+    };
     let _ = insert_audit(
         &state.db,
         AuditEvent {
@@ -369,9 +375,15 @@ async fn handle_totp_toggle(
 
 /// Creates a user + live session directly (tests avoid extra argon2 rounds).
 #[cfg(test)]
-async fn seed_session(state: &AppState, email: &str, role: &str) -> crate::storage::sessions::Session {
+async fn seed_session(
+    state: &AppState,
+    email: &str,
+    role: &str,
+) -> crate::storage::sessions::Session {
     let hash = password::hash_password("long-enough-password").unwrap();
-    let u = crate::storage::users::create(&state.db, email, &hash, role).await.unwrap();
+    let u = crate::storage::users::create(&state.db, email, &hash, role)
+        .await
+        .unwrap();
     crate::storage::sessions::create(&state.db, &u.id, chrono::Duration::hours(1), None, None)
         .await
         .unwrap()
@@ -381,7 +393,6 @@ async fn seed_session(state: &AppState, email: &str, role: &str) -> crate::stora
 mod tests {
     use super::*;
 
-    use std::sync::Arc;
     use crate::httpapi::middleware::auth::{csrf, load_session};
     use crate::metrics::Metrics;
     use crate::security::secrets::SecretBox;
@@ -390,6 +401,7 @@ mod tests {
     use axum::body::Body;
     use axum::extract::Request;
     use axum::middleware;
+    use std::sync::Arc;
     use tower::ServiceExt;
 
     async fn app_state() -> (tempfile::TempDir, AppState) {
@@ -470,10 +482,21 @@ mod tests {
         assert!(set_cookie.starts_with("rivet_session="));
         assert!(set_cookie.contains("HttpOnly"), "cookie must be HttpOnly");
         assert!(set_cookie.contains("SameSite=Lax"));
-        let sid = set_cookie.split(';').next().unwrap().split_once('=').unwrap().1;
+        let sid = set_cookie
+            .split(';')
+            .next()
+            .unwrap()
+            .split_once('=')
+            .unwrap()
+            .1;
 
-        let stored = crate::storage::sessions::get(&state.db, sid).await.unwrap().unwrap();
-        let body = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+        let stored = crate::storage::sessions::get(&state.db, sid)
+            .await
+            .unwrap()
+            .unwrap();
+        let body = axum::body::to_bytes(resp.into_body(), usize::MAX)
+            .await
+            .unwrap();
         let v = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
         assert_eq!(v["token"], stored.csrf_token);
 
@@ -489,7 +512,9 @@ mod tests {
             .unwrap();
         let resp = full_router(state).oneshot(me_req).await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
-        let body = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+        let body = axum::body::to_bytes(resp.into_body(), usize::MAX)
+            .await
+            .unwrap();
         let v = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
         assert_eq!(v["role"], "admin");
         assert_eq!(v["email"], "admin@x.test");
@@ -505,12 +530,21 @@ mod tests {
             let state = state.clone();
             async move {
                 let resp = full_router(state)
-                    .oneshot(post_json("/api/v1/auth/login", payload, Some("198.51.100.1")))
+                    .oneshot(post_json(
+                        "/api/v1/auth/login",
+                        payload,
+                        Some("198.51.100.1"),
+                    ))
                     .await
                     .unwrap();
                 let status = resp.status();
-                let body = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
-                (status, serde_json::from_slice::<serde_json::Value>(&body).unwrap())
+                let body = axum::body::to_bytes(resp.into_body(), usize::MAX)
+                    .await
+                    .unwrap();
+                (
+                    status,
+                    serde_json::from_slice::<serde_json::Value>(&body).unwrap(),
+                )
             }
         };
 
@@ -522,8 +556,14 @@ mod tests {
         let malformed_json = attempt(r#"not json at all"#).await;
 
         assert_eq!(unknown_email.0, StatusCode::UNAUTHORIZED);
-        assert_eq!(unknown_email.1, serde_json::json!({"error": "invalid_credentials"}));
-        assert_eq!(unknown_email.1, wrong_password.1, "shape must not leak which half failed");
+        assert_eq!(
+            unknown_email.1,
+            serde_json::json!({"error": "invalid_credentials"})
+        );
+        assert_eq!(
+            unknown_email.1, wrong_password.1,
+            "shape must not leak which half failed"
+        );
         assert_eq!(malformed_email.0, StatusCode::BAD_REQUEST);
         assert_eq!(malformed_email.1["error"], "invalid_email");
         assert_eq!(malformed_json.1["error"], "invalid_json");
@@ -536,7 +576,11 @@ mod tests {
         for i in 0..12 {
             let payload = format!(r#"{{"email":"rl{i}@x.test","password":"whatever-long"}}"#);
             let resp = full_router(state.clone())
-                .oneshot(post_json("/api/v1/auth/login", &payload, Some("192.0.2.77")))
+                .oneshot(post_json(
+                    "/api/v1/auth/login",
+                    &payload,
+                    Some("192.0.2.77"),
+                ))
                 .await
                 .unwrap();
             last = Some(resp.status());
@@ -574,13 +618,21 @@ mod tests {
             .unwrap();
         let resp = full_router(state.clone()).oneshot(req).await.unwrap();
         assert_eq!(resp.status(), StatusCode::NO_CONTENT);
-        let clear = resp.headers().get(header::SET_COOKIE).unwrap().to_str().unwrap();
+        let clear = resp
+            .headers()
+            .get(header::SET_COOKIE)
+            .unwrap()
+            .to_str()
+            .unwrap();
         assert!(clear.contains("Expires=Thu, 01 Jan 1970"));
         let revoked = crate::storage::sessions::get(&state.db, &sess.id)
             .await
             .unwrap()
             .unwrap();
-        assert!(revoked.revoked_at.is_some(), "logout must revoke server-side");
+        assert!(
+            revoked.revoked_at.is_some(),
+            "logout must revoke server-side"
+        );
         let actions = crate::storage::audit::recent(&state.db, 10).await.unwrap();
         assert!(actions.iter().any(|a| a.action == "auth.logout"));
 
@@ -616,12 +668,17 @@ mod tests {
             .unwrap();
         let resp = full_router(state.clone()).oneshot(req).await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
-        let body = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+        let body = axum::body::to_bytes(resp.into_body(), usize::MAX)
+            .await
+            .unwrap();
         let v = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
         assert_eq!(v["token"], sess.csrf_token);
 
         // Anonymous requests are rejected by the extractor.
-        let req = Request::builder().uri("/api/v1/auth/csrf").body(Body::empty()).unwrap();
+        let req = Request::builder()
+            .uri("/api/v1/auth/csrf")
+            .body(Body::empty())
+            .unwrap();
         let resp = full_router(state).oneshot(req).await.unwrap();
         assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
     }
@@ -644,7 +701,9 @@ mod tests {
             .unwrap();
         let resp = full_router(state.clone()).oneshot(req).await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
-        let body = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+        let body = axum::body::to_bytes(resp.into_body(), usize::MAX)
+            .await
+            .unwrap();
         let v = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
         let uri = v["otpauthUri"].as_str().unwrap().to_string();
         assert!(uri.starts_with("otpauth://totp/Rivet:"));
@@ -652,7 +711,13 @@ mod tests {
     }
 
     fn uri_secret(uri: &str) -> String {
-        uri.split("secret=").nth(1).unwrap().split('&').next().unwrap().to_string()
+        uri.split("secret=")
+            .nth(1)
+            .unwrap()
+            .split('&')
+            .next()
+            .unwrap()
+            .to_string()
     }
 
     fn current_code(secret: &str) -> String {
@@ -665,11 +730,17 @@ mod tests {
 
     async fn login_body(state: AppState, payload: String) -> (StatusCode, serde_json::Value) {
         let resp = full_router(state)
-            .oneshot(post_json("/api/v1/auth/login", &payload, Some("203.0.113.50")))
+            .oneshot(post_json(
+                "/api/v1/auth/login",
+                &payload,
+                Some("203.0.113.50"),
+            ))
             .await
             .unwrap();
         let status = resp.status();
-        let body = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+        let body = axum::body::to_bytes(resp.into_body(), usize::MAX)
+            .await
+            .unwrap();
         (status, serde_json::from_slice(&body).unwrap())
     }
 
@@ -685,7 +756,11 @@ mod tests {
             r#"{"email":"totp@x.test","password":"long-enough-password"}"#.into(),
         )
         .await;
-        assert_eq!(status, StatusCode::OK, "pending setup must not gate login: {v}");
+        assert_eq!(
+            status,
+            StatusCode::OK,
+            "pending setup must not gate login: {v}"
+        );
 
         // Enable with a WRONG code is rejected and does not activate.
         let req = Request::builder()
@@ -698,8 +773,13 @@ mod tests {
             .unwrap();
         let resp = full_router(state.clone()).oneshot(req).await.unwrap();
         assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
-        let body = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
-        assert_eq!(serde_json::from_slice::<serde_json::Value>(&body).unwrap()["error"], "invalid_code");
+        let body = axum::body::to_bytes(resp.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        assert_eq!(
+            serde_json::from_slice::<serde_json::Value>(&body).unwrap()["error"],
+            "invalid_code"
+        );
 
         // Enable with a live code flips the flag.
         let code = current_code(&secret);
@@ -741,7 +821,9 @@ mod tests {
         let code = current_code(&secret);
         let (status, v) = login_body(
             state.clone(),
-            format!(r#"{{"email":"totp@x.test","password":"long-enough-password","code":"{code}"}}"#),
+            format!(
+                r#"{{"email":"totp@x.test","password":"long-enough-password","code":"{code}"}}"#
+            ),
         )
         .await;
         assert_eq!(status, StatusCode::OK, "valid TOTP must grant login: {v}");
@@ -763,7 +845,10 @@ mod tests {
             .await
             .unwrap();
         assert!(!user.totp_enabled);
-        assert!(user.totp_secret_enc.is_none(), "disable must clear the secret");
+        assert!(
+            user.totp_secret_enc.is_none(),
+            "disable must clear the secret"
+        );
 
         // And password-only login works again.
         let (status, _) = login_body(
@@ -777,7 +862,11 @@ mod tests {
     #[tokio::test]
     async fn totp_endpoints_require_session() {
         let (_dir, state) = app_state().await;
-        for uri in ["/api/v1/auth/totp/setup", "/api/v1/auth/totp/enable", "/api/v1/auth/totp/disable"] {
+        for uri in [
+            "/api/v1/auth/totp/setup",
+            "/api/v1/auth/totp/enable",
+            "/api/v1/auth/totp/disable",
+        ] {
             let req = Request::builder()
                 .method("POST")
                 .uri(uri)
@@ -785,7 +874,11 @@ mod tests {
                 .body(Body::from("{}"))
                 .unwrap();
             let resp = full_router(state.clone()).oneshot(req).await.unwrap();
-            assert_eq!(resp.status(), StatusCode::UNAUTHORIZED, "{uri} requires a session");
+            assert_eq!(
+                resp.status(),
+                StatusCode::UNAUTHORIZED,
+                "{uri} requires a session"
+            );
         }
     }
 
@@ -804,4 +897,4 @@ mod tests {
         let resp = full_router(state).oneshot(req).await.unwrap();
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
     }
- }
+}

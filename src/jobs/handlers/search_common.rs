@@ -134,7 +134,10 @@ pub async fn load_indexers(
             cfg.insert("url".into(), serde_json::Value::String(ix.url.clone()));
             match state.secret_box.decrypt_string(&ix.api_key_enc) {
                 Ok(key) => {
-                    cfg.insert("api_key".into(), serde_json::Value::String(String::from_utf8_lossy(&key).into_owned()));
+                    cfg.insert(
+                        "api_key".into(),
+                        serde_json::Value::String(String::from_utf8_lossy(&key).into_owned()),
+                    );
                 }
                 Err(e) => {
                     crate::jobs::handlers::publish(
@@ -159,7 +162,10 @@ pub async fn load_indexers(
             if !ix.password_enc.is_empty() {
                 match state.secret_box.decrypt_string(&ix.password_enc) {
                     Ok(pw) => {
-                        cfg.insert("password".into(), serde_json::Value::String(String::from_utf8_lossy(&pw).into_owned()));
+                        cfg.insert(
+                            "password".into(),
+                            serde_json::Value::String(String::from_utf8_lossy(&pw).into_owned()),
+                        );
                     }
                     Err(e) => {
                         crate::jobs::handlers::publish(
@@ -199,13 +205,19 @@ pub async fn load_indexers(
     Ok(out)
 }
 
-/// Builds the torrent download client from `setup.clients`. In dry-run the
+/// Builds the torrent download client for `client_kind` from `setup.clients`.
+///
+/// Any pipeline-supported kind works (qbittorrent/deluge/transmission/blackhole);
+/// the client's password is decrypted with the shared SecretBox. In dry-run the
 /// in-memory simulator is used and no credentials are needed.
-pub async fn load_torrent_client(state: &AppState) -> Result<Arc<dyn Downloader>, String> {
+pub async fn load_torrent_client(
+    state: &AppState,
+    client_kind: &str,
+) -> Result<Arc<dyn Downloader>, String> {
     let mut cfg = serde_json::Map::new();
     if !state.config.dry_run {
-        #[derive(Deserialize)]
-        struct Qb {
+        #[derive(Clone, Deserialize)]
+        struct ClientCfg {
             #[serde(default)]
             url: String,
             #[serde(default)]
@@ -215,8 +227,8 @@ pub async fn load_torrent_client(state: &AppState) -> Result<Arc<dyn Downloader>
         }
         #[derive(Deserialize)]
         struct Clients {
-            #[serde(default)]
-            qbittorrent: Option<Qb>,
+            #[serde(flatten)]
+            entries: std::collections::BTreeMap<String, Option<ClientCfg>>,
         }
         let raw = settings::get(&state.db, "setup.clients")
             .await
@@ -224,17 +236,29 @@ pub async fn load_torrent_client(state: &AppState) -> Result<Arc<dyn Downloader>
             .ok_or("no_clients_configured")?;
         let clients: Clients =
             serde_json::from_str(&raw).map_err(|e| format!("clients_config_invalid: {e}"))?;
-        let qb = clients.qbittorrent.ok_or("qbittorrent_not_configured")?;
-        let password = state
-            .secret_box
-            .decrypt_string(&qb.password_enc)
-            .map_err(|_| "decrypt_failed".to_string())?;
-        cfg.insert("url".into(), serde_json::Value::String(qb.url));
-        cfg.insert("username".into(), serde_json::Value::String(qb.username));
-        cfg.insert("password".into(), serde_json::Value::String(String::from_utf8_lossy(&password).into_owned()));
+        let entry = clients
+            .entries
+            .get(client_kind)
+            .cloned()
+            .flatten()
+            .ok_or_else(|| format!("{client_kind}_not_configured"))?;
+        let password = if entry.password_enc.is_empty() {
+            String::new()
+        } else {
+            String::from_utf8_lossy(
+                &state
+                    .secret_box
+                    .decrypt_string(&entry.password_enc)
+                    .map_err(|_| "decrypt_failed".to_string())?,
+            )
+            .into_owned()
+        };
+        cfg.insert("url".into(), serde_json::Value::String(entry.url));
+        cfg.insert("username".into(), serde_json::Value::String(entry.username));
+        cfg.insert("password".into(), serde_json::Value::String(password));
     }
     crate::adapters::downloaders::build_torrent_client(
-        "qbittorrent",
+        client_kind,
         &serde_json::Value::Object(cfg),
         state.policy,
         state.config.dry_run,
@@ -349,7 +373,10 @@ mod tests {
     async fn load_indexers_requires_setting() {
         let (_dir, state) = testutil::test_state().await;
         assert_eq!(
-            load_indexers(&state, "r", "t").await.err().expect("expected error"),
+            load_indexers(&state, "r", "t")
+                .await
+                .err()
+                .expect("expected error"),
             "no_indexers_configured"
         );
     }
@@ -367,6 +394,8 @@ mod tests {
     async fn dry_run_builds_client_without_credentials() {
         let (_dir, state) = testutil::test_state().await;
         // test_state uses dry_run=true: no setup.clients needed.
-        load_torrent_client(&state).await.expect("dry-run client");
+        load_torrent_client(&state, "qbittorrent")
+            .await
+            .expect("dry-run client");
     }
 }

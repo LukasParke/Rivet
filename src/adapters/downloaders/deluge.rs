@@ -269,11 +269,7 @@ fn entry_to_info(id: &str, entry: &Value) -> Result<TorrentInfo, AdapterError> {
             .unwrap_or_default()
             .to_string(),
         progress: deluge_progress_to_fraction(pct),
-        state: map_state(
-            obj.get("state")
-                .and_then(Value::as_str)
-                .unwrap_or_default(),
-        ),
+        state: map_state(obj.get("state").and_then(Value::as_str).unwrap_or_default()),
         size_bytes: int_or("total_size"),
         downloaded_bytes: int_or("total_done"),
         content_path: obj
@@ -395,7 +391,11 @@ fn build_pinned_client(target: &ValidatedTarget, timeout: Duration) -> reqwest::
     let port = target
         .url
         .port_or_known_default()
-        .unwrap_or(if target.url.scheme() == "https" { 443 } else { 80 });
+        .unwrap_or(if target.url.scheme() == "https" {
+            443
+        } else {
+            80
+        });
     let resolver = Arc::new(PinnedResolver {
         host: target.url.host_str().unwrap_or_default().to_string(),
         ips: target.ips.clone(),
@@ -429,10 +429,8 @@ mod tests {
         Mock::given(method("POST"))
             .and(body_string_contains("\"method\":\"auth.login\""))
             .respond_with(
-                rpc_body(json!(true)).append_header(
-                    "Set-Cookie",
-                    "_session_id=abc123; Path=/; HttpOnly",
-                ),
+                rpc_body(json!(true))
+                    .append_header("Set-Cookie", "_session_id=abc123; Path=/; HttpOnly"),
             )
             .mount(&server)
             .await;
@@ -450,14 +448,18 @@ mod tests {
 
         // add_torrent_magnet requires the session cookie from login.
         Mock::given(method("POST"))
-            .and(body_string_contains("\"method\":\"core.add_torrent_magnet\""))
+            .and(body_string_contains(
+                "\"method\":\"core.add_torrent_magnet\"",
+            ))
             .and(header("cookie", "_session_id=abc123"))
             .respond_with(rpc_body(json!("e2467cbf021192c241367c8926dc875f95133158")))
             .mount(&server)
             .await;
 
         Mock::given(method("POST"))
-            .and(body_string_contains("\"method\":\"core.get_torrents_status\""))
+            .and(body_string_contains(
+                "\"method\":\"core.get_torrents_status\"",
+            ))
             .and(header("cookie", "_session_id=abc123"))
             .respond_with(rpc_body(json!({
                 "e2467cbf021192c241367c8926dc875f95133158": {
@@ -568,7 +570,9 @@ mod tests {
         // (consumed once), after which every cookie-carrying call succeeds.
         Mock::given(method("POST"))
             .and(header("cookie", "_session_id=abc123"))
-            .and(body_string_contains("\"method\":\"core.get_torrents_status\""))
+            .and(body_string_contains(
+                "\"method\":\"core.get_torrents_status\"",
+            ))
             .respond_with(not_authenticated())
             .up_to_n_times(1)
             .mount(&server)
@@ -588,9 +592,18 @@ mod tests {
         assert!(all.is_empty());
 
         // Pause/resume/remove round-trip through the refreshed session.
-        client.pause("e2467cbf021192c241367c8926dc875f95133158").await.unwrap();
-        client.resume("e2467cbf021192c241367c8926dc875f95133158").await.unwrap();
-        client.delete("e2467cbf021192c241367c8926dc875f95133158", true).await.unwrap();
+        client
+            .pause("e2467cbf021192c241367c8926dc875f95133158")
+            .await
+            .unwrap();
+        client
+            .resume("e2467cbf021192c241367c8926dc875f95133158")
+            .await
+            .unwrap();
+        client
+            .delete("e2467cbf021192c241367c8926dc875f95133158", true)
+            .await
+            .unwrap();
     }
 
     #[test]

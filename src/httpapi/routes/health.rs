@@ -22,11 +22,8 @@ pub async fn healthz() -> impl IntoResponse {
 /// GET /readyz — pings the database; 503 `db_unready` when it does not answer
 /// within the timeout.
 pub async fn readyz(State(state): State<AppState>) -> Response {
-    let ping = tokio::time::timeout(
-        READY_TIMEOUT,
-        sqlx::query("SELECT 1").execute(&state.db),
-    )
-    .await;
+    let ping =
+        tokio::time::timeout(READY_TIMEOUT, sqlx::query("SELECT 1").execute(&state.db)).await;
     match ping {
         Ok(Ok(_)) => (StatusCode::OK, Json(json!({ "ok": true }))).into_response(),
         // Timeout (Err), or the ping itself failed.
@@ -91,10 +88,18 @@ mod tests {
         let app = Router::new()
             .route("/healthz", get(healthz))
             .with_state(state);
-        let res = app.oneshot(Request::get("/healthz").body(Body::empty()).unwrap()).await.unwrap();
+        let res = app
+            .oneshot(Request::get("/healthz").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
         assert_eq!(res.status(), StatusCode::OK);
-        let body = axum::body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
-        assert_eq!(serde_json::from_slice::<serde_json::Value>(&body).unwrap(), json!({"ok": true}));
+        let body = axum::body::to_bytes(res.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        assert_eq!(
+            serde_json::from_slice::<serde_json::Value>(&body).unwrap(),
+            json!({"ok": true})
+        );
     }
 
     #[tokio::test]
@@ -104,27 +109,41 @@ mod tests {
         let app = Router::new()
             .route("/readyz", get(readyz))
             .with_state(state);
-        let res = app.oneshot(Request::get("/readyz").body(Body::empty()).unwrap()).await.unwrap();
+        let res = app
+            .oneshot(Request::get("/readyz").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
         assert_eq!(res.status(), StatusCode::OK);
-        let body = axum::body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
-        assert_eq!(serde_json::from_slice::<serde_json::Value>(&body).unwrap(), json!({"ok": true}));
+        let body = axum::body::to_bytes(res.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        assert_eq!(
+            serde_json::from_slice::<serde_json::Value>(&body).unwrap(),
+            json!({"ok": true})
+        );
     }
 
     #[tokio::test]
     async fn readyz_reports_db_unready_on_broken_pool() {
         // A pool pointing at a closed/corrupt database makes the ping fail.
         let dir = tempfile::tempdir().unwrap();
-        let pool = crate::storage::open(&format!("file://{}", dir.path().join("gone.db").display()))
-            .await
-            .unwrap();
+        let pool =
+            crate::storage::open(&format!("file://{}", dir.path().join("gone.db").display()))
+                .await
+                .unwrap();
         pool.close().await;
         let state = test_state(pool);
         let app = Router::new()
             .route("/readyz", get(readyz))
             .with_state(state);
-        let res = app.oneshot(Request::get("/readyz").body(Body::empty()).unwrap()).await.unwrap();
+        let res = app
+            .oneshot(Request::get("/readyz").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
         assert_eq!(res.status(), StatusCode::SERVICE_UNAVAILABLE);
-        let body = axum::body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
+        let body = axum::body::to_bytes(res.into_body(), usize::MAX)
+            .await
+            .unwrap();
         assert_eq!(
             serde_json::from_slice::<serde_json::Value>(&body).unwrap(),
             json!({"ok": false, "error": "db_unready"})
