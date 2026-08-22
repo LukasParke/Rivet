@@ -6,8 +6,6 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion, Throughput};
 use rivet::storage::jobs as queue;
 use sqlx::SqlitePool;
-use std::time::Duration;
-use chrono::Duration as _;
 
 async fn pool() -> SqlitePool {
     let dir = tempfile::tempdir().unwrap();

@@ -324,7 +324,7 @@ async fn main() {
 
     // --- Live WebSocket fanout ----------------------------------------------
     {
-        use futures_util::{SinkExt, StreamExt};
+        use futures_util::StreamExt;
         let ws_clients: usize = 100;
         let events_to_send: usize = 2000;
         let mut conns = Vec::new();
@@ -368,9 +368,10 @@ async fn main() {
         let deadline = Instant::now() + Duration::from_secs(2);
         'drain: while Instant::now() < deadline {
             for ws in conns.iter_mut() {
-                match tokio::time::timeout(Duration::from_millis(5), ws.next()).await {
-                    Ok(Some(Ok(_msg))) => delivered += 1,
-                    Ok(Some(Err(_))) | Ok(None) | Err(_) => {}
+                if let Ok(Some(Ok(_msg))) =
+                    tokio::time::timeout(Duration::from_millis(5), ws.next()).await
+                {
+                    delivered += 1;
                 }
                 if delivered >= events_to_send * 3 {
                     break 'drain;
