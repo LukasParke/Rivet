@@ -96,7 +96,10 @@ async fn async_main() {
 
     let app = httpapi::build_router(state.clone(), gate);
     let addr = cfg.http_addr.clone();
-    let listener = match tokio::net::TcpListener::bind(&addr).await {
+    // Listener with per-connection socket options: accepted connections
+    // inherit TCP_NODELAY (no Nagle latency) and SO_KEEPALIVE (dead-peer
+    // reaping) from the listening socket on Linux/BSD.
+    let listener = match bind_listener(&addr).await {
         Ok(l) => l,
         Err(e) => {
             tracing::error!(%addr, error = %e, "bind failed");
@@ -105,7 +108,14 @@ async fn async_main() {
     };
     tracing::info!(%addr, env = %cfg.env, dry_run = cfg.dry_run, "rivet listening");
 
+    // Server-level timeouts live in httpapi::build_router (30s request
+    // timeout + 1 MiB body limit). Remaining gap: hyper has no inter-read
+    // deadline, so a slowloris client trickling bytes is only bounded by the
+    // 30s total request timeout. nginx fronts production and must keep its
+    // client_header_timeout/client_body_timeout set; see the module comment
+    // in httpapi/mod.rs for the direct-exposure mitigation.
     let axum_app = app.into_make_service();
+
     let shutdown = async move {
         let _ = tokio::signal::ctrl_c().await;
         let _ = shutdown_tx.send(true);
@@ -119,6 +129,29 @@ async fn async_main() {
 
     let _ = tokio::time::timeout(std::time::Duration::from_secs(10), worker_handle).await;
     let _ = tokio::time::timeout(std::time::Duration::from_secs(2), reconciler_handle).await;
+}
+
+/// Binds `addr` with TCP_NODELAY and SO_KEEPALIVE set on the listening socket
+/// so every accepted connection inherits them. Keeps the semantics of
+/// `TcpListener::bind` (first resolved address, same default backlog).
+async fn bind_listener(
+    addr: &str,
+) -> std::io::Result<tokio::net::TcpListener> {
+    use std::net::ToSocketAddrs;
+    let sa: std::net::SocketAddr = addr
+        .to_socket_addrs()?
+        .next()
+        .ok_or_else(|| {
+            std::io::Error::new(std::io::ErrorKind::InvalidInput, "no address resolved")
+        })?;
+    let sock = match sa {
+        std::net::SocketAddr::V4(_) => tokio::net::TcpSocket::new_v4()?,
+        std::net::SocketAddr::V6(_) => tokio::net::TcpSocket::new_v6()?,
+    };
+    sock.set_nodelay(true)?;
+    sock.set_keepalive(true)?;
+    sock.bind(sa)?;
+    sock.listen(1024)
 }
 
 /// Queue depths + user count for the health channel payload.

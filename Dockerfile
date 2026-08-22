@@ -20,6 +20,15 @@ RUN apt-get update && \
   apt-get install -y --no-install-recommends nginx tini ca-certificates && \
   rm -rf /var/lib/apt/lists/*
 
+# Non-root runtime user. nginx keeps its root master (binds the port, manages
+# workers) but drops workers to appuser via the `user` directive in
+# deploy/nginx.conf; rivet-server and node are started through setpriv
+# (util-linux, present in debian slim) from deploy/entrypoint.sh.
+RUN groupadd --system --gid 10001 appuser && \
+  useradd --system --uid 10001 --gid appuser --home-dir /home/appuser \
+    --shell /usr/sbin/nologin appuser && \
+  mkdir -p /data && chown appuser:appuser /data
+
 COPY --from=rust-builder /src/target/release/rivet-server /app/rivet-server
 
 WORKDIR /app/web
@@ -32,6 +41,8 @@ COPY deploy/nginx.conf /etc/nginx/nginx.conf
 COPY deploy/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
+# APP_ENV != dev marks session cookies Secure; TLS termination in front of
+# nginx is therefore REQUIRED for any non-dev deployment of this image.
 ENV APP_ENV=prod
 ENV DATABASE_URL="file:/data/app.db?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)"
 ENV HTTP_ADDR="127.0.0.1:8081"

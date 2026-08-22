@@ -102,58 +102,57 @@ pub fn totp_now(secret_b32: &str, digits: u32, step: u64, t0: u64) -> Result<Str
     )
 }
 
-/// Verifies `code` against the current or ±`window` adjacent steps
-/// (RFC 6238 §5.2 recommends accepting drift). Comparison is constant-shape:
-/// both sides are rendered digit strings of equal length before comparing.
-pub fn verify(secret_b32: &str, code: &str, window: u64) -> Result<bool, String> {
-    let code = code.trim();
-    if code.chars().any(|c| !c.is_ascii_digit()) {
-        return Ok(false);
-    }
+/// Verifies a code of exactly `digits` digits against the current or
+/// ±`window` adjacent steps (RFC 6238 §5.2 recommends accepting drift).
+/// Codes whose length differs from the expected digit count are rejected
+/// before any comparison. Returns the matched timestep on success so callers
+/// can enforce single use; comparison is constant-shape: both sides are
+/// rendered digit strings of equal length before comparing.
+pub fn verify(
+    secret_b32: &str,
+    code: &str,
+    digits: u32,
+    window: u64,
+) -> Result<Option<u64>, String> {
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map_err(|_| "system clock before unix epoch".to_string())?
         .as_secs();
-    verify_at(secret_b32, code, window, now)
+    verify_at(secret_b32, code, digits, window, now)
 }
 
 /// Drift-window verification against a fixed instant; testable core of [`verify`].
-pub fn verify_at(secret_b32: &str, code: &str, window: u64, now: u64) -> Result<bool, String> {
+pub fn verify_at(
+    secret_b32: &str,
+    code: &str,
+    digits: u32,
+    window: u64,
+    now: u64,
+) -> Result<Option<u64>, String> {
     const STEP: u64 = 30;
-    if code.chars().count() != 6 && code.chars().count() != 8 {
-        // Length check happens without leaking timing beyond shape.
-        let digits = code.chars().count() as u32;
-        if !(1..=10).contains(&digits) {
-            return Ok(false);
-        }
+    let code = code.trim();
+    let len = code.chars().count();
+    if len != digits as usize || code.chars().any(|c| !c.is_ascii_digit()) {
+        // Shape rejection happens without leaking timing beyond length.
+        return Ok(None);
     }
-    let digits = code.chars().count() as u32;
     let candidate = totp_at(secret_b32, digits, STEP, 0, now)?;
-    let matched = subtle_eq(&candidate, code);
-    if matched {
-        return Ok(true);
+    if subtle_eq(&candidate, code) {
+        return Ok(Some(now / STEP));
     }
     for drift in 1..=window {
         let Some(past) = now.checked_sub(drift * STEP) else {
             break;
         };
         if subtle_eq(&totp_at(secret_b32, digits, STEP, 0, past)?, code) {
-            return Ok(true);
+            return Ok(Some(past / STEP));
         }
-        if subtle_eq(
-            &totp_at(
-                secret_b32,
-                digits,
-                STEP,
-                0,
-                now.saturating_add(drift * STEP),
-            )?,
-            code,
-        ) {
-            return Ok(true);
+        let future = now.saturating_add(drift * STEP);
+        if subtle_eq(&totp_at(secret_b32, digits, STEP, 0, future)?, code) {
+            return Ok(Some(future / STEP));
         }
     }
-    Ok(false)
+    Ok(None)
 }
 
 /// Equal-length string comparison (both inputs already validated shapes).
@@ -221,11 +220,11 @@ mod tests {
         let next = totp_at(&secret, 6, 30, 0, now + 30).unwrap();
         let far = totp_at(&secret, 6, 30, 0, now + 120).unwrap();
 
-        assert!(verify_at(&secret, &cur, 1, now).unwrap());
-        assert!(verify_at(&secret, &prev, 1, now).unwrap());
-        assert!(verify_at(&secret, &next, 1, now).unwrap());
-        assert!(!verify_at(&secret, &far, 1, now).unwrap());
-        assert!(verify_at(&secret, &far, 4, now).unwrap());
+        assert!(verify_at(&secret, &cur, 6, 1, now).unwrap().is_some());
+        assert!(verify_at(&secret, &prev, 6, 1, now).unwrap().is_some());
+        assert!(verify_at(&secret, &next, 6, 1, now).unwrap().is_some());
+        assert_eq!(verify_at(&secret, &far, 6, 1, now).unwrap(), None);
+        assert!(verify_at(&secret, &far, 6, 4, now).unwrap().is_some());
     }
 
     #[test]
@@ -233,7 +232,7 @@ mod tests {
         assert!(base32_decode("abc1!").is_err());
         assert!(totp_now("not!!valid", 6, 30, 0).is_err());
         assert!(
-            verify_at("", "123456", 1, 100).is_err(),
+            verify_at("", "123456", 6, 1, 100).is_err(),
             "empty secret errors"
         );
     }
@@ -241,8 +240,8 @@ mod tests {
     #[test]
     fn non_numeric_code_fails_cleanly() {
         let secret = generate_secret();
-        assert!(!verify_at(&secret, "abcdef", 1, 1_700_000_000).unwrap());
-        assert!(!verify_at(&secret, "", 1, 1_700_000_000).unwrap());
+        assert_eq!(verify_at(&secret, "abcdef", 6, 1, 1_700_000_000).unwrap(), None);
+        assert_eq!(verify_at(&secret, "", 6, 1, 1_700_000_000).unwrap(), None);
     }
 
     #[test]
@@ -293,6 +292,40 @@ mod tests {
         assert!(
             totp_at(RFC_SECRET, 11, 30, 0, 59).is_err(),
             "digits >10 invalid"
+        );
+    }
+
+    #[test]
+    fn code_length_must_match_expected_digits() {
+        let secret = generate_secret();
+        let now = 1_700_000_000u64;
+        let cur = totp_at(&secret, 6, 30, 0, now).unwrap();
+        assert_eq!(cur.chars().count(), 6);
+
+        // 5- and 7-digit mutations of a live code are rejected when digits=6.
+        assert_eq!(verify_at(&secret, &cur[..5], 6, 1, now).unwrap(), None);
+        assert_eq!(verify_at(&secret, &format!("0{cur}"), 6, 1, now).unwrap(), None);
+        // An 8-digit string is rejected too — even a genuinely live 8-digit
+        // TOTP — because it does not match the expected digit count...
+        let eight = totp_at(&secret, 8, 30, 0, now).unwrap();
+        assert_eq!(verify_at(&secret, &eight, 6, 1, now).unwrap(), None);
+        // ...but is accepted once the caller expects 8 digits.
+        assert!(verify_at(&secret, &eight, 8, 1, now).unwrap().is_some());
+    }
+
+    #[test]
+    fn verify_returns_matched_timestep() {
+        let secret = generate_secret();
+        let now = 1_700_000_000u64;
+        let prev = totp_at(&secret, 6, 30, 0, now - 30).unwrap();
+        let next = totp_at(&secret, 6, 30, 0, now + 30).unwrap();
+        assert_eq!(
+            verify_at(&secret, &prev, 6, 1, now).unwrap(),
+            Some((now - 30) / 30)
+        );
+        assert_eq!(
+            verify_at(&secret, &next, 6, 1, now).unwrap(),
+            Some((now + 30) / 30)
         );
     }
 }

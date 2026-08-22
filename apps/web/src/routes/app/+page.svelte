@@ -535,7 +535,7 @@
     try {
       if (wsHandle) wsHandle.close();
       wsHandle = connectWS({
-        channels: ["activity", "jobs", "audit", "downloads", "imports"],
+        channels: ["activity", "jobs", "audit", "downloads", "imports", "setup"],
         onStatus: (status) => (wsStatus = status),
         onEvent: handleWsEvent,
       });

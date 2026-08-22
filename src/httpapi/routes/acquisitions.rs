@@ -946,6 +946,7 @@ mod tests {
                 role: role.into(),
                 totp_secret_enc: None,
                 totp_enabled: false,
+                totp_last_step: None,
                 created_at: String::new(),
                 updated_at: String::new(),
             },

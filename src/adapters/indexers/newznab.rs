@@ -61,15 +61,17 @@ pub fn redact_apikey(url: &str) -> String {
             }
             u.to_string()
         }
-        // Not a parseable URL: redact conservatively by pattern.
+        // Not a parseable URL (e.g. reqwest error Display text): redact every
+        // key=value fragment whose key is apikey/api_key, at ANY position in
+        // the fragment — including the first param of Prowlarr-style URLs.
         Err(_) => {
             let re = |s: &str| -> String {
                 s.split('&')
                     .map(|pair| {
                         let lower = pair.to_ascii_lowercase();
-                        if lower.starts_with("apikey=") || lower.starts_with("api_key=") {
-                            let (k, _) = pair.split_once('=').unwrap_or((pair, ""));
-                            format!("{k}=REDACTED")
+                        let key = lower.split('=').next().unwrap_or("");
+                        if key == "apikey" || key == "api_key" {
+                            format!("{key}=REDACTED")
                         } else {
                             pair.to_string()
                         }
@@ -151,7 +153,7 @@ impl NewznabClient {
     }
 
     async fn fetch_body(&self, url: &str) -> Result<String, AdapterError> {
-        let resp = get_validated(url, self.policy, TIMEOUT, 3)
+        let mut resp = get_validated(url, self.policy, TIMEOUT, 3)
             .await
             .map_err(|e| AdapterError::Network(e.to_string()))?;
         let status = resp.status();
@@ -161,14 +163,20 @@ impl NewznabClient {
         if !status.is_success() {
             return Err(AdapterError::Network(format!("status {status}")));
         }
-        let bytes = resp
-            .bytes()
+        // Stream the body and abort the moment the cap would be exceeded:
+        // never buffer an unbounded response in memory before checking.
+        let mut buf: Vec<u8> = Vec::new();
+        while let Some(chunk) = resp
+            .chunk()
             .await
-            .map_err(|e| AdapterError::Network(e.to_string()))?;
-        if bytes.len() > MAX_BODY {
-            return Err(AdapterError::Network("response_too_large".into()));
+            .map_err(|e| AdapterError::Network(e.to_string()))?
+        {
+            if buf.len().saturating_add(chunk.len()) > MAX_BODY {
+                return Err(AdapterError::Network("response_too_large".into()));
+            }
+            buf.extend_from_slice(&chunk);
         }
-        String::from_utf8(bytes.to_vec()).map_err(|e| AdapterError::Parse(e.to_string()))
+        String::from_utf8(buf).map_err(|e| AdapterError::Parse(e.to_string()))
     }
 
     async fn search_prowlarr_json(
@@ -597,6 +605,16 @@ mod tests {
     }
 
     #[test]
+    fn apikey_redacted_as_first_param_in_error_text() {
+        // reqwest Display text with Prowlarr-style first-param apikey.
+        let err = "error sending request for url (http://host:9696/api/v1/search?apikey=SECRET&query=x)";
+        let red = redact_apikey(err);
+        assert!(!red.contains("SECRET"), "{red}");
+        assert!(red.contains("apikey=REDACTED"));
+        assert!(red.contains("query=x"));
+    }
+
+    #[test]
     fn prowlarr_detection() {
         assert!(is_prowlarr("http://localhost:9696/1"));
         assert!(is_prowlarr("http://prowlarr.local/api"));
@@ -618,5 +636,79 @@ mod tests {
             Err(AdapterError::InvalidConfig(_))
         ));
         assert!(TorznabClient::new(&bad, policy).is_err());
+    }
+
+    fn test_client(base: &str) -> NewznabClient {
+        NewznabClient {
+            cfg: IndexerConfig {
+                name: "stub".into(),
+                url: base.to_string(),
+                apikey: "k".into(),
+                torznab: false,
+                prowlarr: false,
+            },
+            policy: OutboundPolicy::dev(),
+        }
+    }
+
+    /// Happy path unchanged by the streaming rewrite: a small body parses
+    /// through fetch_body byte-identically.
+    #[tokio::test]
+    async fn fetch_body_small_body_ok() {
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+        let server = MockServer::start().await;
+        Mock::given(wiremock::matchers::method("GET"))
+            .respond_with(ResponseTemplate::new(200).set_body_string("hello-feed"))
+            .mount(&server)
+            .await;
+        let client = test_client(&server.uri());
+        let body = client
+            .fetch_body(&format!("{}/api", server.uri()))
+            .await
+            .unwrap();
+        assert_eq!(body, "hello-feed");
+    }
+
+    /// Regression: an oversized response must abort during streaming with the
+    /// truncated-body error — the old code buffered the whole response via
+    /// `resp.bytes()` before checking MAX_BODY.
+    #[tokio::test]
+    async fn fetch_body_aborts_over_cap() {
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+        let server = MockServer::start().await;
+        Mock::given(wiremock::matchers::method("GET"))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_bytes(vec![b'x'; MAX_BODY + 1024]),
+            )
+            .mount(&server)
+            .await;
+        let client = test_client(&server.uri());
+        let err = client
+            .fetch_body(&format!("{}/api", server.uri()))
+            .await
+            .unwrap_err();
+        match err {
+            AdapterError::Network(msg) => {
+                assert_eq!(msg, "response_too_large");
+            }
+            other => panic!("expected response_too_large network error, got {other:?}"),
+        }
+    }
+
+    /// A response exactly at the cap still succeeds (boundary).
+    #[tokio::test]
+    async fn fetch_body_exactly_at_cap_ok() {
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+        let server = MockServer::start().await;
+        Mock::given(wiremock::matchers::method("GET"))
+            .respond_with(ResponseTemplate::new(200).set_body_bytes(vec![b'a'; MAX_BODY]))
+            .mount(&server)
+            .await;
+        let client = test_client(&server.uri());
+        let body = client
+            .fetch_body(&format!("{}/api", server.uri()))
+            .await
+            .unwrap();
+        assert_eq!(body.len(), MAX_BODY);
     }
 }

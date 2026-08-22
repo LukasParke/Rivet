@@ -1,5 +1,9 @@
 //! Session storage: high-entropy tokens, CSRF tokens, expiry and revocation.
 
+use std::collections::HashMap;
+use std::sync::{LazyLock, Mutex};
+use std::time::{Duration as StdDuration, Instant};
+
 use chrono::{Duration, Utc};
 use sqlx::SqlitePool;
 
@@ -91,12 +95,155 @@ pub async fn touch(pool: &SqlitePool, id: &str) -> Result<(), sqlx::Error> {
 }
 
 pub async fn revoke(pool: &SqlitePool, id: &str) -> Result<(), sqlx::Error> {
-    sqlx::query("UPDATE sessions SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL")
+    let res = sqlx::query("UPDATE sessions SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL")
         .bind(timeutil::now())
         .bind(id)
         .execute(pool)
         .await
-        .map(|_| ())
+        .map(|_| ());
+    // Evict synchronously so logout and any other revocation path takes
+    // effect on the very next request, not after SESSION_CACHE_TTL.
+    cache_evict(id);
+    res
+}
+
+// ---------------------------------------------------------------------------
+// Per-request auth cache
+//
+// `load_session` used to run two SELECTs (session + user) plus one
+// `last_seen_at` UPDATE on EVERY authenticated request; every hot GET pays
+// that tax. This process-local cache serves the steady state without
+// touching the database.
+//
+// TTL tradeoff: an entry is trusted for [`SESSION_CACHE_TTL`] without
+// re-reading the DB, so changes made behind the cache's back surface at most
+// one TTL late:
+// - Revocation is NEVER delayed: [`revoke`] evicts the sid synchronously,
+//   which keeps logout immediate by construction no matter who calls it.
+// - Expiry is re-checked against the wall clock on each hit, so TTL expiry
+//   needs no invalidation either.
+// - Role or password changes made through other code paths are bounded by
+//   the 5 s window.
+/// How long a cached `(session, user)` pair is trusted without a DB re-read.
+pub const SESSION_CACHE_TTL: StdDuration = StdDuration::from_secs(5);
+/// Minimum interval between `last_seen_at` writes for the same session.
+pub const TOUCH_MIN_INTERVAL: StdDuration = StdDuration::from_secs(60);
+const SESSION_CACHE_MAX: usize = 4096;
+
+struct CachedAuth {
+    session: Session,
+    user: crate::storage::users::User,
+    cached_at: Instant,
+}
+
+fn auth_cache() -> &'static Mutex<HashMap<String, CachedAuth>> {
+    static CACHE: LazyLock<Mutex<HashMap<String, CachedAuth>>> =
+        LazyLock::new(|| Mutex::new(HashMap::new()));
+    &CACHE
+}
+
+fn cache_evict(id: &str) {
+    // A poisoned mutex only loses caching, never correctness.
+    if let Ok(mut map) = auth_cache().lock() {
+        map.remove(id);
+    }
+}
+
+/// Drops every cached entry belonging to `user_id` (all of their sessions).
+/// Called whenever a user row is mutated (TOTP enrollment today; role or
+/// password changes as they gain API surfaces) so the change applies on the
+/// next request instead of after [`SESSION_CACHE_TTL`].
+pub fn cache_evict_user(user_id: &str) {
+    if let Ok(mut map) = auth_cache().lock() {
+        map.retain(|_, e| e.session.user_id != user_id);
+    }
+}
+
+fn cache_hit(id: &str) -> Option<(Session, crate::storage::users::User)> {
+    let mut map = auth_cache().lock().ok()?;
+    if let Some(entry) = map.get(id) {
+        let fresh = entry.cached_at.elapsed() < SESSION_CACHE_TTL;
+        let live = entry.session.revoked_at.is_none()
+            && timeutil::parse(&entry.session.expires_at)
+                .map(|exp| Utc::now() <= exp)
+                .unwrap_or(false);
+        if fresh && live {
+            return Some((entry.session.clone(), entry.user.clone()));
+        }
+    }
+    map.remove(id);
+    None
+}
+
+fn cache_store(session: &Session, user: &crate::storage::users::User) {
+    let Ok(mut map) = auth_cache().lock() else {
+        return;
+    };
+    if map.len() >= SESSION_CACHE_MAX && !map.contains_key(&session.id) {
+        let now = Instant::now();
+        map.retain(|_, e| now.duration_since(e.cached_at) < SESSION_CACHE_TTL);
+    }
+    map.insert(
+        session.id.clone(),
+        CachedAuth {
+            session: session.clone(),
+            user: user.clone(),
+            cached_at: Instant::now(),
+        },
+    );
+}
+
+/// Sliding `last_seen_at` bookkeeping, throttled to one write per
+/// [`TOUCH_MIN_INTERVAL`] per session; failure must not break the request.
+/// On write, the passed-in view is refreshed so cached copies stay
+/// authoritative for the throttle decision without another read.
+async fn throttled_touch(pool: &SqlitePool, mut session: Session) -> Session {
+    let due = session
+        .last_seen_at
+        .as_deref()
+        .and_then(timeutil::parse)
+        .map(|seen| Utc::now() - seen > chrono::Duration::from_std(TOUCH_MIN_INTERVAL).unwrap())
+        .unwrap_or(true);
+    if due {
+        let _ = touch(pool, &session.id).await;
+        session.last_seen_at = Some(timeutil::now());
+    }
+    session
+}
+
+/// Cache-first resolution of a session cookie to its live `(session, user)`
+/// pair; used by the auth middleware on every request. Returns `None` when
+/// the sid is unknown, revoked or expired (callers treat that as anonymous)
+/// or when the user row has disappeared.
+///
+/// Cache misses read through to the database and repopulate the entry; hits
+/// cost zero queries and at most one throttled `last_seen_at` write per
+/// [`TOUCH_MIN_INTERVAL`]. See the module-level tradeoff notes above.
+pub async fn lookup_active(
+    pool: &SqlitePool,
+    id: &str,
+) -> Option<(Session, crate::storage::users::User)> {
+    if let Some((session, user)) = cache_hit(id) {
+        let session = throttled_touch(pool, session).await;
+        return Some((session, user));
+    }
+
+    let session = get(pool, id).await.ok()??;
+    // Expired or revoked sessions are anonymous too; an unparseable expiry
+    // counts as expired (fail closed on the timestamp only).
+    let live = timeutil::parse(&session.expires_at)
+        .map(|exp| Utc::now() <= exp)
+        .unwrap_or(false);
+    if session.revoked_at.is_some() || !live {
+        return None;
+    }
+    let user = match crate::storage::users::get_by_id(pool, &session.user_id).await {
+        Ok(u) => u,
+        Err(_) => return None,
+    };
+    let session = throttled_touch(pool, session).await;
+    cache_store(&session, &user);
+    Some((session, user))
 }
 
 /// Deletes sessions expired at least `grace` ago. Returns rows removed.

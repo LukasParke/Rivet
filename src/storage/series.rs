@@ -319,35 +319,73 @@ pub async fn list_seasons(pool: &SqlitePool, series_id: &str) -> Result<Vec<Seas
 /// `episode_file_id` (import state is owned by [`insert_episode_file`] /
 /// [`delete_episode_file`]). Idempotent: re-running the same batch changes
 /// nothing observable.
+///
+/// Episodes are sent as chunked multi-row `VALUES` statements (512 rows x
+/// 10 bound params = 5120 host parameters, well under SQLite's default
+/// `SQLITE_MAX_VARIABLE_NUMBER` of 32766) instead of one round trip per row.
+/// Duplicate keys inside one batch keep the *last* occurrence, matching the
+/// previous row-at-a-time loop's observable outcome.
 pub async fn bulk_upsert_episodes(
     pool: &SqlitePool,
     series_id: &str,
     episodes: &[EpisodeUpsert],
 ) -> Result<(), sqlx::Error> {
+    const ROWS_PER_STATEMENT: usize = 512;
+
+    // Last occurrence of each (season, episode) key wins.
+    let mut last_idx: std::collections::HashMap<(i64, i64), usize> =
+        std::collections::HashMap::with_capacity(episodes.len());
+    for (i, ep) in episodes.iter().enumerate() {
+        last_idx.insert((ep.season_number, ep.episode_number), i);
+    }
+    let deduped: Vec<&EpisodeUpsert> = episodes
+        .iter()
+        .enumerate()
+        .filter(|(i, ep)| last_idx.get(&(ep.season_number, ep.episode_number)) == Some(i))
+        .map(|(_, ep)| ep)
+        .collect();
+    if deduped.is_empty() {
+        return Ok(());
+    }
+
     let mut tx = pool.begin().await?;
-    for ep in episodes {
-        sqlx::query(
+    for chunk in deduped.chunks(ROWS_PER_STATEMENT) {
+        let mut sql = String::with_capacity(
+            220 + chunk.len() * 96, /* INSERT head + per-row VALUES group */
+        );
+        sql.push_str(
             "INSERT INTO episodes (id, series_id, season_number, episode_number, \
-             absolute_episode_number, title, air_date_utc, runtime, overview, monitored) \
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) \
-             ON CONFLICT(series_id, season_number, episode_number) DO UPDATE SET \
+             absolute_episode_number, title, air_date_utc, runtime, overview, monitored) VALUES ",
+        );
+        for i in 0..chunk.len() {
+            if i > 0 {
+                sql.push_str(", ");
+            }
+            sql.push_str("(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        }
+        sql.push_str(
+            " ON CONFLICT(series_id, season_number, episode_number) DO UPDATE SET \
              absolute_episode_number = excluded.absolute_episode_number, \
              title = excluded.title, air_date_utc = excluded.air_date_utc, \
              runtime = excluded.runtime, overview = excluded.overview, \
              monitored = excluded.monitored",
-        )
-        .bind(uuid::Uuid::new_v4().to_string())
-        .bind(series_id)
-        .bind(ep.season_number)
-        .bind(ep.episode_number)
-        .bind(ep.absolute_episode_number)
-        .bind(ep.title.as_deref())
-        .bind(ep.air_date_utc.as_deref())
-        .bind(ep.runtime)
-        .bind(ep.overview.as_deref())
-        .bind(ep.monitored)
-        .execute(&mut *tx)
-        .await?;
+        );
+
+        let mut insert = sqlx::query(&sql);
+        for ep in chunk {
+            insert = insert
+                .bind(uuid::Uuid::new_v4().to_string())
+                .bind(series_id)
+                .bind(ep.season_number)
+                .bind(ep.episode_number)
+                .bind(ep.absolute_episode_number)
+                .bind(ep.title.as_deref())
+                .bind(ep.air_date_utc.as_deref())
+                .bind(ep.runtime)
+                .bind(ep.overview.as_deref())
+                .bind(ep.monitored);
+        }
+        insert.execute(&mut *tx).await?;
     }
     tx.commit().await
 }

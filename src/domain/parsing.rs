@@ -265,8 +265,7 @@ static RE_EPISODE_ONLY: LazyLock<regex::Regex> =
 /// boundary.
 static RE_EPISODE_CONCAT: LazyLock<regex::Regex> =
     LazyLock::new(|| regex::Regex::new(r"(?i)\bE\d{1,4}(?:E\d{1,4})+\b").unwrap());
-static RE_NUMBER: LazyLock<regex::Regex> =
-    LazyLock::new(|| regex::Regex::new(r"\d+").unwrap());
+static RE_NUMBER: LazyLock<regex::Regex> = LazyLock::new(|| regex::Regex::new(r"\d+").unwrap());
 static RE_SEASON_ONLY: LazyLock<regex::Regex> =
     LazyLock::new(|| regex::Regex::new(r"(?i)\b(?:S|Season[.\s_-]*)(\d{1,2})\b").unwrap());
 static RE_ABSOLUTE_BRACKET: LazyLock<regex::Regex> =
@@ -321,19 +320,18 @@ static RE_AUDIO: LazyLock<regex::Regex> = LazyLock::new(|| {
     )
     .unwrap()
 });
-static RE_PROPER: LazyLock<regex::Regex> =
-    LazyLock::new(|| regex::Regex::new(r"(?i)\bproper\b").unwrap());
-static RE_REPACK: LazyLock<regex::Regex> =
-    LazyLock::new(|| regex::Regex::new(r"(?i)\brepack\d*\b").unwrap());
-static RE_REAL: LazyLock<regex::Regex> =
-    LazyLock::new(|| regex::Regex::new(r"(?i)\breal\b").unwrap());
-static RE_HARDCODED: LazyLock<regex::Regex> =
-    LazyLock::new(|| regex::Regex::new(r"(?i)\bhardcoded[.\s_-]?subs\b|\bhc\b").unwrap());
-static RE_REMUX_WORD: LazyLock<regex::Regex> =
-    LazyLock::new(|| regex::Regex::new(r"(?i)remux").unwrap());
-
-static RE_CODECS: LazyLock<regex::Regex> = LazyLock::new(|| {
-    regex::Regex::new(r"(?i)\b(x264|x265|h\.?264|h\.?265|hevc|avc|xvid|divx|vp9|av1)\b").unwrap()
+/// Boolean release flags, evaluated in a single RegexSet pass instead of
+/// five separate scans. Order is load-bearing: PROPER, REPACK, REAL,
+/// HARDCODED, REMUX.
+static RE_FLAG_SET: LazyLock<regex::RegexSet> = LazyLock::new(|| {
+    regex::RegexSet::new([
+        r"(?i)\bproper\b",
+        r"(?i)\brepack\d*\b",
+        r"(?i)\breal\b",
+        r"(?i)\bhardcoded[.\s_-]?subs\b|\bhc\b",
+        r"(?i)remux",
+    ])
+    .unwrap()
 });
 
 /// Parses an indexer/release title into structured facts.
@@ -342,27 +340,27 @@ static RE_CODECS: LazyLock<regex::Regex> = LazyLock::new(|| {
 /// with `kind == Unknown`.
 pub fn parse(input: &str) -> ParsedRelease {
     let mut out = ParsedRelease::default();
-    let normalized = input.replace('_', ".");
-    let lower = normalized.to_ascii_lowercase();
+    let normalized = if input.contains('_') {
+        std::borrow::Cow::Owned(input.replace('_', "."))
+    } else {
+        std::borrow::Cow::Borrowed(input)
+    };
 
     // ---- modifiers -------------------------------------------------------
-    if RE_PROPER.is_match(&normalized)
-    {
+    let flags = RE_FLAG_SET.matches(&normalized);
+    let proper = flags.matched(0);
+    if proper {
         out.proper = true;
         out.quality.modifier = QualityModifier::Proper;
     }
-    if RE_REPACK.is_match(&normalized)
-    {
+    if flags.matched(1) {
         out.repack = true;
         out.quality.modifier = QualityModifier::Repack;
     }
-    if (RE_REAL.is_match(&normalized) && RE_PROPER.is_match(&normalized))
-        || normalized.contains("REAL")
-    {
+    if (flags.matched(2) && proper) || normalized.contains("REAL") {
         out.real = true;
     }
-    if RE_HARDCODED.is_match(&lower)
-    {
+    if flags.matched(3) {
         out.hardcoded_subs = true;
     }
 
@@ -381,7 +379,7 @@ pub fn parse(input: &str) -> ParsedRelease {
         let t = m.as_str().to_ascii_lowercase();
         // REMUX must be checked before plain BluRay. "BDMux" is a remux by
         // definition even when the word "REMUX" is absent.
-        let is_remux_wording = RE_REMUX_WORD.is_match(&normalized);
+        let is_remux_wording = flags.matched(4);
         if t.contains("bdmux") || (t.contains("blu") && is_remux_wording) {
             out.quality.source = Source::BlurayRemux;
             out.quality.modifier = QualityModifier::Remux;
@@ -389,7 +387,11 @@ pub fn parse(input: &str) -> ParsedRelease {
             out.quality.source = Source::Bluray;
             out.quality.modifier = QualityModifier::BrDisk;
         } else if t.starts_with("web")
-            && (t.contains("dl") || normalized.to_ascii_lowercase().contains("web-dl"))
+            && (t.contains("dl") || {
+                // Rarely reached: only when the matched token lacks "dl".
+                let lower = normalized.to_ascii_lowercase();
+                lower.contains("web-dl")
+            })
         {
             out.quality.source = Source::Webdl;
         } else if t.contains("hdrip") {
@@ -418,15 +420,17 @@ pub fn parse(input: &str) -> ParsedRelease {
         }
     }
     for cap in RE_AUDIO.captures_iter(&normalized) {
-        let codec = cap[1].replace(['.', '_'], " ").trim().to_string();
+        let raw = &cap[1];
+        let codec = if raw.bytes().any(|b| b == b'.' || b == b'_') {
+            raw.replace(['.', '_'], " ").trim().to_string()
+        } else {
+            raw.to_string()
+        };
         let channels = cap.get(2).and_then(|c| c.as_str().parse().ok());
         let track = AudioTrack { codec, channels };
         if !out.audio.contains(&track) {
             out.audio.push(track);
         }
-    }
-    if !RE_CODECS.is_match(&normalized) {
-        // no-op; codecs are informational today
     }
 
     // ---- languages --------------------------------------------------------
@@ -437,20 +441,44 @@ pub fn parse(input: &str) -> ParsedRelease {
         }
     }
 
+    // ---- shared structural matches ----------------------------------------
+    // Each structural regex runs exactly once per parse; the results feed
+    // both the series/movie classification below and clean_title's cut
+    // point, which previously re-scanned the string for all of them.
+    let multi_span = RE_MULTI_SEASON_SPAN.find(&normalized);
+    let sxxexx = RE_SXXEXX.captures(&normalized);
+    let sxx_spaced = RE_SXX_EXX_SPACED.captures(&normalized);
+    let xyy = RES_XYY.captures(&normalized);
+    let daily = RE_DAILY_DATE.captures(&normalized);
+    let episode_first = RE_EPISODE_ONLY.find(&normalized);
+    let season_any = RE_SEASON_ONLY.captures(&normalized);
+    // First and last year token in one pass: the title cut uses the first,
+    // scene-convention year detection uses the last.
+    let mut year_first = None;
+    let mut year_last = None;
+    for m in RE_YEAR.find_iter(&normalized) {
+        if year_first.is_none() {
+            year_first = Some(m);
+        }
+        year_last = Some(m);
+    }
     // ---- edition ----------------------------------------------------------
     if let Some(caps) = RE_EDITION.captures(&normalized) {
-        let e: String = caps[1]
+        let mut e = String::with_capacity(caps[1].len());
+        for (i, w) in caps[1]
             .replace(['.', '_', '\''], " ")
             .split_whitespace()
-            .map(|w| {
-                let mut cs = w.chars();
-                match cs.next() {
-                    Some(f) => f.to_uppercase().collect::<String>() + cs.as_str().to_lowercase().as_str(),
-                    None => String::new(),
-                }
-            })
-            .collect::<Vec<_>>()
-            .join(" ");
+            .enumerate()
+        {
+            if i > 0 {
+                e.push(' ');
+            }
+            let mut cs = w.chars();
+            if let Some(f) = cs.next() {
+                e.extend(f.to_uppercase());
+                e.push_str(&cs.as_str().to_lowercase());
+            }
+        }
         let low = e.to_ascii_lowercase();
         if low.contains("extended") {
             out.extended = true;
@@ -462,7 +490,7 @@ pub fn parse(input: &str) -> ParsedRelease {
     }
 
     // ---- dates (daily) ----------------------------------------------------
-    if let Some(caps) = RE_DAILY_DATE.captures(&normalized) {
+    if let Some(caps) = &daily {
         if let Some(d) = NaiveDate::from_ymd_opt(
             caps[1].parse().unwrap_or(0),
             caps[2].parse().unwrap_or(0),
@@ -478,7 +506,7 @@ pub fn parse(input: &str) -> ParsedRelease {
 
     // Multi-season packs ("S01S02", "S03-S04") must win over the single
     // SxxExx chain, which would otherwise read "S01-S02" as season 1 episode 2.
-    if let Some(span) = RE_MULTI_SEASON_SPAN.find(&normalized) {
+    if let Some(span) = multi_span {
         series_matched = true;
         out.kind = ReleaseKind::Series;
         for caps in RE_SEASON_NUM.captures_iter(span.as_str()) {
@@ -488,7 +516,7 @@ pub fn parse(input: &str) -> ParsedRelease {
             }
         }
         out.full_season = true;
-    } else if let Some(caps) = RE_SXXEXX.captures(&normalized) {
+    } else if let Some(caps) = sxxexx.as_ref() {
         series_matched = true;
         out.kind = ReleaseKind::Series;
         let season: i64 = caps[1].parse().unwrap_or(0);
@@ -506,12 +534,12 @@ pub fn parse(input: &str) -> ParsedRelease {
                 out.episodes.push(e2);
             }
         }
-    } else if let Some(caps) = RE_SXX_EXX_SPACED.captures(&normalized) {
+    } else if let Some(caps) = sxx_spaced.as_ref() {
         series_matched = true;
         out.kind = ReleaseKind::Series;
         out.seasons.push(caps[1].parse().unwrap_or(0));
         out.episodes.push(caps[2].parse().unwrap_or(0));
-    } else if let Some(caps) = RES_XYY.captures(&normalized) {
+    } else if let Some(caps) = xyy.as_ref() {
         series_matched = true;
         out.kind = ReleaseKind::Series;
         out.seasons.push(caps[1].parse().unwrap_or(0));
@@ -596,9 +624,12 @@ pub fn parse(input: &str) -> ParsedRelease {
             }
         }
     };
-    for caps in RE_ABSOLUTE_BRACKET.captures_iter(&normalized) {
-        if let Ok(n) = caps[1].parse::<i64>() {
-            abs_push(n, &mut out, &mut series_matched);
+    // The pattern requires a literal '['; skip the scan without one.
+    if normalized.contains('[') {
+        for caps in RE_ABSOLUTE_BRACKET.captures_iter(&normalized) {
+            if let Ok(n) = caps[1].parse::<i64>() {
+                abs_push(n, &mut out, &mut series_matched);
+            }
         }
     }
     // Padded unbracketed numbers (0048) — anime convention.
@@ -610,7 +641,7 @@ pub fn parse(input: &str) -> ParsedRelease {
 
     // Season pack: "S01" or "Season 01 Complete".
     if out.episodes.is_empty() && out.seasons.is_empty() {
-        if let Some(caps) = RE_SEASON_ONLY.captures(&normalized) {
+        if let Some(caps) = season_any.as_ref() {
             if let Ok(s) = caps[1].parse::<i64>() {
                 out.kind = ReleaseKind::Series;
                 out.seasons.push(s);
@@ -624,7 +655,7 @@ pub fn parse(input: &str) -> ParsedRelease {
     // "Title - 12v2 [1080p]". Only when no season/episode structure already
     // matched, and never for year-like numbers, so "9-1-1" and movie years
     // are not misread as episodes.
-    if !series_matched {
+    if !series_matched && normalized.contains('-') {
         for caps in RE_ABSOLUTE_DASH.captures_iter(&normalized) {
             let Ok(n) = caps[1].parse::<i64>() else {
                 continue;
@@ -644,8 +675,8 @@ pub fn parse(input: &str) -> ParsedRelease {
     }
     // Scene convention: the release year is the LAST year token; earlier
     // years belong to the title ("2012.2009.1080p" is the film "2012").
-    if let Some(caps) = RE_YEAR.captures_iter(&normalized).last() {
-        let y: i32 = caps[1].parse().unwrap_or(0);
+    if let Some(m) = year_last {
+        let y: i32 = m.as_str().parse().unwrap_or(0);
         if (1900..2100).contains(&y) {
             out.year = Some(y);
         }
@@ -658,11 +689,49 @@ pub fn parse(input: &str) -> ParsedRelease {
     let without_ext = strip_extension(input);
     if let Some(caps) = RE_GROUP_TRAILING.captures(without_ext.trim_end_matches('.')) {
         out.release_group = Some(caps[1].to_string());
-    } else if let Some(caps) = RE_GROUP_BRACKET.captures(without_ext) {
-        out.release_group = Some(caps[1].to_string());
+    } else if without_ext.contains('[') {
+        if let Some(caps) = RE_GROUP_BRACKET.captures(without_ext) {
+            out.release_group = Some(caps[1].to_string());
+        }
     }
 
-    out.title = clean_title(strip_extension(&normalized), &out.absolute_episodes);
+    // ---- title ------------------------------------------------------------
+    // Cut point: the earliest structural marker among the matches computed
+    // above (they cannot overlap the file extension, which holds no digits),
+    // else the whole extension-stripped name.
+    let stripped = strip_extension(&normalized);
+    let mut cut = stripped.len();
+    if let Some(c) = multi_span.as_ref() {
+        cut = cut.min(c.start());
+    }
+    if let Some(c) = sxxexx.as_ref() {
+        cut = cut.min(c.get(0).unwrap().start());
+    }
+    if let Some(c) = sxx_spaced.as_ref() {
+        cut = cut.min(c.get(0).unwrap().start());
+    }
+    if let Some(c) = xyy.as_ref() {
+        cut = cut.min(c.get(0).unwrap().start());
+    }
+    if let Some(c) = daily.as_ref() {
+        cut = cut.min(c.get(0).unwrap().start());
+    }
+    if let Some(m) = episode_first.as_ref() {
+        cut = cut.min(m.start());
+    }
+    if let Some(c) = season_any.as_ref() {
+        cut = cut.min(c.get(0).unwrap().start());
+    }
+    // Movie: cut after a standalone year when it is followed by more tokens.
+    if let Some(m) = year_first {
+        let after = &normalized[m.end()..];
+        let starts_new_token = after.starts_with('.') || after.starts_with(' ') || after.is_empty();
+        if starts_new_token && m.start() > 0 {
+            cut = cut.min(m.end());
+        }
+    }
+
+    out.title = clean_title(stripped, &out.absolute_episodes, cut);
 
     out
 }
@@ -671,54 +740,40 @@ fn strip_extension(name: &str) -> &str {
     const EXTS: [&str; 8] = [
         ".mkv", ".mp4", ".avi", ".ts", ".m2ts", ".iso", ".nzb", ".torrent",
     ];
-    let lower = name.to_ascii_lowercase();
-    let mut cut = name.len();
+    let bytes = name.as_bytes();
+    let mut cut = bytes.len();
     for e in EXTS {
-        if lower.ends_with(e) {
-            cut = cut.min(name.len() - e.len());
+        let eb = e.as_bytes();
+        if bytes.len() >= eb.len()
+            && bytes[bytes.len() - eb.len()..]
+                .iter()
+                .zip(eb)
+                .all(|(a, b)| a.eq_ignore_ascii_case(b))
+        {
+            cut = cut.min(bytes.len() - eb.len());
         }
     }
     &name[..cut]
 }
 
 /// Strips technical tokens from the front-half of the name to recover the
-/// human title: everything before the first episode/date marker, minus
-/// resolution/source/audio tokens and separators.
-fn clean_title(normalized: &str, absolute_episodes: &[i64]) -> String {
-    // Cut at the first structural marker.
-    let mut cut = normalized.len();
-    for re in [&*RE_SXXEXX, &*RES_XYY, &*RE_DAILY_DATE] {
-        if let Some(m) = re.find(normalized) {
-            cut = cut.min(m.start());
-        }
-    }
-    if let Some(m) = RE_SXX_EXX_SPACED.find(normalized) {
-        cut = cut.min(m.start());
-    }
-    if let Some(m) = RE_MULTI_SEASON_SPAN.find(normalized) {
-        cut = cut.min(m.start());
-    }
-    if let Some(m) = RE_SEASON_ONLY.find(normalized) {
-        cut = cut.min(m.start());
-    }
-    if let Some(m) = RE_EPISODE_ONLY.find(normalized) {
-        cut = cut.min(m.start());
-    }
-    // Movie: cut after a standalone year when it is followed by more tokens.
-    if let Some(m) = RE_YEAR.find(normalized) {
-        let after = &normalized[m.end()..];
-        let starts_new_token = after.starts_with('.') || after.starts_with(' ') || after.is_empty();
-        if starts_new_token && m.start() > 0 {
-            cut = cut.min(m.end());
-        }
-    }
+/// human title: everything before the `cut` offset (the first episode/date
+/// marker, computed once by `parse`), minus resolution/source/audio tokens
+/// and separators.
+fn clean_title(normalized: &str, absolute_episodes: &[i64], cut: usize) -> String {
     // Fansub bracket tags ("[Group]", "[1080p][HEVC]") are technical; strip
-    // whole bracket sequences before tokenizing.
-    let head = RE_BRACKET_TAG.replace_all(&normalized[..cut], "").into_owned();
+    // whole bracket sequences before tokenizing. The pattern requires '[',
+    // so skip the regex entirely when the head has none.
+    let head_src = &normalized[..cut];
+    let head = if head_src.contains('[') {
+        RE_BRACKET_TAG.replace_all(head_src, "")
+    } else {
+        std::borrow::Cow::Borrowed(head_src)
+    };
     let mut tokens: Vec<&str> = Vec::new();
     // Last year-like token dropped from the head. If the head holds nothing
     // else, that year IS the title ("1983.S01E01", the movie "2012").
-    let mut dropped_year: Option<String> = None;
+    let mut dropped_year: Option<&str> = None;
     // dots, spaces, and underscores separate tokens.
     'outer: for tok in head.split(['.', ' ', '_']) {
         let t = tok.trim();
@@ -729,40 +784,53 @@ fn clean_title(normalized: &str, absolute_episodes: &[i64]) -> String {
         if t.starts_with('[') && t.ends_with(']') {
             continue;
         }
-        let lt = t.to_lowercase();
-        if lt
-            .parse::<i32>()
-            .map(|y| (1900..2100).contains(&y))
-            .unwrap_or(false)
-        {
-            dropped_year = Some(t.to_string());
-            continue;
+        // Lowercase once for the banned-token table; a stack buffer avoids a
+        // per-token allocation for the (overwhelmingly common) ASCII case.
+        let mut buf = [0u8; 64];
+        let lt_owned;
+        let lt: &str = if t.len() <= buf.len() && t.is_ascii() {
+            for (i, b) in t.bytes().enumerate() {
+                buf[i] = b.to_ascii_lowercase();
+            }
+            std::str::from_utf8(&buf[..t.len()]).expect("ascii is valid utf-8")
+        } else {
+            lt_owned = t.to_lowercase();
+            &lt_owned
+        };
+        // Year-like token: integer parsing is case-insensitive, so no
+        // lowercase copy is needed.
+        if let Ok(y) = t.parse::<i32>() {
+            if (1900..2100).contains(&y) {
+                dropped_year = Some(t);
+                continue;
+            }
         }
         // Anime absolute numbering embedded before the episode marker,
         // including versioned fansub forms ("12v2").
-        let abs_num = lt
-            .parse::<i64>()
-            .ok()
-            .or_else(|| RE_VERSIONED_NUM.captures(t).and_then(|c| c[1].parse::<i64>().ok()));
-        if abs_num.map(|n| absolute_episodes.contains(&n)).unwrap_or(false) {
+        let abs_num = t.parse::<i64>().ok().or_else(|| {
+            RE_VERSIONED_NUM
+                .captures(t)
+                .and_then(|c| c[1].parse::<i64>().ok())
+        });
+        if abs_num.is_some_and(|n| absolute_episodes.contains(&n)) {
             continue;
         }
         if t.len() > 1 && t.starts_with('0') && t[1..].bytes().all(|b| b.is_ascii_digit()) {
             continue;
         }
-        for banned in [
-            "2160p", "1080p", "720p", "576p", "480p", "bluray", "blu-ray", "bdmux", "br-disk",
-            "web-dl", "webdl", "webrip", "web", "hdtv", "pdtv", "dsr", "dvdrip", "dvd", "sdtv",
-            "cam", "telesync", "proper", "repack", "real", "remux", "hdr", "dv", "dolby", "truehd",
-            "atmos", "dts-hd", "dts", "ddp", "dd", "eac3", "ac3", "aac", "flac", "mp3", "opus",
-            "lpcm", "pcm", "x264", "x265", "h264", "h.264", "h265", "h.265", "hevc", "avc", "xvid",
-            "divx", "vp9", "av1", "multi", "dual", "dubbed", "hc",
-        ] {
-            if lt == banned {
-                continue 'outer;
-            }
+        // Banned technical tokens (exact, case-insensitive match).
+        match lt {
+            "2160p" | "1080p" | "720p" | "576p" | "480p" | "bluray" | "blu-ray" | "bdmux"
+            | "br-disk" | "web-dl" | "webdl" | "webrip" | "web" | "hdtv" | "pdtv" | "dsr"
+            | "dvdrip" | "dvd" | "sdtv" | "cam" | "telesync" | "proper" | "repack" | "real"
+            | "remux" | "hdr" | "dv" | "dolby" | "truehd" | "atmos" | "dts-hd" | "dts" | "ddp"
+            | "dd" | "eac3" | "ac3" | "aac" | "flac" | "mp3" | "opus" | "lpcm" | "pcm" | "x264"
+            | "x265" | "h264" | "h.264" | "h265" | "h.265" | "hevc" | "avc" | "xvid" | "divx"
+            | "vp9" | "av1" | "multi" | "dual" | "dubbed" | "hc" => continue 'outer,
+            _ => {}
         }
-        if RE_LANGUAGES.is_match(t) {
+        // Every language alternative is at least 3 chars long.
+        if t.len() >= 3 && RE_LANGUAGES.is_match(t) {
             continue;
         }
         tokens.push(t);
@@ -772,7 +840,9 @@ fn clean_title(normalized: &str, absolute_episodes: &[i64]) -> String {
             return y.to_string();
         }
     }
-    tokens.join(" ").trim().to_string()
+    // Tokens are trimmed and non-empty, so the join has no stray edges and
+    // no post-trim copy is needed.
+    tokens.join(" ")
 }
 
 fn canonical_language(raw: &str) -> String {

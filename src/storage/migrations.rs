@@ -51,6 +51,14 @@ const MIGRATIONS: &[(&str, &str)] = &[
         "0011_arr_domain.sql",
         include_str!("migrations/0011_arr_domain.sql"),
     ),
+    (
+        "0012_storage_covering_indexes.sql",
+        include_str!("migrations/0012_storage_covering_indexes.sql"),
+    ),
+    (
+        "0012_totp_hardening.sql",
+        include_str!("migrations/0012_totp_hardening.sql"),
+    ),
 ];
 
 #[derive(Debug, thiserror::Error)]

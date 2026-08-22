@@ -12,6 +12,7 @@ use std::sync::Arc;
 
 use serde::Deserialize;
 
+use crate::adapters::indexers::newznab::redact_apikey;
 use crate::adapters::{Downloader, Indexer};
 use crate::pipeline::decisioning::{self, Policies};
 use crate::state::AppState;
@@ -147,7 +148,7 @@ pub async fn load_indexers(
                             "runId": run_id,
                             "targetId": target_id,
                             "indexer": ix.name,
-                            "error": format!("decrypt_failed: {e}")
+                            "error": redact_apikey(&format!("decrypt_failed: {e}"))
                         }),
                     );
                     continue;
@@ -175,7 +176,7 @@ pub async fn load_indexers(
                                 "runId": run_id,
                                 "targetId": target_id,
                                 "indexer": ix.name,
-                                "error": format!("decrypt_failed: {e}")
+                                "error": redact_apikey(&format!("decrypt_failed: {e}"))
                             }),
                         );
                         continue;
@@ -195,7 +196,7 @@ pub async fn load_indexers(
                             "runId": run_id,
                             "targetId": target_id,
                             "indexer": ix.name,
-                            "error": format!("client_create_failed: {e}")
+                            "error": redact_apikey(&format!("client_create_failed: {e}"))
                         }),
                     );
                 }

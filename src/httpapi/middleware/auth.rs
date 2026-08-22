@@ -30,7 +30,6 @@ use crate::security::ratelimit::RateLimiter;
 use crate::state::AppState;
 use crate::storage::sessions::Session;
 use crate::storage::users::User;
-use crate::timeutil;
 
 /// Session context attached to every request whose cookie resolved to a live
 /// session. Handlers should prefer the [`AuthenticatedUser`] extractor.
@@ -149,6 +148,14 @@ pub fn client_ip(headers: &HeaderMap) -> String {
 /// unknown, expired or revoked sessions leave the request anonymous — lookup
 /// failures must never fail closed here, matching the original behaviour.
 ///
+/// Resolution goes through
+/// [`crate::storage::sessions::lookup_active`], a short-TTL process-local
+/// cache: a steady-state authenticated request performs no session/user
+/// reads and at most one throttled `last_seen_at` write per minute. Logout
+/// stays immediate because [`crate::storage::sessions::revoke`] evicts the
+/// cached sid synchronously; any other behind-the-back change (direct DB
+/// edit) surfaces within the 5 s TTL.
+///
 /// Attach with `axum::middleware::from_fn_with_state(state.clone(), load_session)`.
 pub async fn load_session(State(state): State<AppState>, mut req: Request, next: Next) -> Response {
     let Some(sid) = cookie_value(req.headers(), &state.config.session_cookie_name)
@@ -158,25 +165,10 @@ pub async fn load_session(State(state): State<AppState>, mut req: Request, next:
         return next.run(req).await;
     };
 
-    // Unknown sessions are anonymous.
-    let Ok(Some(session)) = crate::storage::sessions::get(&state.db, &sid).await else {
+    let Some((session, user)) = crate::storage::sessions::lookup_active(&state.db, &sid).await
+    else {
         return next.run(req).await;
     };
-    // Expired or revoked sessions are anonymous too; an unparseable expiry
-    // counts as expired (fail closed on the timestamp only).
-    let expired = timeutil::parse(&session.expires_at)
-        .map(|exp| chrono::Utc::now() > exp)
-        .unwrap_or(true);
-    if session.revoked_at.is_some() || expired {
-        return next.run(req).await;
-    }
-
-    let Ok(user) = crate::storage::users::get_by_id(&state.db, &session.user_id).await else {
-        return next.run(req).await;
-    };
-
-    // Sliding "last seen" bookkeeping; failure must not break the request.
-    let _ = crate::storage::sessions::touch(&state.db, &session.id).await;
 
     req.extensions_mut().insert(AuthContext { user, session });
     next.run(req).await
@@ -617,5 +609,96 @@ mod tests {
             dummy_password_hash()
         )
         .unwrap());
+    }
+
+    /// GET /api/v1/auth/me behind the real global stack (load_session only;
+    /// csrf is irrelevant for GETs).
+    fn me_router(state: AppState) -> Router {
+        Router::new()
+            .nest("/api/v1", crate::httpapi::routes::auth::router())
+            .layer(axum::middleware::from_fn_with_state(
+                state.clone(),
+                load_session,
+            ))
+            .with_state(state)
+    }
+
+    fn get_req(uri: &str, sid: &str) -> Request {
+        Request::builder()
+            .method("GET")
+            .uri(uri)
+            .header("cookie", format!("rivet_session={sid}"))
+            .body(Body::empty())
+            .unwrap()
+    }
+
+    #[tokio::test]
+    async fn logout_invalidates_cached_session_immediately() {
+        let (_dir, state) = app_state().await;
+        let sid = seed_user_with_session(&state, "cache@x.test", "viewer").await;
+        let app = me_router(state.clone());
+
+        // Warm the DB path, then serve once more from the cache.
+        for _ in 0..2 {
+            let resp = app
+                .clone()
+                .oneshot(get_req("/api/v1/auth/me", &sid))
+                .await
+                .unwrap();
+            assert_eq!(resp.status(), StatusCode::OK);
+        }
+
+        // Logout goes through sessions::revoke, which must evict the cached
+        // entry synchronously — no TTL grace period.
+        let token = csrf_of(&state, &sid).await;
+        let resp = app
+            .clone()
+            .oneshot(authed_req("/api/v1/auth/logout", &sid, &token))
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::NO_CONTENT);
+
+        let resp = app.oneshot(get_req("/api/v1/auth/me", &sid)).await.unwrap();
+        assert_eq!(
+            resp.status(),
+            StatusCode::UNAUTHORIZED,
+            "revoked session must be anonymous on the very next request"
+        );
+    }
+
+    #[tokio::test]
+    async fn touch_is_throttled_to_once_per_minute() {
+        let (_dir, state) = app_state().await;
+        let sid = seed_user_with_session(&state, "touch@x.test", "viewer").await;
+        let app = me_router(state.clone());
+
+        // First request writes last_seen_at (seed leaves it NULL).
+        let resp = app
+            .clone()
+            .oneshot(get_req("/api/v1/auth/me", &sid))
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let first = crate::storage::sessions::get(&state.db, &sid)
+            .await
+            .unwrap()
+            .unwrap()
+            .last_seen_at
+            .expect("first request must record last_seen_at");
+
+        // Second request inside TOUCH_MIN_INTERVAL must not write again.
+        let resp = app.oneshot(get_req("/api/v1/auth/me", &sid)).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+        let second = crate::storage::sessions::get(&state.db, &sid)
+            .await
+            .unwrap()
+            .unwrap()
+            .last_seen_at
+            .expect("value must persist");
+        assert_eq!(
+            first, second,
+            "last_seen_at must not be rewritten within 60s"
+        );
     }
 }

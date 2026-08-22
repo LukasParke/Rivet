@@ -5,9 +5,9 @@
 //! all connections regardless of role, leaking the admin audit trail and
 //! filesystem paths to viewers. Here each connection carries the user's role;
 //! channel clearance is enforced at delivery time:
-//!
 //! - `activity`, `jobs`, `health` — any authenticated user
 //! - `downloads`, `imports`      — operator and above (they expose paths)
+//! - `setup`                     — operator and above (indexer URLs, probes)
 //! - `audit`                     — admin only
 //!
 //! Subscription semantics are explicit: unsubscribing from a channel removes
@@ -34,19 +34,61 @@ impl ChannelClearance {
     pub fn for_channel(channel: &str) -> Self {
         match channel {
             "audit" => Self::Admin,
-            "downloads" | "imports" => Self::Operator,
+            "downloads" | "imports" | "setup" => Self::Operator,
             _ => Self::Any,
         }
     }
 }
 
+/// Bitflag per canonical channel; publish eligibility is a single AND.
+const BIT_ACTIVITY: u64 = 1 << 0;
+const BIT_JOBS: u64 = 1 << 1;
+const BIT_HEALTH: u64 = 1 << 2;
+const BIT_DOWNLOADS: u64 = 1 << 3;
+const BIT_IMPORTS: u64 = 1 << 4;
+const BIT_AUDIT: u64 = 1 << 5;
+const BIT_SETUP: u64 = 1 << 6;
+
+fn channel_bit(channel: &str) -> u64 {
+    match channel {
+        "activity" => BIT_ACTIVITY,
+        "jobs" => BIT_JOBS,
+        "health" => BIT_HEALTH,
+        "downloads" => BIT_DOWNLOADS,
+        "imports" => BIT_IMPORTS,
+        "audit" => BIT_AUDIT,
+        "setup" => BIT_SETUP,
+        // Unknown channels never match a published event (channels_for_type
+        // only emits canonical names); they are still tracked by name for
+        // subscribed_channels().
+        _ => 0,
+    }
+}
+
 struct Connection {
     id: u64,
+    /// Cached union of channel_bit() over `subscriptions`. A set bit implies
+    /// the role clearance was validated when the subscription was added (roles
+    /// are immutable after add), so publish needs no per-event re-check.
+    subs_mask: u64,
     role: Role,
     /// Explicitly subscribed channels. Starts with the default set; empty set
     /// means receive nothing (explicit opt-out is honored).
     subscriptions: HashSet<String>,
     tx: mpsc::Sender<String>,
+}
+
+impl Connection {
+    fn new(id: u64, role: Role, subscriptions: HashSet<String>, tx: mpsc::Sender<String>) -> Self {
+        let subs_mask = subscriptions.iter().map(|s| channel_bit(s)).sum();
+        Self {
+            id,
+            subs_mask,
+            role,
+            subscriptions,
+            tx,
+        }
+    }
 }
 
 #[derive(Default)]
@@ -68,12 +110,10 @@ impl Hub {
         let (tx, rx) = mpsc::channel(128);
         let subscriptions: HashSet<String> =
             DEFAULT_CHANNELS.iter().map(|s| s.to_string()).collect();
-        self.conns.lock().expect("hub mutex").push(Connection {
-            id,
-            role,
-            subscriptions,
-            tx,
-        });
+        self.conns
+            .lock()
+            .expect("hub mutex")
+            .push(Connection::new(id, role, subscriptions, tx));
         (id, rx)
     }
 
@@ -87,6 +127,7 @@ impl Hub {
         if let Some(c) = conns.iter_mut().find(|c| c.id == id) {
             if ChannelClearance::for_channel(channel) <= clearance_of(c.role) {
                 c.subscriptions.insert(channel.to_string());
+                c.subs_mask |= channel_bit(channel);
                 return true;
             }
         }
@@ -102,6 +143,7 @@ impl Hub {
             .find(|c| c.id == id)
         {
             c.subscriptions.remove(channel);
+            c.subs_mask = c.subscriptions.iter().map(|s| channel_bit(s)).sum();
         }
     }
 
@@ -123,18 +165,27 @@ impl Hub {
     /// of the event's channels AND which is subscribed to one of them.
     pub fn publish(&self, event_type: &str, payload: serde_json::Value) {
         let envelope = super::Envelope::new(event_type, payload).marshal();
-        let channels = channels_for_type(event_type);
-        let mut conns = self.conns.lock().expect("hub mutex");
-        conns.retain(|c| !c.tx.is_closed());
-        for c in conns.iter_mut() {
-            let clearance = clearance_of(c.role);
-            let eligible = channels.iter().any(|ch| {
-                c.subscriptions.contains(*ch) && ChannelClearance::for_channel(ch) <= clearance
-            });
-            if eligible {
-                // Bounded send: drop on backpressure rather than blocking publishers.
-                let _ = c.tx.try_send(envelope.clone());
+        let mut ev_mask = 0u64;
+        for ch in channels_for_type(event_type) {
+            ev_mask |= channel_bit(ch);
+        }
+        // Collect eligible senders under the lock, then release it before
+        // touching the bounded channels so publishers don't serialize on the
+        // registry while consumers drain.
+        let targets: Vec<mpsc::Sender<String>> = {
+            let mut conns = self.conns.lock().expect("hub mutex");
+            conns.retain(|c| !c.tx.is_closed());
+            let mut t = Vec::with_capacity(conns.len());
+            for c in conns.iter() {
+                if c.subs_mask & ev_mask != 0 {
+                    t.push(c.tx.clone());
+                }
             }
+            t
+        };
+        for tx in &targets {
+            // Bounded send: drop on backpressure rather than blocking publishers.
+            let _ = tx.try_send(envelope.clone());
         }
     }
 
@@ -200,6 +251,38 @@ mod tests {
         );
         assert!(recv(&mut op_rx).contains("/data/library/x.mkv"));
         assert!(v_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn setup_events_reach_operators_not_viewers() {
+        let hub = Arc::new(Hub::new());
+        let (op_id, mut op_rx) = hub.add(Role::Operator);
+        let (v_id, mut v_rx) = hub.add(Role::Viewer);
+        assert!(hub.subscribe(op_id, "setup"));
+        assert!(
+            !hub.subscribe(v_id, "setup"),
+            "viewer must not be able to subscribe to setup"
+        );
+
+        // setup.*/test.* events ride ONLY the operator-cleared setup channel.
+        hub.publish(
+            "setup.indexer.test.started",
+            serde_json::json!({"indexerName": "ix", "indexerUrl": "http://ix:9696"}),
+        );
+        assert!(recv(&mut op_rx).contains("setup.indexer.test.started"));
+        assert!(
+            v_rx.try_recv().is_err(),
+            "viewer must not receive setup events"
+        );
+
+        // The mapping change must hold end to end: no activity fallback.
+        hub.unsubscribe(op_id, "setup");
+        hub.subscribe(v_id, "activity");
+        hub.publish("test.search.started", serde_json::json!({"runId": "r"}));
+        assert!(
+            v_rx.try_recv().is_err(),
+            "test.* events must not reach viewers via activity"
+        );
     }
 
     #[tokio::test]

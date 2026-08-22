@@ -11,6 +11,7 @@
 //! - Continuation enqueues propagate failures; any failure marks the run
 //!   failed instead of leaving it running/completed.
 
+use crate::adapters::indexers::newznab::redact_apikey;
 use crate::adapters::SearchQuery;
 use crate::jobs::handlers::{
     blacklist_set, load_indexers, load_policies, load_target_query, publish,
@@ -46,7 +47,7 @@ pub async fn handle(state: &AppState, job: &Job) -> Result<(), String> {
             publish(
                 state,
                 "search.run.failed",
-                serde_json::json!({"runId": payload.run_id, "targetId": payload.target_id, "error": e}),
+                serde_json::json!({"runId": payload.run_id, "targetId": payload.target_id, "error": redact_apikey(&e)}),
             );
             Err(e)
         }
@@ -115,7 +116,7 @@ async fn run_inner(state: &AppState, run_id: &str, target_id: &str) -> Result<()
                         "runId": run_id,
                         "targetId": target_id,
                         "indexer": ix.name(),
-                        "error": e.to_string()
+                        "error": redact_apikey(&e.to_string())
                     }),
                 );
                 continue;
@@ -310,6 +311,65 @@ mod tests {
         .execute(&state.db)
         .await
         .unwrap();
+    }
+
+    /// A search failure whose error text embeds the full request URL (reqwest
+    /// errors do) must be published with the indexer API key REDACTED, never
+    /// in plaintext.
+    #[tokio::test]
+    async fn indexer_error_events_redact_apikey() {
+        let (_dir, mut state) = testutil::test_state().await;
+        // Allow loopback so the adapter reaches the dead endpoint instead of
+        // failing SSRF validation before a URL-bearing error exists.
+        state.policy = crate::security::OutboundPolicy::dev();
+
+        // Capture published events as an operator on the activity channel.
+        let (sub_id, mut rx) = state.hub.add(crate::state::Role::Operator);
+        assert!(state.hub.subscribe(sub_id, "activity"));
+
+        // Port with nothing listening: reqwest connect error embeds the FULL
+        // request URL, including ?apikey=SECRET.
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        drop(listener);
+
+        let key_enc = state.secret_box.encrypt_to_string(b"SECRET").unwrap();
+        let indexers = serde_json::json!({
+            "torznab": [],
+            "newznab": [{"name": "ix", "url": format!("http://{addr}"), "apiKeyEnc": key_enc}],
+        });
+        crate::storage::settings::upsert(&state.db, "setup.indexers", &indexers.to_string())
+            .await
+            .unwrap();
+
+        seed_target(&state, "t1", "query").await;
+        let run = domain::create_search_run(&state.db, "t1").await.unwrap();
+        let job = jobs::enqueue(
+            &state.db,
+            "search_run",
+            Some(&SearchRunPayload {
+                run_id: run.id.clone(),
+                target_id: "t1".into(),
+            }),
+            None,
+        )
+        .await
+        .unwrap();
+        handle(&state, &job).await.unwrap();
+
+        let events: Vec<String> = std::iter::from_fn(|| rx.try_recv().ok()).collect();
+        let err_event = events
+            .iter()
+            .find(|e| e.contains("search.indexer.error"))
+            .expect("search.indexer.error should be published");
+        assert!(
+            err_event.contains("apikey=REDACTED"),
+            "api key must be redacted: {err_event}"
+        );
+        assert!(
+            !err_event.contains("SECRET"),
+            "plaintext api key leaked: {err_event}"
+        );
     }
 
     #[tokio::test]

@@ -34,9 +34,11 @@ fn bench_parse(c: &mut Criterion) {
         })
     });
     group.bench_function("single_hard_title", |b| {
-        b.iter(|| black_box(parse(black_box(
-            "Movie.2019.2160p.UHD.BluRay.Remux.HDR.HEVC.TrueHD.7.1.Atmos-GROUP",
-        ))))
+        b.iter(|| {
+            black_box(parse(black_box(
+                "Movie.2019.2160p.UHD.BluRay.Remux.HDR.HEVC.TrueHD.7.1.Atmos-GROUP",
+            )))
+        })
     });
     group.finish();
 }
@@ -60,7 +62,11 @@ fn sample_formats() -> Vec<CustomFormat> {
     let mk = |name: &str, kind: FormatConditionKind, value: &str, score: i64| CustomFormat {
         name: name.into(),
         score,
-        conditions: vec![FormatCondition { kind, value: value.into(), negate: false }],
+        conditions: vec![FormatCondition {
+            kind,
+            value: value.into(),
+            negate: false,
+        }],
         enabled: true,
     };
     vec![
@@ -99,12 +105,14 @@ fn bench_naming(c: &mut Criterion) {
         air_date: None,
     };
     c.bench_function("render_series_template", |b| {
-        b.iter(|| black_box(rivet::domain::naming::render_series(
-            black_box("{Title} - S{Season:00}E{Episode:00} - {Quality Full}"),
-            "{Title} - S{Season:00}E{Episode}",
-            black_box(&ctx),
-            true,
-        )))
+        b.iter(|| {
+            black_box(rivet::domain::naming::render_series(
+                black_box("{Title} - S{Season:00}E{Episode:00} - {Quality Full}"),
+                "{Title} - S{Season:00}E{Episode}",
+                black_box(&ctx),
+                true,
+            ))
+        })
     });
 }
 

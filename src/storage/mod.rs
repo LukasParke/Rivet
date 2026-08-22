@@ -55,6 +55,14 @@ pub async fn open(database_url: &str) -> Result<SqlitePool, StorageError> {
         .filename(path)
         .create_if_missing(true);
 
+    // Durability decision: WAL journal + `synchronous = NORMAL`. Under WAL,
+    // NORMAL fsyncs only at checkpoints, not per commit — queue/series write
+    // throughput (see benches/storage_benches.rs) is dominated by per-commit
+    // sync cost, and FULL would pay an fsync on every enqueue/claim for
+    // protection only against OS crash or power loss (process crashes are
+    // already safe: WAL frames are written, just not synced). OFF was
+    // rejected: a checkpoint failure could corrupt the database. NORMAL
+    // matches SQLite's recommended setting for WAL-mode applications.
     opts = opts
         .foreign_keys(true)
         .journal_mode(SqliteJournalMode::Wal)

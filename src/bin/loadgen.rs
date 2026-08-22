@@ -95,7 +95,8 @@ async fn main() {
         let req = b.body(Body::from(body.unwrap_or_default())).unwrap();
         app.oneshot(req).await.unwrap()
     }
-    let res = seed(app.clone(),
+    let res = seed(
+        app.clone(),
         "POST",
         "/api/v1/setup/admin".into(),
         vec![("content-type", "application/json".into())],
@@ -103,7 +104,8 @@ async fn main() {
     )
     .await;
     assert_eq!(res.status(), 201);
-    let res = seed(app.clone(),
+    let res = seed(
+        app.clone(),
         "POST",
         "/api/v1/auth/login".into(),
         vec![("content-type", "application/json".into())],
@@ -116,15 +118,17 @@ async fn main() {
         .and_then(|v| v.to_str().ok())
         .unwrap_or_default()
         .to_string();
-    let cookie = set_cookie
-        .split(';')
-        .next()
-        .unwrap_or_default()
-        .to_string();
-    let res = seed(app.clone(), "GET", "/api/v1/auth/csrf".into(), vec![("cookie", cookie.clone())], None).await;
+    let cookie = set_cookie.split(';').next().unwrap_or_default().to_string();
+    let res = seed(
+        app.clone(),
+        "GET",
+        "/api/v1/auth/csrf".into(),
+        vec![("cookie", cookie.clone())],
+        None,
+    )
+    .await;
     let csrf_bytes = axum::body::to_bytes(res.into_body(), 8192).await.unwrap();
-    let csrf: String = serde_json::from_slice::<serde_json::Value>(&csrf_bytes)
-        .unwrap()["token"]
+    let csrf: String = serde_json::from_slice::<serde_json::Value>(&csrf_bytes).unwrap()["token"]
         .as_str()
         .unwrap()
         .to_string();
@@ -143,7 +147,8 @@ async fn main() {
     )
     .await;
     assert_eq!(res.status(), 200);
-    let res = seed(app.clone(),
+    let res = seed(
+        app.clone(),
         "POST",
         "/api/v1/setup/finish".into(),
         vec![("cookie", cookie.clone()), ("x-csrf-token", csrf.clone())],
@@ -203,7 +208,10 @@ async fn main() {
         ("GET /api/v1/series", "/api/v1/series".into()),
         ("GET /api/v1/acquisitions", "/api/v1/acquisitions".into()),
         ("GET /api/v1/calendar", "/api/v1/calendar".into()),
-        ("GET /api/v1/wanted/missing", "/api/v1/wanted/missing?pageSize=50".into()),
+        (
+            "GET /api/v1/wanted/missing",
+            "/api/v1/wanted/missing?pageSize=50".into(),
+        ),
         ("GET /api/v1/history", "/api/v1/history?pageSize=50".into()),
     ];
 
@@ -260,7 +268,8 @@ async fn main() {
         }
         let total_ms = duration_secs as f64;
         let rps = n as f64 / total_ms;
-        let pct = |p: f64| latencies[((n as f64) * p).min((n - 1) as f64) as usize].0 as f64 / 1000.0;
+        let pct =
+            |p: f64| latencies[((n as f64) * p).min((n - 1) as f64) as usize].0 as f64 / 1000.0;
         let ok = latencies.iter().filter(|(_, s)| *s == 200).count();
         println!(
             "{label:<28} {n:>10} {rps:>10.0} {:>10.2} {:>10.2} {:>10.2}   ({}% 200)",

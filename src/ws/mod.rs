@@ -47,8 +47,10 @@ pub struct ClientMessage {
 /// Maps an event type to the channels it belongs to.
 ///
 /// Privileged classes deliberately do NOT ride `activity`: audit events are
-/// admin-only, and download/import events carry filesystem paths visible only
-/// to operators. The hub enforces role clearance per channel at delivery.
+/// admin-only, download/import events carry filesystem paths visible only
+/// to operators, and setup/test events carry indexer URLs so they get their
+/// own operator-cleared channel. The hub enforces role clearance per channel
+/// at delivery.
 pub fn channels_for_type(event_type: &str) -> &'static [&'static str] {
     let prefix = event_type.split('.').next().unwrap_or(event_type);
     match prefix {
@@ -57,7 +59,9 @@ pub fn channels_for_type(event_type: &str) -> &'static [&'static str] {
         "health" => &["activity", "health"],
         "verify" | "import" => &["imports"],
         "download" => &["downloads"],
-        "setup" | "test" => &["activity"],
+        // Setup/test events carry indexer URLs and probe details; they ride
+        // their own operator-cleared channel instead of `activity`.
+        "setup" | "test" => &["setup"],
         _ => &["activity"],
     }
 }
@@ -90,9 +94,32 @@ mod tests {
             &["activity", "health"]
         );
         assert_eq!(channels_for_type("verify.completed"), &["imports"]);
-        assert_eq!(channels_for_type("import.completed"), &["imports"]);
+        assert_eq!(channels_for_type("setup.paths.saved"), &["setup"]);
         assert_eq!(channels_for_type("download.progress"), &["downloads"]);
-        assert_eq!(channels_for_type("setup.paths.saved"), &["activity"]);
+    }
+
+    #[test]
+    fn setup_and_test_events_do_not_ride_activity() {
+        // Indexer URLs and probe details must not reach viewer-readable
+        // channels; setup/test events map ONLY to the operator-cleared
+        // "setup" channel.
+        for event in [
+            "setup.indexer.test.started",
+            "setup.clients.validation.progress",
+            "test.target.creating",
+            "test.search.started",
+            "test.acquisition.error",
+        ] {
+            assert_eq!(
+                channels_for_type(event),
+                &["setup"],
+                "{event} must ride only the setup channel"
+            );
+            assert!(
+                !channels_for_type(event).contains(&"activity"),
+                "{event} must not ride activity"
+            );
+        }
     }
 
     #[test]

@@ -63,6 +63,19 @@ fn http_date(t: chrono::DateTime<chrono::Utc>) -> String {
     t.format("%a, %d %b %Y %H:%M:%S GMT").to_string()
 }
 
+/// `Secure` attribute suffix for the session cookie, driven by
+/// [`crate::config::Config::env`]: every environment except `dev` emits
+/// `; Secure`, so browsers never leak the session over plaintext HTTP. Dev
+/// omits it so plain-HTTP localhost flows keep working. Non-dev deployments
+/// therefore REQUIRE TLS termination (HTTPS) in front of Rivet.
+fn secure_suffix(env: &str) -> &'static str {
+    if env.eq_ignore_ascii_case("dev") {
+        ""
+    } else {
+        "; Secure"
+    }
+}
+
 async fn verify_in_blocking(pw: String, encoded: &str) -> bool {
     let encoded = encoded.to_string();
     tokio::task::spawn_blocking(move || password::verify_password(&pw, &encoded))
@@ -124,8 +137,23 @@ async fn login(
         let Ok(secret_b32) = std::str::from_utf8(&secret) else {
             return coded_error(StatusCode::UNAUTHORIZED, "invalid_code");
         };
-        match crate::security::totp::verify(secret_b32, code, 1) {
-            Ok(true) => {}
+        match crate::security::totp::verify(secret_b32, code, 6, 1) {
+            Ok(Some(step)) => {
+                match crate::storage::users::record_totp_step(
+                    &state.db,
+                    &user.id,
+                    step as i64,
+                )
+                .await
+                {
+                    Ok(true) => {}
+                    // Replay: this timestep was already accepted once.
+                    Ok(false) => {
+                        return coded_error(StatusCode::UNAUTHORIZED, "invalid_code")
+                    }
+                    Err(e) => return AppError::Internal(e.to_string()).into_response(),
+                }
+            }
             _ => return coded_error(StatusCode::UNAUTHORIZED, "invalid_code"),
         }
     }
@@ -169,7 +197,9 @@ async fn login(
         json!({"action": "auth.login", "actorUserId": user.id, "ip": ip, "userAgent": ua}),
     );
 
-    // HttpOnly cookie; Secure belongs to reverse-proxy/TLS termination, as before.
+    // HttpOnly + SameSite=Lax cookie; `Secure` is appended automatically
+    // outside dev (see `secure_suffix`), which requires HTTPS termination in
+    // front of the API for every non-dev deployment.
     let expires = timeutil::parse(&sess.expires_at).unwrap_or_else(chrono::Utc::now);
     let mut resp = (
         StatusCode::OK,
@@ -181,10 +211,11 @@ async fn login(
     resp.headers_mut().insert(
         header::SET_COOKIE,
         header::HeaderValue::from_str(&format!(
-            "{}={}; Path=/; HttpOnly; SameSite=Lax; Expires={}",
+            "{}={}; Path=/; HttpOnly; SameSite=Lax; Expires={}{}",
             state.config.session_cookie_name,
             sess.id,
-            http_date(expires)
+            http_date(expires),
+            secure_suffix(&state.config.env)
         ))
         .expect("cookie header is valid"),
     );
@@ -231,8 +262,9 @@ async fn logout(State(state): State<AppState>, headers: HeaderMap) -> Response {
     // Clear the cookie unconditionally.
     let mut resp = StatusCode::NO_CONTENT.into_response();
     if let Ok(v) = header::HeaderValue::from_str(&format!(
-        "{}=; Path=/; HttpOnly; SameSite=Lax; Expires=Thu, 01 Jan 1970 00:00:00 GMT",
-        state.config.session_cookie_name
+        "{}=; Path=/; HttpOnly; SameSite=Lax; Expires=Thu, 01 Jan 1970 00:00:00 GMT{}",
+        state.config.session_cookie_name,
+        secure_suffix(&state.config.env)
     )) {
         resp.headers_mut().insert(header::SET_COOKIE, v);
     }
@@ -342,17 +374,28 @@ async fn handle_totp_toggle(
         Some(s) => s,
         None => return coded_error(StatusCode::INTERNAL_SERVER_ERROR, "totp_secret_unreadable"),
     };
-    match crate::security::totp::verify(&secret, code, 1) {
-        Ok(true) => {}
-        Ok(false) => return coded_error(StatusCode::UNAUTHORIZED, "invalid_code"),
+    let matched = match crate::security::totp::verify(&secret, code, 6, 1) {
+        Ok(step) => step,
         Err(_) => return coded_error(StatusCode::INTERNAL_SERVER_ERROR, "totp_secret_unreadable"),
-    }
+    };
+    let Some(step) = matched else {
+        return coded_error(StatusCode::UNAUTHORIZED, "invalid_code");
+    };
     let new_enc = if enable { Some(enc.to_string()) } else { None };
     if crate::storage::users::set_totp_secret(&state.db, &user.user.id, new_enc.as_deref(), enable)
         .await
         .is_err()
     {
         return coded_error(StatusCode::INTERNAL_SERVER_ERROR, "totp_update_failed");
+    }
+    if enable {
+        match crate::storage::users::record_totp_step(&state.db, &user.user.id, step as i64).await
+        {
+            Ok(true) => {}
+            // The enabling code must never also grant a login.
+            Ok(false) => return coded_error(StatusCode::UNAUTHORIZED, "invalid_code"),
+            Err(e) => return AppError::Internal(e.to_string()).into_response(),
+        }
     }
     let action = if enable {
         "auth.totp.enable"
@@ -405,6 +448,12 @@ mod tests {
     use tower::ServiceExt;
 
     async fn app_state() -> (tempfile::TempDir, AppState) {
+        app_state_env("test").await
+    }
+
+    /// `env` feeds `Config.env`, which drives the session cookie `Secure`
+    /// flag: any value other than "dev" emits Secure.
+    async fn app_state_env(env: &str) -> (tempfile::TempDir, AppState) {
         let dir = tempfile::tempdir().unwrap();
         let db = crate::storage::open(&format!(
             "file://{}",
@@ -414,7 +463,7 @@ mod tests {
         .unwrap();
         crate::storage::migrations::apply(&db).await.unwrap();
         let config = Arc::new(crate::config::Config {
-            env: "test".into(),
+            env: env.into(),
             http_addr: String::new(),
             database_url: String::new(),
             dry_run: false,
@@ -482,6 +531,10 @@ mod tests {
         assert!(set_cookie.starts_with("rivet_session="));
         assert!(set_cookie.contains("HttpOnly"), "cookie must be HttpOnly");
         assert!(set_cookie.contains("SameSite=Lax"));
+        assert!(
+            set_cookie.contains("; Secure"),
+            "non-dev env must emit a Secure cookie"
+        );
         let sid = set_cookie
             .split(';')
             .next()
@@ -519,6 +572,81 @@ mod tests {
         assert_eq!(v["role"], "admin");
         assert_eq!(v["email"], "admin@x.test");
         assert_eq!(v["userId"], stored.user_id);
+    }
+
+    /// Regression: the session cookie carries `Secure` outside dev (both on
+    /// login set-cookie and logout clear-cookie) and stays plain in dev so
+    /// local HTTP flows keep working.
+    #[tokio::test]
+    async fn session_cookie_secure_tracks_env() {
+        // prod-like env: Secure on both cookies.
+        let (_dir, prod) = app_state_env("prod").await;
+        let clear_sess = seed_session(&prod, "secure@x.test", "admin").await;
+
+        let resp = full_router(prod.clone())
+            .oneshot(post_json(
+                "/api/v1/auth/login",
+                r#"{"email":"secure@x.test","password":"long-enough-password"}"#,
+                Some("203.0.113.80"),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let set_cookie = resp
+            .headers()
+            .get(header::SET_COOKIE)
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .to_string();
+        assert!(
+            set_cookie.contains("; Secure"),
+            "prod login cookie must be Secure: {set_cookie}"
+        );
+
+        // The logout clear-cookie keeps Secure too.
+        let req = Request::builder()
+            .method("POST")
+            .uri("/api/v1/auth/logout")
+            .header("cookie", format!("rivet_session={}", clear_sess.id))
+            .header("x-csrf-token", &clear_sess.csrf_token)
+            .body(Body::empty())
+            .unwrap();
+        let resp = full_router(prod).oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::NO_CONTENT);
+        let clear = resp
+            .headers()
+            .get(header::SET_COOKIE)
+            .unwrap()
+            .to_str()
+            .unwrap();
+        assert!(
+            clear.contains("; Secure"),
+            "prod logout clear-cookie must be Secure: {clear}"
+        );
+
+        // dev: no Secure, so plain-HTTP localhost logins keep working.
+        let (_dir, dev) = app_state_env("dev").await;
+        seed_session(&dev, "devsecure@x.test", "admin").await;
+        let resp = full_router(dev)
+            .oneshot(post_json(
+                "/api/v1/auth/login",
+                r#"{"email":"devsecure@x.test","password":"long-enough-password"}"#,
+                Some("203.0.113.81"),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let set_cookie = resp
+            .headers()
+            .get(header::SET_COOKIE)
+            .unwrap()
+            .to_str()
+            .unwrap();
+        assert!(
+            !set_cookie.contains("Secure"),
+            "dev cookie must stay usable over plain http: {set_cookie}"
+        );
     }
 
     #[tokio::test]
@@ -728,12 +856,37 @@ mod tests {
         crate::security::totp::totp_at(secret, 6, 30, 0, now).unwrap()
     }
 
-    async fn login_body(state: AppState, payload: String) -> (StatusCode, serde_json::Value) {
+    /// TOTP code `drift_steps` away from the live step (negative = past).
+    fn drifted_code(secret: &str, drift_steps: i64) -> String {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as i64;
+        let t = (now + drift_steps * 30).max(0) as u64;
+        crate::security::totp::totp_at(secret, 6, 30, 0, t).unwrap()
+    }
+
+    /// Simulates time having passed by clearing the recorded TOTP step, so a
+    /// fresh code at the same wall-clock step becomes acceptable again.
+    async fn reset_totp_step(state: &AppState, email: &str) {
+        sqlx::query("UPDATE users SET totp_last_step = NULL WHERE email = ?")
+            .bind(email)
+            .execute(&state.db)
+            .await
+            .unwrap();
+    }
+
+
+    async fn login_body_from(
+        state: AppState,
+        payload: String,
+        ip: &str,
+    ) -> (StatusCode, serde_json::Value) {
         let resp = full_router(state)
             .oneshot(post_json(
                 "/api/v1/auth/login",
                 &payload,
-                Some("203.0.113.50"),
+                Some(ip),
             ))
             .await
             .unwrap();
@@ -751,9 +904,10 @@ mod tests {
         let secret = uri_secret(&uri);
 
         // Enrollment is NOT active until enable: login without code still works.
-        let (status, v) = login_body(
+        let (status, v) = login_body_from(
             state.clone(),
             r#"{"email":"totp@x.test","password":"long-enough-password"}"#.into(),
+            FLOW_IP,
         )
         .await;
         assert_eq!(
@@ -799,37 +953,54 @@ mod tests {
         assert!(user.totp_enabled);
         assert!(user.totp_secret_enc.is_some());
 
+        // The enabling code's timestep was recorded: the SAME code must not
+        // also grant a login, even inside its drift window.
+        let payload = format!(
+            r#"{{"email":"totp@x.test","password":"long-enough-password","code":"{code}"}}"#
+        );
+        let (status, v) = login_body_from(state.clone(), payload, FLOW_IP).await;
+        assert_eq!(status, StatusCode::UNAUTHORIZED);
+        assert_eq!(v, serde_json::json!({"error": "invalid_code"}));
+
         // Login WITHOUT code now → totp_required.
-        let (status, v) = login_body(
+        let (status, v) = login_body_from(
             state.clone(),
             r#"{"email":"totp@x.test","password":"long-enough-password"}"#.into(),
+            FLOW_IP,
         )
         .await;
         assert_eq!(status, StatusCode::UNAUTHORIZED);
         assert_eq!(v, serde_json::json!({"error": "totp_required"}));
 
         // Login with a WRONG code → invalid_code.
-        let (status, v) = login_body(
+        let (status, v) = login_body_from(
             state.clone(),
             r#"{"email":"totp@x.test","password":"long-enough-password","code":"000000"}"#.into(),
+            FLOW_IP,
         )
         .await;
         assert_eq!(status, StatusCode::UNAUTHORIZED);
         assert_eq!(v, serde_json::json!({"error": "invalid_code"}));
 
         // Login with the live code succeeds end-to-end.
+        // Enable recorded its timestep; emulate time passing so a fresh live
+        // code can be minted for the login below.
+        reset_totp_step(&state, "totp@x.test").await;
         let code = current_code(&secret);
-        let (status, v) = login_body(
+        let (status, v) = login_body_from(
             state.clone(),
             format!(
                 r#"{{"email":"totp@x.test","password":"long-enough-password","code":"{code}"}}"#
             ),
+            FLOW_IP,
         )
         .await;
         assert_eq!(status, StatusCode::OK, "valid TOTP must grant login: {v}");
         assert!(v["token"].is_string());
 
         // Disable with a live code clears secret + flag.
+        // Login above recorded its timestep; emulate time passing for disable.
+        reset_totp_step(&state, "totp@x.test").await;
         let code = current_code(&secret);
         let req = Request::builder()
             .method("POST")
@@ -851,9 +1022,114 @@ mod tests {
         );
 
         // And password-only login works again.
-        let (status, _) = login_body(
+        let (status, _) = login_body_from(
             state,
             r#"{"email":"totp@x.test","password":"long-enough-password"}"#.into(),
+            FLOW_IP,
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+    }
+
+    /// Dedicated rate-limiter bucket for the enable/login/disable flow test:
+    /// it must never contend with other tests for the shared default bucket.
+    const FLOW_IP: &str = "203.0.113.52";
+
+    /// Distinct XFF bucket for the replay test: it issues many logins and
+    /// must never contend with other tests for the shared default bucket.
+    const REPLAY_IP: &str = "203.0.113.51";
+
+    #[tokio::test]
+    async fn totp_replay_rejected_but_drift_window_works() {
+        let (_dir, state) = app_state().await;
+        let (sess, uri) = do_setup(&state, "replay@x.test").await;
+        let secret = uri_secret(&uri);
+
+        // Enable with a live code (the enable flow records its timestep).
+        let code = current_code(&secret);
+        let req = Request::builder()
+            .method("POST")
+            .uri("/api/v1/auth/totp/enable")
+            .header("content-type", "application/json")
+            .header("cookie", format!("rivet_session={}", sess.id))
+            .header("x-csrf-token", &sess.csrf_token)
+            .body(Body::from(format!(r#"{{"code":"{code}"}}"#)))
+            .unwrap();
+        let resp = full_router(state.clone()).oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::NO_CONTENT);
+
+        // The SAME code must not also grant a login.
+        let payload = format!(
+            r#"{{"email":"replay@x.test","password":"long-enough-password","code":"{code}"}}"#
+        );
+        let (status, v) = login_body_from(state.clone(), payload.clone(), REPLAY_IP).await;
+        assert_eq!(status, StatusCode::UNAUTHORIZED);
+        assert_eq!(v, serde_json::json!({"error": "invalid_code"}));
+        // A fresh live code logs in...
+        reset_totp_step(&state, "replay@x.test").await;
+        let fresh = current_code(&secret);
+        let fresh_payload = format!(
+            r#"{{"email":"replay@x.test","password":"long-enough-password","code":"{fresh}"}}"#
+        );
+        let (status, v) = login_body_from(state.clone(), fresh_payload.clone(), REPLAY_IP).await;
+        assert_eq!(status, StatusCode::OK, "fresh TOTP must grant login: {v}");
+        assert!(v["token"].is_string());
+
+        // ...but an immediate replay of that exact request fails, even though
+        // the drift window still covers the code's timestep.
+        let (status, v) = login_body_from(state.clone(), fresh_payload, REPLAY_IP).await;
+        assert_eq!(status, StatusCode::UNAUTHORIZED);
+        assert_eq!(v, serde_json::json!({"error": "invalid_code"}));
+
+        // Drift window: the PREVIOUS step's code is still accepted.
+        reset_totp_step(&state, "replay@x.test").await;
+        let prev = drifted_code(&secret, -1);
+        let (status, v) = login_body_from(
+            state.clone(),
+            format!(
+                r#"{{"email":"replay@x.test","password":"long-enough-password","code":"{prev}"}}"#
+            ),
+            REPLAY_IP
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK, "previous-step code must work: {v}");
+        assert!(v["token"].is_string());
+
+        // Wrong-length codes are rejected outright, even when they are
+        // genuinely valid codes for another digit count.
+        reset_totp_step(&state, "replay@x.test").await;
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        let eight =
+            crate::security::totp::totp_at(&secret, 8, 30, 0, now).unwrap();
+        let seven = format!("9{eight}");
+        for bad in [seven, eight] {
+            let (status, v) = login_body_from(
+                state.clone(),
+                format!(
+                    r#"{{"email":"replay@x.test","password":"long-enough-password","code":"{bad}"}}"#
+                ),
+                REPLAY_IP
+            )
+            .await;
+            assert_eq!(
+                status,
+                StatusCode::UNAUTHORIZED,
+                "{bad}-digit code must be rejected"
+            );
+            assert_eq!(v["error"], "invalid_code");
+        }
+
+        // And a correct-length code still logs in afterwards.
+        let ok = drifted_code(&secret, 0);
+        let (status, _) = login_body_from(
+            state,
+            format!(
+                r#"{{"email":"replay@x.test","password":"long-enough-password","code":"{ok}"}}"#
+            ),
+            REPLAY_IP
         )
         .await;
         assert_eq!(status, StatusCode::OK);

@@ -49,7 +49,9 @@ fn bench_queue(c: &mut Criterion) {
                     lease_duration: chrono::Duration::seconds(30),
                 };
                 let job = queue::claim_one(&pool, &opts).await.unwrap();
-                queue::complete(&pool, &job.id, &opts.lease_owner).await.unwrap();
+                queue::complete(&pool, &job.id, &opts.lease_owner)
+                    .await
+                    .unwrap();
             })
         })
     });

@@ -112,8 +112,25 @@ async fn create_admin(
         Err(_) => return AppError::Internal("hash task failed".into()).into_response(),
     };
 
-    // Authoritative double-check inside the request to avoid a create race.
-    let n = match crate::storage::users::count_users(&state.db).await {
+    // Authoritative check + insert in ONE `BEGIN IMMEDIATE` transaction.
+    // A plain SELECT-then-INSERT has a TOCTOU window: two concurrent
+    // first-run requests with different emails can both observe zero users
+    // and mint two admins. BEGIN IMMEDIATE takes the write lock up front,
+    // serializing contenders before the count is read.
+    let mut tx = match state.db.begin_with("BEGIN IMMEDIATE").await {
+        Ok(tx) => tx,
+        Err(_) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                axum::Json(json!({"error": "db_error"})),
+            )
+                .into_response()
+        }
+    };
+    let n = match sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM users")
+        .fetch_one(&mut *tx)
+        .await
+    {
         Ok(n) => n,
         Err(_) => {
             return (
@@ -124,11 +141,27 @@ async fn create_admin(
         }
     };
     if n != 0 {
+        // Dropping `tx` rolls back and releases the write lock.
         return setup_conflict();
     }
 
-    let user = match crate::storage::users::create(&state.db, &email, &hash, "admin").await {
-        Ok(u) => u,
+    // Inlined from storage::users::create so the INSERT joins the same
+    // transaction (`create` takes a pool handle and cannot run on `tx`).
+    let id = uuid::Uuid::new_v4().to_string();
+    let now = crate::timeutil::fmt(chrono::Utc::now());
+    match sqlx::query(
+        "INSERT INTO users (id, email, password_hash, role, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+    )
+    .bind(&id)
+    .bind(&email)
+    .bind(&hash)
+    .bind("admin")
+    .bind(&now)
+    .bind(&now)
+    .execute(&mut *tx)
+    .await
+    {
+        Ok(_) => {}
         Err(_) => {
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
@@ -137,6 +170,13 @@ async fn create_admin(
                 .into_response()
         }
     };
+    if tx.commit().await.is_err() {
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            axum::Json(json!({"error": "db_error"})),
+        )
+            .into_response();
+    }
 
     // RACE FIX: flip the gate synchronously BEFORE responding, so the
     // frontend's immediate POST /auth/login cannot hit setup_required.
@@ -147,7 +187,7 @@ async fn create_admin(
     let _ = insert_audit(
         &state.db,
         AuditEvent {
-            actor_user_id: Some(user.id.clone()),
+            actor_user_id: Some(id.clone()),
             action: "setup.admin_created".into(),
             ..Default::default()
         },
@@ -155,12 +195,12 @@ async fn create_admin(
     .await;
     state.hub.publish_event(
         "audit.event",
-        json!({"action": "setup.admin_created", "actorUserId": user.id}),
+        json!({"action": "setup.admin_created", "actorUserId": id}),
     );
 
     (
         StatusCode::CREATED,
-        axum::Json(CreateAdminResponse { userId: user.id }),
+        axum::Json(CreateAdminResponse { userId: id }),
     )
         .into_response()
 }
@@ -325,5 +365,45 @@ mod tests {
         // Status now derives setupMode=false from the user count fallback.
         let (_, v) = req_json(state, "GET", "/api/v1/setup/status", None).await;
         assert_eq!(v["setupMode"], false);
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
+    async fn concurrent_first_run_mints_exactly_one_admin() {
+        // Regression for the TOCTOU fix: 8 parallel first-run requests with
+        // distinct emails must yield exactly one 201 and seven conflicts —
+        // never two admins.
+        crate::httpapi::middleware::setup_gate::reset_shared_for_tests();
+        let (_dir, state) = app_state(true).await;
+        if let Some(g) = crate::httpapi::middleware::setup_gate::shared() {
+            g.notify_user_created(); // neutralize any stale gate from another test
+            crate::httpapi::middleware::setup_gate::reset_shared_for_tests();
+        }
+
+        let mut handles = Vec::new();
+        for i in 0..8 {
+            let st = state.clone();
+            handles.push(tokio::spawn(async move {
+                let body = format!(
+                    r#"{{"email":"race{i}@x.test","password":"long-enough-password"}}"#
+                );
+                req_json(st, "POST", "/api/v1/setup/admin", Some(&body)).await
+            }));
+        }
+
+        let (mut created, mut rejected) = (0usize, 0usize);
+        for h in handles {
+            let (status, _) = h.await.unwrap();
+            match status {
+                StatusCode::CREATED => created += 1,
+                StatusCode::CONFLICT | StatusCode::BAD_REQUEST => rejected += 1,
+                other => panic!("unexpected status {other}"),
+            }
+        }
+        assert_eq!(created, 1, "exactly one request may mint the admin");
+        assert_eq!(rejected, 7);
+
+        let n: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM users").fetch_one(&state.db).await.unwrap();
+        assert_eq!(n, 1);
     }
 }

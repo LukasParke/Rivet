@@ -52,6 +52,9 @@ pub struct ClaimOpts {
 
 /// Inserts a queued job. `payload` must serialize; a serialization failure is
 /// an error, never a silently-empty row.
+///
+/// `RETURNING *` yields the stored row in the same statement — no follow-up
+/// `SELECT` round trip.
 pub async fn enqueue<T: serde::Serialize>(
     pool: &SqlitePool,
     kind: &str,
@@ -71,61 +74,60 @@ pub async fn enqueue<T: serde::Serialize>(
         ),
     };
     let id = uuid::Uuid::new_v4().to_string();
-    sqlx::query(
+    let now_s = timeutil::fmt(now);
+    sqlx::query_as::<_, Job>(
         "INSERT INTO jobs (id, kind, state, lease_owner, lease_expires_at, attempt, run_after, payload_json, last_error, created_at, updated_at)
-         VALUES (?, ?, 'queued', NULL, NULL, 0, ?, ?, NULL, ?, ?)",
+         VALUES (?, ?, 'queued', NULL, NULL, 0, ?, ?, NULL, ?, ?)
+         RETURNING *",
     )
     .bind(&id)
     .bind(kind)
     .bind(&run_after)
     .bind(&payload_json)
-    .bind(timeutil::fmt(now))
-    .bind(timeutil::fmt(now))
-    .execute(pool)
-    .await?;
-    get(pool, &id).await?.ok_or(QueueError::NoJob)
+    .bind(&now_s)
+    .bind(&now_s)
+    .fetch_one(pool)
+    .await
+    .map_err(QueueError::from)
 }
 
 /// Claims one runnable job: queued, due, and not actively leased.
-/// The claim UPDATE re-checks all conditions so concurrent claimers race safely.
+///
+/// Single atomic statement: the scalar subquery picks the oldest runnable job
+/// (FIFO by `run_after`, `created_at`) and the outer `UPDATE` re-checks every
+/// claim condition against the row *at write time*, so two workers racing on
+/// the same candidate are serialized by SQLite's write lock and exactly one
+/// wins — the loser sees zero affected rows and gets [`QueueError::NoJob`].
+/// Lease ownership is stamped inside the same statement, so an expired-lease
+/// zombie can never interleave between selection and claim.
 pub async fn claim_one(pool: &SqlitePool, opts: &ClaimOpts) -> Result<Job, QueueError> {
     let now = Utc::now();
     let lease_exp = timeutil::fmt(now + opts.lease_duration);
     let now_s = timeutil::fmt(now);
 
-    let candidate: Option<(String,)> = sqlx::query_as(
-        "SELECT id FROM jobs
-         WHERE state = 'queued' AND run_after <= ?
+    let job: Option<Job> = sqlx::query_as(
+        "UPDATE jobs SET lease_owner = ?, lease_expires_at = ?, updated_at = ?
+         WHERE id = (
+             SELECT id FROM jobs
+             WHERE state = 'queued' AND run_after <= ?
+               AND (lease_expires_at IS NULL OR lease_expires_at <= ?)
+             ORDER BY run_after ASC, created_at ASC LIMIT 1
+         )
+           AND state = 'queued' AND run_after <= ?
            AND (lease_expires_at IS NULL OR lease_expires_at <= ?)
-         ORDER BY run_after ASC, created_at ASC LIMIT 1",
+         RETURNING *",
     )
+    .bind(&opts.lease_owner)
+    .bind(&lease_exp)
+    .bind(&now_s)
+    .bind(&now_s)
+    .bind(&now_s)
     .bind(&now_s)
     .bind(&now_s)
     .fetch_optional(pool)
     .await?;
 
-    let Some((id,)) = candidate else {
-        return Err(QueueError::NoJob);
-    };
-
-    let res = sqlx::query(
-        "UPDATE jobs SET lease_owner = ?, lease_expires_at = ?, updated_at = ?
-         WHERE id = ? AND state = 'queued' AND run_after <= ?
-           AND (lease_expires_at IS NULL OR lease_expires_at <= ?)",
-    )
-    .bind(&opts.lease_owner)
-    .bind(&lease_exp)
-    .bind(&now_s)
-    .bind(&id)
-    .bind(&now_s)
-    .bind(&now_s)
-    .execute(pool)
-    .await?;
-
-    if res.rows_affected() != 1 {
-        return Err(QueueError::NoJob);
-    }
-    get(pool, &id).await?.ok_or(QueueError::NoJob)
+    job.ok_or(QueueError::NoJob)
 }
 
 /// Extends the caller's live lease. Fails if ownership was lost.
