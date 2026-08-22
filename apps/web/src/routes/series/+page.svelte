@@ -75,6 +75,39 @@
 		}
 	}
 
+	// --- Library (real GET /api/v1/series) --------------------------------
+	let library = [];
+	let libraryError = null;
+
+	async function loadLibrary() {
+		try {
+			const res = await apiFetch('/api/v1/series');
+			if (!res.ok) {
+				libraryError = `library_load_failed (${res.status})`;
+				return;
+			}
+			library = await res.json();
+			libraryError = null;
+		} catch (e) {
+			libraryError = String(e);
+		}
+	}
+	loadLibrary();
+
+	async function deleteSeries(id) {
+		await apiFetch(`/api/v1/series/${id}`, { method: 'DELETE' });
+		await loadLibrary();
+	}
+
+	async function toggleMonitor(s) {
+		await apiFetch(`/api/v1/series/${s.id}/monitor`, {
+			method: 'PUT',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ monitored: !s.monitored })
+		});
+		await loadLibrary();
+	}
+
 	// --- Library activity -------------------------------------------------
 	let activity = data.missing ?? [];
 	let activityTotal = data.total ?? 0;
@@ -172,7 +205,41 @@
 
 	<section class="card">
 		<div class="row" style="justify-content: space-between; align-items: center;">
-			<h2 style="margin: 0;">Library activity</h2>
+			<h2 style="margin: 0;">Library</h2>
+		{#if libraryError}
+			<p class="muted">{libraryError}</p>
+		{:else if library.length === 0}
+			<p class="muted">No series yet — add one above.</p>
+		{:else}
+			<table style="width: 100%; border-collapse: collapse;">
+				<thead>
+					<tr>
+						<th style="text-align: left;">Title</th>
+						<th style="text-align: left;">Status</th>
+						<th style="text-align: left;">Monitored</th>
+						<th style="text-align: left;">Actions</th>
+					</tr>
+				</thead>
+				<tbody>
+					{#each library as s (s.id)}
+						<tr>
+							<td>{s.title}</td>
+							<td>{s.status}</td>
+							<td>
+								<button on:click={() => toggleMonitor(s)}>
+									{s.monitored ? 'Unmonitor' : 'Monitor'}
+								</button>
+							</td>
+							<td>
+								<button on:click={() => deleteSeries(s.id)}>Delete</button>
+							</td>
+						</tr>
+					{/each}
+				</tbody>
+			</table>
+		{/if}
+
+		<h2 style="margin: 0;">Library activity</h2>
 			<button class="secondary" disabled={activityBusy} on:click={refreshActivity}>
 				{activityBusy ? 'Refreshing…' : 'Refresh'}
 			</button>

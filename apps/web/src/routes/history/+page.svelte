@@ -6,6 +6,7 @@
 -->
 <script>
 	import { onDestroy } from 'svelte';
+	import { apiFetch } from '$lib/api';
 	import { connectWS } from '$lib/ws';
 	import Nav from '$lib/components/Nav.svelte';
 
@@ -16,6 +17,34 @@
 	let wsStatus = 'connecting';
 	let filter = 'all';
 	let wsHandle = null;
+
+	// Backfill from the persisted history endpoint (newest first already).
+	async function loadBackfill() {
+		const res = await apiFetch('/api/v1/history?pageSize=100');
+		if (!res.ok) return;
+		const data = await res.json();
+		const rows = (data.items ?? []).map((h) => ({
+			type: h.eventType,
+			ts: h.createdAt,
+			channel: channelOf(h.eventType),
+			payload: { sourceTitle: h.sourceTitle, quality: h.quality, data: h.data }
+		}));
+		events = mergeEvents(rows);
+	}
+
+	function mergeEvents(incoming) {
+		const seen = new Set(events.map((e) => `${e.ts}|${e.type}|${JSON.stringify(e.payload)}`));
+		return [...incoming, ...events]
+			.filter((e) => {
+				const k = `${e.ts}|${e.type}|${JSON.stringify(e.payload)}`;
+				if (seen.has(k)) return false;
+				seen.add(k);
+				return true;
+			})
+			.sort((a, b) => (a.ts < b.ts ? 1 : -1))
+			.slice(0, MAX_EVENTS);
+	}
+	loadBackfill();
 
 	function channelOf(type) {
 		const prefix = String(type).split('.')[0];
@@ -30,15 +59,14 @@
 		channels: CHANNELS,
 		onEvent(msg) {
 			const type = typeof msg?.type === 'string' ? msg.type : 'unknown';
-			events = [
+			events = mergeEvents([
 				{
 					type,
 					ts: typeof msg?.ts === 'string' ? msg.ts : new Date().toISOString(),
 					channel: channelOf(type),
 					payload: msg?.payload ?? null
-				},
-				...events
-			].slice(0, MAX_EVENTS);
+				}
+			]);
 		},
 		onStatus(status) {
 			wsStatus = status;
@@ -95,9 +123,7 @@
 	{#if shown.length === 0}
 		<div class="card">
 			<p class="muted">
-				{filter === 'all'
-					? 'No events yet. The feed is live-only; a REST backfill endpoint lands separately.'
-					: `No ${filter} events yet.`}
+				{filter === 'all' ? 'No events yet.' : `No ${filter} events yet.`}
 			</p>
 		</div>
 	{:else}
